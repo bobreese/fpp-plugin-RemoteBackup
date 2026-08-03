@@ -38,12 +38,42 @@ if [ -z "$FSTYPE" ]; then
     exit 0
 fi
 
+FPP_UID=$(id -u fpp 2>/dev/null || echo 1000)
+FPP_GID=$(id -g fpp 2>/dev/null || echo 1000)
+
 # Already mounted somewhere?
 CURRENT_MP=$(lsblk -no MOUNTPOINT "$DEVICE" 2>/dev/null | head -1 | tr -d ' ')
 if [ -n "$CURRENT_MP" ]; then
     if [ "$CURRENT_MP" = "$MOUNT_POINT" ]; then
         rb_log "mount_usb: $DEVICE already mounted at $MOUNT_POINT"
-        jq -n --arg mp "$MOUNT_POINT" --arg fs "$FSTYPE" '{ok:true, mountpoint:$mp, fstype:$fs, alreadyMounted:true}'
+
+        # Don't just report success - a drive mounted before this fix
+        # shipped (or mounted by something other than us) can be present
+        # but not actually writable by fpp, which is invisible until a
+        # backup run tries to write and fails. Check, and for FAT-family
+        # filesystems try a self-healing remount before giving up.
+        TESTFILE="${MOUNT_POINT}/.rb_write_test_$$"
+        if sudo -u fpp touch "$TESTFILE" 2>/dev/null; then
+            sudo -u fpp rm -f "$TESTFILE" 2>/dev/null
+            jq -n --arg mp "$MOUNT_POINT" --arg fs "$FSTYPE" '{ok:true, mountpoint:$mp, fstype:$fs, alreadyMounted:true, writableByFpp:true}'
+            exit 0
+        fi
+
+        case "$FSTYPE" in
+            vfat|fat|fat32|exfat|ntfs|ntfs3)
+                rb_log "mount_usb: $MOUNT_POINT already mounted but not writable by fpp; attempting remount with uid=$FPP_UID,gid=$FPP_GID"
+                sudo mount -o "remount,uid=${FPP_UID},gid=${FPP_GID},umask=000" "$MOUNT_POINT" 2>/tmp/rb_mount_err_$$
+                ;;
+        esac
+        if sudo -u fpp touch "$TESTFILE" 2>/dev/null; then
+            sudo -u fpp rm -f "$TESTFILE" 2>/dev/null
+            rm -f /tmp/rb_mount_err_$$
+            rb_log "mount_usb: remount fixed write access at $MOUNT_POINT"
+            jq -n --arg mp "$MOUNT_POINT" --arg fs "$FSTYPE" '{ok:true, mountpoint:$mp, fstype:$fs, alreadyMounted:true, writableByFpp:true, remounted:true}'
+            exit 0
+        fi
+        rm -f /tmp/rb_mount_err_$$
+        json_err "$MOUNT_POINT is mounted but not writable by the 'fpp' user. Try: sudo umount $MOUNT_POINT && sudo mount -a"
         exit 0
     else
         json_err "$DEVICE is already mounted at $CURRENT_MP"
@@ -52,7 +82,23 @@ if [ -n "$CURRENT_MP" ]; then
 fi
 
 sudo mkdir -p "$MOUNT_POINT" 2>&1
-if ! sudo mount "$DEVICE" "$MOUNT_POINT" 2>/tmp/rb_mount_err_$$; then
+
+# FAT-family filesystems (exFAT/vFAT/NTFS) have no on-disk Unix ownership
+# at all - "who owns what" is decided entirely by uid=/gid=/umask= mount
+# options, not by chown afterward. A plain `mount` with no options lands
+# everything as root with a restrictive umask, so a later `chown fpp:fpp`
+# is silently a no-op and every remote's backup fails with "could not
+# create/write to target directory" even though the drive IS mounted.
+# ext4/other native-Unix filesystems don't understand these options at
+# all, so only apply them for the FAT/exFAT/NTFS family.
+MOUNT_OPTS=()
+case "$FSTYPE" in
+    vfat|fat|fat32|exfat|ntfs|ntfs3)
+        MOUNT_OPTS=(-o "uid=${FPP_UID},gid=${FPP_GID},umask=000")
+        ;;
+esac
+
+if ! sudo mount "${MOUNT_OPTS[@]}" "$DEVICE" "$MOUNT_POINT" 2>/tmp/rb_mount_err_$$; then
     ERR=$(cat /tmp/rb_mount_err_$$ 2>/dev/null)
     rm -f /tmp/rb_mount_err_$$
     rb_log "mount_usb FAILED: $DEVICE -> $MOUNT_POINT : $ERR"
@@ -61,18 +107,42 @@ if ! sudo mount "$DEVICE" "$MOUNT_POINT" 2>/tmp/rb_mount_err_$$; then
 fi
 rm -f /tmp/rb_mount_err_$$
 
+# Native-Unix filesystems (ext4 etc.) still need the explicit chown, since
+# they weren't covered by MOUNT_OPTS above.
 sudo chown fpp:fpp "$MOUNT_POINT" 2>/dev/null || true
 sudo chmod 0775 "$MOUNT_POINT" 2>/dev/null || true
+
+# Prove it, don't assume it: try an actual write as the fpp user before
+# reporting success, so a permissions problem is caught here with a clear
+# message instead of surfacing later as a confusing per-remote rsync
+# failure during a backup run.
+WRITABLE=true
+TESTFILE="${MOUNT_POINT}/.rb_write_test_$$"
+if ! sudo -u fpp touch "$TESTFILE" 2>/dev/null; then
+    WRITABLE=false
+else
+    sudo -u fpp rm -f "$TESTFILE" 2>/dev/null
+fi
 
 ADDED_FSTAB=false
 if [ "$ADD_FSTAB" = "1" ] && [ -n "$UUID" ]; then
     if ! grep -q "UUID=${UUID}" /etc/fstab 2>/dev/null; then
-        echo "UUID=${UUID} ${MOUNT_POINT} auto nofail,x-systemd.device-timeout=10,uid=fpp,gid=fpp 0 0" | sudo tee -a /etc/fstab >/dev/null
+        FSTAB_OPTS="nofail,x-systemd.device-timeout=10,uid=fpp,gid=fpp"
+        case "$FSTYPE" in
+            vfat|fat|fat32|exfat|ntfs|ntfs3) FSTAB_OPTS="${FSTAB_OPTS},umask=000" ;;
+        esac
+        echo "UUID=${UUID} ${MOUNT_POINT} auto ${FSTAB_OPTS} 0 0" | sudo tee -a /etc/fstab >/dev/null
         ADDED_FSTAB=true
         rb_log "mount_usb: added fstab entry for UUID=$UUID -> $MOUNT_POINT"
     fi
 fi
 
-rb_log "mount_usb: mounted $DEVICE ($FSTYPE) at $MOUNT_POINT (fstab=$ADDED_FSTAB)"
+if [ "$WRITABLE" != "true" ]; then
+    rb_log "mount_usb: mounted $DEVICE ($FSTYPE) at $MOUNT_POINT but it is NOT writable by fpp"
+    json_err "Mounted $DEVICE at $MOUNT_POINT, but the 'fpp' user cannot write to it. Try: sudo umount $MOUNT_POINT && sudo mount -a  (this re-mounts using the fstab entry above), then rescan."
+    exit 0
+fi
+
+rb_log "mount_usb: mounted $DEVICE ($FSTYPE) at $MOUNT_POINT (fstab=$ADDED_FSTAB, writable=true)"
 jq -n --arg mp "$MOUNT_POINT" --arg fs "$FSTYPE" --argjson fstab "$ADDED_FSTAB" \
-    '{ok:true, mountpoint:$mp, fstype:$fs, addedFstab:$fstab}'
+    '{ok:true, mountpoint:$mp, fstype:$fs, addedFstab:$fstab, writableByFpp:true}'
