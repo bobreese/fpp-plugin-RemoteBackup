@@ -1,0 +1,28 @@
+{
+	"documentation": "https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/README.md",
+	"repoName": "fpp-plugin-RemoteBackup",
+	"name": "Remote Backup",
+	"author": "Bo Reese (bobreese)",
+	"description": "Designate this FPP as a Backup Host and pull rsync backups of one or more MultiSync remotes onto local NVMe/SSD, USB, or SD card storage. Supports up to 2 concurrent transfers, --dry-run space checks, mirrored deletes, and dated/rolling per-remote backups named like Pi5-20260803.",
+	"homeURL": "https://github.com/bobreese/fpp-plugin-RemoteBackup",
+	"srcURL": "https://github.com/bobreese/fpp-plugin-RemoteBackup.git",
+	"bugURL": "https://github.com/bobreese/fpp-plugin-RemoteBackup/issues",
+	"iconURL": "https://raw.githubusercontent.com/bobreese/fpp-plugin-RemoteBackup/master/icon.png",
+	"allowUpdates": 1,
+	"versions": [
+		{
+			"minFPPVersion": "9.0",
+			"maxFPPVersion": "0",
+			"branch": "master",
+			"sha": ""
+		}
+	],
+	"dependencies": {
+		"packages": [
+			"rsync",
+			"jq",
+			"openssh-client",
+			"sshpass"
+		]
+	}
+}

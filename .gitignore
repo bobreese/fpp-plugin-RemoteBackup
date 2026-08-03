@@ -1,0 +1,5 @@
+data/settings.json
+data/status/*.json
+data/logs/*
+data/pids/*
+data/run_active.json
