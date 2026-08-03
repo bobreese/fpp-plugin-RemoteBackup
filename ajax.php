@@ -198,10 +198,24 @@ switch ($action) {
         if (!$device || substr($device, 0, 5) !== '/dev/') rb_fail('Invalid device path');
         if ($confirm !== 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE') rb_fail('Missing confirmation');
 
+        // Formatting wipes the destination out from under any in-progress
+        // (or about-to-start) backup run, which surfaces as a confusing
+        // "rsync mkdir failed" error on every remote at once. Share the
+        // same run_active.json lock that 'start' uses so the two can
+        // never overlap.
+        $active = @file_get_contents("$DATA_DIR/run_active.json");
+        $activeData = $active ? json_decode($active, true) : null;
+        if ($activeData && !empty($activeData['active'])) {
+            rb_fail('A backup run is currently in progress. Stop it (or wait for it to finish) before formatting the destination drive.', 409);
+        }
+        file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => true, 'action' => 'format']));
+
         rb_log_line("FORMAT requested device=$device fstype=$fstype");
         $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm], 90);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'error' => 'No response from format_usb.sh - see data/logs/ajax.log'];
+
+        file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => false]));
         echo json_encode($data);
         break;
     }

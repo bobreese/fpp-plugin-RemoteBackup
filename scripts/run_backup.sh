@@ -39,6 +39,24 @@ if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     exit 1
 fi
 
+# rb_dest_mounted: true if $DEST_MOUNT is a directory AND (when the
+# mountpoint(1) tool exists) actually still an active mount, not just an
+# empty directory left behind after the drive was unplugged/unmounted.
+# Checked once up front and again per-remote, since a format/reformat or
+# a physical disconnect can drop the mount mid-run.
+rb_dest_mounted() {
+    [ -d "$DEST_MOUNT" ] || return 1
+    if [ "$DEST_MOUNT" != "/" ] && command -v mountpoint >/dev/null 2>&1; then
+        mountpoint -q "$DEST_MOUNT" || return 1
+    fi
+    return 0
+}
+
+if ! rb_dest_mounted; then
+    echo "Destination storage '$DEST_MOUNT' is not currently mounted (drive may have been unplugged, unmounted, or is mid-format). Re-check Config > Storage." >&2
+    exit 1
+fi
+
 MAX_CONCURRENT=$(rb_setting '.maxConcurrent' '2')
 DELETE_EXTRA=$(rb_setting '.deleteExtraneous' 'false')
 SNAPSHOT_MODE=$(rb_setting '.snapshotMode' 'false')
@@ -91,6 +109,14 @@ backup_one() {
     today=$(date '+%Y%m%d')
     logfile="${LOG_DIR}/${id}-${RUN_ID}.log"
 
+    if ! rb_dest_mounted; then
+        rb_log "ABORT $id: destination '$DEST_MOUNT' is not mounted (checked just before starting this remote)"
+        rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
+            --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" \
+            '{id:$id, hostname:$hostname, address:$address, state:"error", dryRun:$dryrun, runId:$run, finishedAt:$t, errorDetail:"Destination drive is not mounted. It may have been disconnected, unmounted, or reformatted. Check Config > Storage and try again."}')"
+        return
+    fi
+
     rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
         --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" \
         '{id:$id, hostname:$hostname, address:$address, state:"running", dryRun:$dryrun, runId:$run, startedAt:$t, currentFile:"", percent:0}')"
@@ -112,6 +138,14 @@ backup_one() {
             rb_log "renamed existing backup for $id: $(basename "$existing") -> $(basename "$target")"
         fi
         mkdir -p "$target"
+    fi
+
+    if [ ! -d "$target" ] || [ ! -w "$target" ]; then
+        rb_log "ERROR $id: could not create/write to target directory '$target' (destination likely unmounted or disconnected mid-run)"
+        rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
+            --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" --arg target "$target" \
+            '{id:$id, hostname:$hostname, address:$address, state:"error", dryRun:$dryrun, runId:$run, finishedAt:$t, target:$target, errorDetail:"Could not create or write to the backup folder on the destination drive. It may have been unmounted, disconnected, or reformatted during this run."}')"
+        return
     fi
 
     [ "$DRYRUN" = "1" ] && extra+=(--dry-run)
