@@ -356,7 +356,13 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-delete-backup').addEventListener('click', function () {
                 var name = path.split('/').filter(Boolean).pop();
                 if (!confirm('Delete this backup?\n\n' + path + '\n(' + humanBytes(data.sizeBytes) + ')\n\nThis cannot be undone.')) return;
-                var typed = prompt('Type the backup folder name exactly to confirm deletion: ' + name);
+                // Pre-fill the confirmation field with the backup's own name so
+                // there's nothing to manually retype - reviewing what's shown and
+                // clicking OK (or Cancel to back out) is the verification step.
+                // Editing/clearing it still requires an exact match below, so it's
+                // not just a rubber-stamp click.
+                var typed = prompt('Confirm deletion - the backup folder name is pre-filled below. Click OK to delete it, or Cancel to back out:', name);
+                if (typed === null) { return; }
                 if (typed !== name) { alert('Confirmation text did not match "' + name + '" - aborted, nothing was deleted.'); return; }
 
                 var btn = document.getElementById('rb-delete-backup');
