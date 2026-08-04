@@ -98,7 +98,15 @@ rb_resolve_remote_setting() {
     curl -s --max-time 5 "http://${urlhost}/api/settings/${name}" 2>/dev/null | jq -r '.value // empty' 2>/dev/null
 }
 
-EXCLUDE_ARGS=()
+# system-config/ and system-logs/ are subfolders this plugin creates
+# itself (the extras step, further down) - they are never part of the
+# remote's /home/fpp/media tree, so the main pull below must never
+# consider them for deletion. Without this, --delete (mirror deletes)
+# sees them as "extraneous" content not present in the source and wipes
+# them out on every run, right before the extras step tries to
+# repopulate them - always one run behind, and confusing to read in the
+# transfer log ("deleting system-config/...").
+EXCLUDE_ARGS=(--exclude=system-config/ --exclude=system-logs/)
 while IFS= read -r pat; do
     [ -n "$pat" ] && EXCLUDE_ARGS+=(--exclude="$pat")
 done < <(jq -r '.excludes[]? // empty' "$SETTINGS_FILE" 2>/dev/null)
@@ -203,7 +211,7 @@ backup_one() {
     # filenames and --info=progress2 updates sit in rsync's internal
     # buffer and may not hit the log for a long time (sometimes only at
     # exit), which is why Current File/Progress looked empty during a run.
-    rsync -a -h -v --stats --info=progress2 --outbuf=line \
+    rsync -a -h -v --stats --info=progress2 --outbuf=line --copy-links \
         "${EXCLUDE_ARGS[@]}" "${extra[@]}" \
         -e "$ssh_cmd" "$src" "${target}/" > "$logfile" 2>&1 &
     local rsync_pid=$!
@@ -249,7 +257,8 @@ backup_one() {
                 *)
                     echo "logs: logDirectory=$remote_log_dir is NOT under /home/fpp/media - pulling separately" >> "$logfile" 2>&1
                     mkdir -p "${target}/system-logs"
-                    rsync -a -h --outbuf=line "${extras_opts[@]}"                         -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${target}/system-logs/" >> "$logfile" 2>&1
+                    rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
+                        -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${target}/system-logs/" >> "$logfile" 2>&1
                     ;;
             esac
         else
@@ -260,7 +269,8 @@ backup_one() {
             echo "system-config: pulling known system paths via sudo on the remote (best effort - missing paths are skipped)" >> "$logfile" 2>&1
             mkdir -p "${target}/system-config"
             for p in "${SYSTEM_CONFIG_PATHS[@]}"; do
-                rsync -a -h --outbuf=line "${extras_opts[@]}" --rsync-path="sudo rsync"                     -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${p}" "${target}/system-config/" >> "$logfile" 2>&1
+                rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" --rsync-path="sudo rsync" \
+                    -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${p}" "${target}/system-config/" >> "$logfile" 2>&1
             done
         fi
     fi
