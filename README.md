@@ -31,7 +31,16 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   drive readable on Windows/Mac/another Pi) and mount it as `/mnt/Backups`, persisted via
   `/etc/fstab`. The same drive can be re-formatted or unmounted later from the Config page -
   Unmount detaches it (fstab entry removed, data untouched) so it is safe to unplug without
-  needing an SSH session.
+  needing an SSH session. Formatting creates a GPT partition table with a single partition
+  (rather than a filesystem directly on the raw disk) so the resulting device name matches
+  what FPP itself expects - this is what lets the drive also show up in FPP's own
+  Settings > Storage dropdown and in File Copy Backup/Restore's "Remote Storage" device
+  picker, not just in this plugin. Note that while this plugin has the drive mounted,
+  FPP's own pickers still won't list it (FPP excludes anything already mounted) - Unmount
+  it first if you want to use it from FPP's native File Copy Restore. Drives formatted by
+  an older version of this plugin (filesystem directly on the raw disk, no partition table)
+  need to be re-formatted to pick this up; existing backups on them are unaffected until
+  you do.
 - **Logs and system config.** Each remote's own `logDirectory` setting is queried live
   (over its FPP API) and pulled if it has been moved off the media tree (a common tweak
   to spare SD card wear) - so logs are captured even when they are not sitting under

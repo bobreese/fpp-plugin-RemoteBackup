@@ -45,7 +45,12 @@ fi
 # fstab entry first rather than refusing outright. If it's mounted
 # somewhere else - some other drive the user has for unrelated
 # purposes - refuse; we have no business touching that.
-CURRENT_MP=$(lsblk -no MOUNTPOINT "$DEVICE" 2>/dev/null | head -1 | tr -d ' ')
+# Check the WHOLE device tree (disk row + any partition rows), not
+# just the disk row itself - once a drive has been through the
+# partition-table fix below, /mnt/Backups is mounted from a child
+# partition (e.g. /dev/sda1), not from $DEVICE's own disk row, and
+# checking only the first lsblk line would miss that it's in use.
+CURRENT_MP=$(lsblk -no MOUNTPOINT "$DEVICE" 2>/dev/null | grep -v '^[[:space:]]*$' | head -1 | tr -d ' ')
 if [ -n "$CURRENT_MP" ]; then
     if [ "$CURRENT_MP" = "/mnt/Backups" ]; then
         rb_log "format_usb: re-formatting already-mounted $DEVICE, unmounting /mnt/Backups first"
@@ -74,6 +79,53 @@ fi
 
 rb_log "format_usb: formatting $DEVICE as $FSTYPE (confirmed)"
 
+# FPP's own Settings > Storage dropdown and the File Copy Backup/
+# Restore "Remote Storage" device picker both come from the same
+# upstream function (GetAvailableBackupsDevices() in www/common.php),
+# which only recognizes device names matching /^sd[a-z][0-9]/ - i.e. a
+# PARTITION (like /dev/sda1), never a raw whole-disk device with no
+# partition table. Previously this script ran mkfs directly on the
+# whole disk ($DEVICE, e.g. /dev/sda), so FPP's own dropdowns could
+# never see backups on it. Fix: create a GPT partition table with a
+# single partition spanning the whole disk, and format/mount THAT
+# partition instead.
+rb_log "format_usb: wiping old signatures and creating GPT partition table on $DEVICE"
+sudo wipefs -a "$DEVICE" >/tmp/rb_wipefs_err_$$ 2>&1
+rm -f /tmp/rb_wipefs_err_$$
+sudo partprobe "$DEVICE" 2>/dev/null || true
+sleep 1
+
+if ! command -v parted >/dev/null 2>&1; then
+    rb_log "format_usb: installing parted"
+    sudo apt-get install -y parted >/dev/null 2>&1
+fi
+if ! command -v parted >/dev/null 2>&1; then
+    json_err "parted is not available and could not be installed automatically. Install parted manually and retry."
+    exit 0
+fi
+
+if ! sudo parted -s "$DEVICE" mklabel gpt mkpart primary 0% 100% >/tmp/rb_parted_err_$$ 2>&1; then
+    ERR=$(cat /tmp/rb_parted_err_$$ 2>/dev/null); rm -f /tmp/rb_parted_err_$$
+    rb_log "format_usb FAILED (parted): $ERR"
+    json_err "Creating partition table failed: ${ERR:-unknown error}"
+    exit 0
+fi
+rm -f /tmp/rb_parted_err_$$
+
+sudo partprobe "$DEVICE" 2>/dev/null || true
+command -v udevadm >/dev/null 2>&1 && udevadm settle 2>/dev/null
+sleep 1
+
+# Resolve the actual partition device path rather than assuming a
+# naming convention (usually /dev/sda1, but be robust to other bus
+# naming like /dev/mmcblk0p1 or /dev/nvme0n1p1).
+PARTITION=$(lsblk -no PATH -l "$DEVICE" 2>/dev/null | sed -n '2p' | tr -d ' ')
+if [ -z "$PARTITION" ] || [ ! -b "$PARTITION" ]; then
+    json_err "Partition table was created but the resulting partition device could not be found under $DEVICE. Try unplugging and reconnecting the drive, then retry."
+    exit 0
+fi
+rb_log "format_usb: created partition $PARTITION on $DEVICE"
+
 if [ "$FSTYPE" = "exfat" ]; then
     if ! command -v mkfs.exfat >/dev/null 2>&1; then
         rb_log "format_usb: installing exfatprogs"
@@ -83,7 +135,7 @@ if [ "$FSTYPE" = "exfat" ]; then
         json_err "mkfs.exfat is not available and could not be installed automatically. Install exfatprogs manually, or use ext4."
         exit 0
     fi
-    if ! sudo mkfs.exfat -n Backups "$DEVICE" >/tmp/rb_mkfs_err_$$ 2>&1; then
+    if ! sudo mkfs.exfat -n Backups "$PARTITION" >/tmp/rb_mkfs_err_$$ 2>&1; then
         ERR=$(cat /tmp/rb_mkfs_err_$$ 2>/dev/null); rm -f /tmp/rb_mkfs_err_$$
         rb_log "format_usb FAILED (exfat): $ERR"
         json_err "mkfs.exfat failed: ${ERR:-unknown error}"
@@ -91,7 +143,7 @@ if [ "$FSTYPE" = "exfat" ]; then
     fi
     rm -f /tmp/rb_mkfs_err_$$
 else
-    if ! sudo mkfs.ext4 -F -L Backups "$DEVICE" >/tmp/rb_mkfs_err_$$ 2>&1; then
+    if ! sudo mkfs.ext4 -F -L Backups "$PARTITION" >/tmp/rb_mkfs_err_$$ 2>&1; then
         ERR=$(cat /tmp/rb_mkfs_err_$$ 2>/dev/null); rm -f /tmp/rb_mkfs_err_$$
         rb_log "format_usb FAILED (ext4): $ERR"
         json_err "mkfs.ext4 failed: ${ERR:-unknown error}"
@@ -103,8 +155,11 @@ fi
 sudo partprobe "$DEVICE" 2>/dev/null || true
 sleep 1
 
-# Hand off to mount_usb.sh for the mount + fstab step.
-MOUNT_RESULT=$(bash "$(dirname "$0")/mount_usb.sh" "$DEVICE")
+# Hand off to mount_usb.sh for the mount + fstab step - using the
+# PARTITION path, not the whole disk, so it matches FPP's own naming
+# convention everywhere downstream (mount, fstab, and what FPP's
+# native dropdowns will show).
+MOUNT_RESULT=$(bash "$(dirname "$0")/mount_usb.sh" "$PARTITION")
 
 # Formatting just wiped every backup that was on this drive. If it's
 # also the currently configured destination storage, every per-remote

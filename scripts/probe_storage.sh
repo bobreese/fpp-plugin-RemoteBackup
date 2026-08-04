@@ -56,7 +56,15 @@ echo "$LSBLK_JSON" | jq --arg rootdisk "$ROOT_DISK" '
 
     ($devs_r | map(select(.mountpoint != null and .mountpoint != "" and (.fstype != null))
         | select(.mountpoint | test("^/(proc|sys|dev|run)") | not))) as $mounted
-  | ($devs_r | map(select((.type == "part" or .type == "disk")
+  # Whole disks that already have at least one partition (e.g. a drive
+  # this plugin previously formatted with the GPT-partition fix) should
+  # only be represented by their partition(s) here, not ALSO by the raw
+  # disk row itself - otherwise an already-good, ready-to-mount drive
+  # shows up a second time as a confusing "no filesystem - needs
+  # formatting" entry for its own parent disk.
+  | ($devs_r | map(select(.type == "part")) | map(.pkname // .name)) as $disks_with_parts
+  | ($devs_r | map(select(
+      ((.type == "part") or ((.type == "disk") and ((.name as $n | $disks_with_parts | index($n)) == null)))
       and (.mountpoint == null or .mountpoint == "")
       and is_usb))) as $usb_unmounted
   | {
