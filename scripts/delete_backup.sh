@@ -2,12 +2,16 @@
 # Delete one specific backup folder (as selected from the Status page's
 # "Backed Up" dropdown). THIS ERASES THAT BACKUP - the UI is expected
 # to have already gotten explicit confirmation; this script adds its
-# own independent safety check so a bad path can't delete anything
-# outside the configured destination storage's RemoteBackup folder.
+# own independent safety checks so a bad path can't delete anything
+# outside the configured destination storage, or anything inside it
+# that doesn't actually look like one of our backup folders (backups
+# live directly under the mount now, so unlike the old dedicated
+# "RemoteBackup" subfolder there's no separate namespace to lean on -
+# see the naming-pattern check below).
 #
 # Usage: delete_backup.sh <path> <confirm token>
 # The confirm token must be exactly I_UNDERSTAND_THIS_DELETES_THE_BACKUP.
-# Output JSON: {"ok":true,"deleted":"/mnt/Backups/RemoteBackup/Pi5-20260803"}
+# Output JSON: {"ok":true,"deleted":"/mnt/Backups/Pi5-20260803"}
 
 . "$(dirname "$0")/lib_common.sh"
 
@@ -32,15 +36,27 @@ if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     json_err "No destination storage configured/mounted"
     exit 0
 fi
-DEST_ROOT_REAL=$(realpath "${DEST_MOUNT%/}/RemoteBackup" 2>/dev/null)
+DEST_ROOT_REAL=$(realpath "${DEST_MOUNT%/}" 2>/dev/null)
 TARGET_REAL=$(realpath "$REQ_PATH" 2>/dev/null)
 
-# Must resolve to a real directory strictly inside the backup root, and
-# not be the backup root itself (so this can only ever remove one
-# specific backup, never the whole RemoteBackup tree in one call).
+# Must resolve to a real directory strictly inside the destination
+# storage, and not be the root itself (so this can only ever remove one
+# specific backup, never the whole destination in one call).
 if [ -z "$TARGET_REAL" ] || [ -z "$DEST_ROOT_REAL" ] || [ ! -d "$TARGET_REAL" ] || \
    [ "$TARGET_REAL" = "$DEST_ROOT_REAL" ] || [[ "$TARGET_REAL" != "$DEST_ROOT_REAL"/* ]]; then
     json_err "Path is not a valid single backup under the configured destination storage"
+    exit 0
+fi
+
+# Backups no longer live under a dedicated subfolder we can trust as
+# "everything is ours in here" - the mount can now also hold whatever
+# else was already on that drive. Require the folder's own name to
+# actually look like one of ours (<id>-<date>, e.g. Pi5-20260803, which
+# is also true of the leaf folder in snapshot mode) before allowing the
+# delete, on top of the path-containment check above.
+TARGET_BASENAME=$(basename "$TARGET_REAL")
+if [[ ! "$TARGET_BASENAME" =~ ^.+-[0-9]{8}$ ]]; then
+    json_err "Path does not look like a Remote Backup folder (expected <name>-YYYYMMDD) - refusing to delete."
     exit 0
 fi
 

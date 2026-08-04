@@ -63,7 +63,12 @@ SNAPSHOT_MODE=$(rb_setting '.snapshotMode' 'false')
 SSH_USER=$(rb_setting '.sshUser' 'fpp')
 SSH_PORT=$(rb_setting '.sshPort' '22')
 SSH_KEY=$(rb_setting '.sshKeyPath' '/home/fpp/.ssh/id_rsa_remotebackup')
-DEST_ROOT="${DEST_MOUNT%/}/RemoteBackup"
+# Backups go directly under the destination mount (previously nested
+# one level deeper under a "RemoteBackup" subfolder - flattened per
+# request, since this mount is meant to be dedicated to this plugin
+# anyway). mkdir -p is a no-op here since the mount already exists,
+# kept only for the case DEST_MOUNT ends up freshly created.
+DEST_ROOT="${DEST_MOUNT%/}"
 mkdir -p "$DEST_ROOT"
 
 # --- Extras: FPP logs (wherever they really live) + optional system/  ---

@@ -1,10 +1,10 @@
 #!/bin/bash
 # Enumerate existing backups under the configured destination storage,
-# regardless of whether they're rolling (one "<id>-<date>" dir per
-# remote directly under RemoteBackup/) or snapshot-mode
-# ("<id>/<id>-<date>" nested one level). Deliberately does NOT compute
-# sizes here (that needs `du`, which can be slow on large backups) -
-# just a fast directory scan so the dropdown populates instantly. Use
+# regardless of whether they're rolling (one "<id>-<date>" dir directly
+# under the mount) or snapshot-mode ("<id>/<id>-<date>" nested one
+# level). Deliberately does NOT compute sizes here (that needs `du`,
+# which can be slow on large backups) - just a fast directory scan so
+# the dropdown populates instantly. Use
 # get_backup_info.sh for size/contents of a specific selection.
 #
 # Output JSON: {"ok":true,"backups":[{id,date,name,path,mtime}...]}
@@ -16,7 +16,7 @@ if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     echo '{"ok":false,"error":"No destination storage configured/mounted"}'
     exit 0
 fi
-DEST_ROOT="${DEST_MOUNT%/}/RemoteBackup"
+DEST_ROOT="${DEST_MOUNT%/}"
 if [ ! -d "$DEST_ROOT" ]; then
     echo '{"ok":true,"backups":[]}'
     exit 0
@@ -39,11 +39,11 @@ emit_entry() {
 }
 
 {
-    # Rolling mode: RemoteBackup/<id>-<date>/
+    # Rolling mode: <id>-<date>/ directly under the mount
     find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | while IFS= read -r d; do
         emit_entry "$d"
     done
-    # Snapshot mode: RemoteBackup/<id>/<id>-<date>/
+    # Snapshot mode: <id>/<id>-<date>/
     find "$DEST_ROOT" -maxdepth 2 -mindepth 2 -type d 2>/dev/null | while IFS= read -r d; do
         emit_entry "$d"
     done

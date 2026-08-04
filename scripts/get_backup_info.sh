@@ -33,7 +33,8 @@ if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     json_err "No destination storage configured/mounted"
     exit 0
 fi
-DEST_ROOT_REAL=$(realpath "${DEST_MOUNT%/}/RemoteBackup" 2>/dev/null)
+# Backups live directly under the mount now (no "RemoteBackup" subfolder).
+DEST_ROOT_REAL=$(realpath "${DEST_MOUNT%/}" 2>/dev/null)
 TARGET_REAL=$(realpath "$REQ_PATH" 2>/dev/null)
 
 # Refuse anything that doesn't resolve to strictly inside the backup

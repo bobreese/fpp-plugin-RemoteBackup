@@ -55,19 +55,48 @@ if [ -f /etc/fstab ] && grep -q "/mnt/Backups" /etc/fstab 2>/dev/null; then
 fi
 
 # --- Figure out where backups live before settings.json disappears -----
-DEST_ROOT=""
+DEST_MOUNT=""
 if [ -f "${PLUGINDIR}/data/settings.json" ] && command -v jq >/dev/null 2>&1; then
     DEST_MOUNT=$(jq -r '.destinationMount // empty' "${PLUGINDIR}/data/settings.json" 2>/dev/null)
-    [ -n "$DEST_MOUNT" ] && DEST_ROOT="${DEST_MOUNT%/}/RemoteBackup"
+    DEST_MOUNT="${DEST_MOUNT%/}"
 fi
 
-if [ "$PURGE_BACKUPS" = "1" ] && [ -n "$DEST_ROOT" ] && [ -d "$DEST_ROOT" ]; then
-    echo "!! --purge-backups given: deleting $DEST_ROOT"
-    rm -rf "$DEST_ROOT"
-elif [ -n "$DEST_ROOT" ] && [ -d "$DEST_ROOT" ]; then
+# Backups live directly under the destination mount (no dedicated
+# "RemoteBackup" subfolder to treat as "everything here is ours" and
+# rm -rf as a whole - the mount can also hold whatever else was already
+# on that drive). So find and only ever touch directories that actually
+# look like one of our backups: same <id>-<date> naming pattern used by
+# list_backups.sh/delete_backup.sh, covering both rolling (direct child
+# of the mount) and snapshot mode (nested one level under <id>/).
+BACKUP_DIRS=()
+if [ -n "$DEST_MOUNT" ] && [ -d "$DEST_MOUNT" ]; then
+    NAME_RE='^.+-[0-9]{8}$'
+    while IFS= read -r d; do
+        [ -n "$d" ] && [[ "$(basename "$d")" =~ $NAME_RE ]] && BACKUP_DIRS+=("$d")
+    done < <(find "$DEST_MOUNT" -maxdepth 1 -mindepth 1 -type d 2>/dev/null)
+    while IFS= read -r d; do
+        [ -n "$d" ] && [[ "$(basename "$d")" =~ $NAME_RE ]] && BACKUP_DIRS+=("$d")
+    done < <(find "$DEST_MOUNT" -maxdepth 2 -mindepth 2 -type d 2>/dev/null)
+fi
+
+if [ "$PURGE_BACKUPS" = "1" ] && [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
+    echo "!! --purge-backups given: deleting ${#BACKUP_DIRS[@]} backup folder(s) under $DEST_MOUNT"
+    for d in "${BACKUP_DIRS[@]}"; do
+        echo "   rm -rf $d"
+        rm -rf "$d"
+        # Snapshot mode leaves an empty "<id>/" parent behind once its
+        # last dated snapshot is gone - clean that up too if so.
+        p=$(dirname "$d")
+        if [ "$p" != "$DEST_MOUNT" ] && [ -d "$p" ] && [ -z "$(ls -A "$p" 2>/dev/null)" ]; then
+            rmdir "$p" 2>/dev/null || true
+        fi
+    done
+elif [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
     echo "------------------------------------------------------------------"
     echo " Your backed-up files were left in place and were NOT deleted:"
-    echo "   $DEST_ROOT"
+    for d in "${BACKUP_DIRS[@]}"; do
+        echo "   $d"
+    done
     echo " Re-run this script by hand with --purge-backups to delete them."
     echo "------------------------------------------------------------------"
 fi
