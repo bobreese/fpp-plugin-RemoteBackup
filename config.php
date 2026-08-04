@@ -50,6 +50,9 @@ $rbPlugin = basename(__DIR__);
                 Delete files in the host backup that were removed on the remote (mirrors deletes, uses <code>rsync --delete</code>)</label><br>
             <label><input type="checkbox" id="rb-snapshotMode">
                 Keep dated snapshot history per remote instead of one rolling "current" backup (space-efficient via <code>rsync --link-dest</code>)</label><br>
+            <label><input type="checkbox" id="rb-includeSystemConfig">
+                Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config/</code> folder alongside each remote's backup
+                &mdash; <strong>includes WiFi passwords and other credentials in plain text on the destination drive.</strong> Pulled via sudo on the remote, so it needs the same passwordless-sudo access this plugin already relies on for SSH key setup.</label><br>
             <br>
             Max concurrent transfers:
             <input id="rb-maxConcurrent" type="number" min="1" max="8" style="width:4em">
@@ -376,6 +379,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-hostEnabled').checked = !!state.settings.hostModeEnabled;
             document.getElementById('rb-deleteExtra').checked = !!state.settings.deleteExtraneous;
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
+            document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-maxConcurrent').value = state.settings.maxConcurrent || 2;
             document.getElementById('rb-sshUser').value = state.settings.sshUser || 'fpp';
             document.getElementById('rb-sshPort').value = state.settings.sshPort || 22;
@@ -442,6 +446,7 @@ $rbPlugin = basename(__DIR__);
             destinationMount: storageChoice ? storageChoice.value : (state.settings.destinationMount || ''),
             deleteExtraneous: document.getElementById('rb-deleteExtra').checked,
             snapshotMode: document.getElementById('rb-snapshotMode').checked,
+            includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
             sshUser: document.getElementById('rb-sshUser').value || 'fpp',
             sshPort: parseInt(document.getElementById('rb-sshPort').value, 10) || 22,

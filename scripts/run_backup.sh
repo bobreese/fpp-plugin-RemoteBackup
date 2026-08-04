@@ -66,6 +66,38 @@ SSH_KEY=$(rb_setting '.sshKeyPath' '/home/fpp/.ssh/id_rsa_remotebackup')
 DEST_ROOT="${DEST_MOUNT%/}/RemoteBackup"
 mkdir -p "$DEST_ROOT"
 
+# --- Extras: FPP logs (wherever they really live) + optional system/  ---
+# --- network config. Best-effort - never flips a remote's overall     ---
+# --- state to error, only the main /home/fpp/media pull below does.   ---
+INCLUDE_SYSTEM_CONFIG=$(rb_setting '.includeSystemConfig' 'true')
+# FPP itself has no "full system backup" to match against - its only
+# native backup is a small JSON settings export (no media, no logs).
+# These are the well-known system-level locations that live entirely
+# outside /home/fpp/media and so can never be reached by the main pull
+# regardless of excludes: hardware/cape config, and whichever network
+# stack this remote's platform actually uses (Raspbian dhcpcd, Debian
+# ifupdown, Ubuntu netplan, or wpa_supplicant directly). Paths that
+# don't exist on a given remote are silently skipped, not an error.
+SYSTEM_CONFIG_PATHS=(/etc/fpp /etc/hostname /etc/hosts /etc/timezone /etc/network /etc/wpa_supplicant /etc/dhcpcd.conf /etc/netplan)
+
+# rb_resolve_remote_setting: reads a live setting value directly from a
+# remote's own FPP web API (the same http://<host>/api/settings/<name>
+# call FPP's own backup page uses internally to read a remote's
+# settings). Used to find where a remote is *actually* writing its logs,
+# since logDirectory defaults to <mediaDirectory>/logs but is commonly
+# overridden to a tmpfs/RAM location to spare SD card wear - when that
+# happens the real log files live somewhere the main media pull never
+# looks. Prints nothing (not even a blank line) if the remote can't be
+# reached or the setting is unknown, which callers treat as "skip".
+rb_resolve_remote_setting() {
+    local addr="$1" name="$2" urlhost
+    case "$addr" in
+        *:*) urlhost="[${addr}]" ;;
+        *) urlhost="$addr" ;;
+    esac
+    curl -s --max-time 5 "http://${urlhost}/api/settings/${name}" 2>/dev/null | jq -r '.value // empty' 2>/dev/null
+}
+
 EXCLUDE_ARGS=()
 while IFS= read -r pat; do
     [ -n "$pat" ] && EXCLUDE_ARGS+=(--exclude="$pat")
@@ -191,6 +223,47 @@ backup_one() {
     wait "$rsync_pid"
     local rc=$?
     rm -f "${PIDS_DIR}/${id}.pid"
+
+    # Extras only run after a successful main pull - if we couldn't even
+    # get the show content, there's no point spending more time probing
+    # this remote for logs/config too. Appended to the same logfile;
+    # since they run strictly after the main transfer, the --stats
+    # parsing below (which greps for the *first* match) still reads the
+    # main transfer's numbers, not these extras.
+    if [ "$rc" -eq 0 ]; then
+        local extras_opts=()
+        [ "$DRYRUN" = "1" ] && extras_opts+=(--dry-run)
+
+        {
+            echo ""
+            echo "--- extras (logs / system config) ---"
+        } >> "$logfile" 2>&1
+
+        local remote_log_dir
+        remote_log_dir=$(rb_resolve_remote_setting "$address" "logDirectory")
+        if [ -n "$remote_log_dir" ]; then
+            case "$remote_log_dir" in
+                /home/fpp/media | /home/fpp/media/*)
+                    echo "logs: logDirectory=$remote_log_dir is under /home/fpp/media - already covered above" >> "$logfile" 2>&1
+                    ;;
+                *)
+                    echo "logs: logDirectory=$remote_log_dir is NOT under /home/fpp/media - pulling separately" >> "$logfile" 2>&1
+                    mkdir -p "${target}/system-logs"
+                    rsync -a -h --outbuf=line "${extras_opts[@]}"                         -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${target}/system-logs/" >> "$logfile" 2>&1
+                    ;;
+            esac
+        else
+            echo "logs: could not read logDirectory from http://${address}/api/settings/logDirectory (remote unreachable over HTTP, or its API is disabled) - skipped" >> "$logfile" 2>&1
+        fi
+
+        if [ "$INCLUDE_SYSTEM_CONFIG" = "true" ]; then
+            echo "system-config: pulling known system paths via sudo on the remote (best effort - missing paths are skipped)" >> "$logfile" 2>&1
+            mkdir -p "${target}/system-config"
+            for p in "${SYSTEM_CONFIG_PATHS[@]}"; do
+                rsync -a -h --outbuf=line "${extras_opts[@]}" --rsync-path="sudo rsync"                     -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${p}" "${target}/system-config/" >> "$logfile" 2>&1
+            done
+        fi
+    fi
 
     local total_size xfer_size num_files state
     total_size=$(grep -m1 '^Total file size:' "$logfile" | grep -oE '[0-9,]+' | head -1 | tr -d ',')

@@ -12,7 +12,7 @@ echo " Remote Backup plugin - installing"
 echo "=================================================================="
 
 # --- Make sure required tools are present -----------------------------
-for pkg in rsync jq openssh-client sshpass; do
+for pkg in rsync jq openssh-client sshpass curl; do
     if ! dpkg -s "$pkg" >/dev/null 2>&1; then
         echo "Installing dependency: $pkg"
         apt-get install -y "$pkg" || echo "WARNING: could not auto-install $pkg, please install manually"

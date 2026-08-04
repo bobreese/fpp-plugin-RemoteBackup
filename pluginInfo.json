@@ -22,7 +22,8 @@
 			"rsync",
 			"jq",
 			"openssh-client",
-			"sshpass"
+			"sshpass",
+			"curl"
 		]
 	}
 }

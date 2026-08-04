@@ -114,7 +114,14 @@ function rb_default_settings() {
         'sshPort' => 22,
         'sshPassword' => 'falcon',
         'sshKeyPath' => '/home/fpp/.ssh/id_rsa_remotebackup',
-        'excludes' => ['Logs/*', 'logs/*', 'tmp/*', 'upload/*', 'cache/*', '*.tmp'],
+        // NOTE: logs were previously excluded by default here (Logs/*,
+        // logs/*) - removed since a backup that silently drops FPP's
+        // logs isn't a very useful backup. Existing installs that saved
+        // settings.json before this change still have those two entries
+        // baked in and need to remove them from Config > Excludes by hand -
+        // this default is only consulted for a *new* settings.json.
+        'excludes' => ['tmp/*', 'upload/*', 'cache/*', '*.tmp'],
+        'includeSystemConfig' => true,
         'remotes' => []
     ];
 }
@@ -279,7 +286,7 @@ switch ($action) {
         $body = rb_json_body();
         $settings = rb_load_settings($SETTINGS_FILE);
 
-        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode'] as $k) {
+        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword'] as $k) {

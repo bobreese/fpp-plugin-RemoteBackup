@@ -32,6 +32,14 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   `/etc/fstab`. The same drive can be re-formatted or unmounted later from the Config page -
   Unmount detaches it (fstab entry removed, data untouched) so it is safe to unplug without
   needing an SSH session.
+- **Logs and system config.** Each remote's own `logDirectory` setting is queried live
+  (over its FPP API) and pulled if it has been moved off the media tree (a common tweak
+  to spare SD card wear) - so logs are captured even when they are not sitting under
+  `/home/fpp/media`. Optionally (on by default, toggle in Config > Backup Options) also
+  pulls `/etc/fpp` and network config (hostname, WiFi, static IP) into a `system-config/`
+  folder via sudo on the remote - useful for a from-scratch rebuild, not just restoring
+  show content. This includes credentials (e.g. WiFi passwords) in plain text on the
+  destination drive, so turn it off if that is not something you want mirrored there.
 - **Browse and delete backups.** The Status page's "Backed Up" dropdown lists every backup
   on the destination storage with size/file-count/contents, and can delete an individual
   backup (type-to-confirm) if you want to reclaim space.
