@@ -51,7 +51,7 @@ $rbPlugin = basename(__DIR__);
             <label><input type="checkbox" id="rb-snapshotMode">
                 Keep dated snapshot history per remote instead of one rolling "current" backup (space-efficient via <code>rsync --link-dest</code>)</label><br>
             <label><input type="checkbox" id="rb-includeSystemConfig">
-                Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config/</code> folder alongside each remote's backup
+                Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config.tar.gz</code> archive alongside each remote's backup
                 &mdash; <strong>includes WiFi passwords and other credentials in plain text on the destination drive.</strong> Pulled via sudo on the remote, so it needs the same passwordless-sudo access this plugin already relies on for SSH key setup.</label><br>
             <br>
             Max concurrent transfers:

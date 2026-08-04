@@ -103,15 +103,32 @@ rb_resolve_remote_setting() {
     curl -s --max-time 5 "http://${urlhost}/api/settings/${name}" 2>/dev/null | jq -r '.value // empty' 2>/dev/null
 }
 
-# system-config/ and system-logs/ are subfolders this plugin creates
-# itself (the extras step, further down) - they are never part of the
-# remote's /home/fpp/media tree, so the main pull below must never
-# consider them for deletion. Without this, --delete (mirror deletes)
-# sees them as "extraneous" content not present in the source and wipes
-# them out on every run, right before the extras step tries to
-# repopulate them - always one run behind, and confusing to read in the
-# transfer log ("deleting system-config/...").
-EXCLUDE_ARGS=(--exclude=system-config/ --exclude=system-logs/)
+# system-config.tar.gz and system-logs.tar.gz are files this plugin
+# creates itself (the extras step, further down) - they are never part
+# of the remote's /home/fpp/media tree, so the main pull below must
+# never consider them for deletion. Without this, --delete (mirror
+# deletes) sees them as "extraneous" content not present in the source
+# and wipes them out on every run, right before the extras step tries
+# to repopulate them - always one run behind, and confusing to read in
+# the transfer log ("deleting system-config.tar.gz").
+#
+# These are packaged as single .tar.gz FILES rather than left as plain
+# directories on purpose: FPP's own "Restore from USB" / File Copy
+# Restore device browser (GetAvailableBackupsFromDir() in FPP's
+# www/api/controllers/backups.php) naively lists ANY subdirectory one
+# level inside a backup folder as its own separately-selectable
+# "backup" unless the name happens to match something already in the
+# local mediaDirectory - it has no concept of a plugin's own metadata
+# folders. Real media content (Sequences/, Playlists/, etc.) is
+# excluded automatically because those names already exist locally;
+# system-config/ and system-logs/ don't, so they leaked through as
+# bogus, confusing, non-restorable entries (e.g.
+# "FPPbackup-20260804/system-config") in FPP's own restore dropdown.
+# FPP's scanner only pushes entries where is_dir() is true, so shipping
+# these as archive files instead makes them invisible to it entirely -
+# no naming coincidence required, and it is not something we can fix in
+# FPP's code from here.
+EXCLUDE_ARGS=(--exclude=system-config.tar.gz --exclude=system-logs.tar.gz)
 while IFS= read -r pat; do
     [ -n "$pat" ] && EXCLUDE_ARGS+=(--exclude="$pat")
 done < <(jq -r '.excludes[]? // empty' "$SETTINGS_FILE" 2>/dev/null)
@@ -252,6 +269,29 @@ backup_one() {
             echo "--- extras (logs / system config) ---"
         } >> "$logfile" 2>&1
 
+        # One-time cleanup for backups made by an older version of this
+        # plugin, which wrote system-config/ and system-logs/ as plain
+        # directories directly under the backup folder (the layout that
+        # caused the FPP "Restore from USB" pollution described above).
+        # Superseded by the .tar.gz files below - safe to remove
+        # unconditionally since these are plugin-managed artifacts, not
+        # user content, and get fully repopulated (as archives) by this
+        # same run.
+        if [ "$DRYRUN" != "1" ]; then
+            [ -d "${target}/system-config" ] && rm -rf "${target}/system-config"
+            [ -d "${target}/system-logs" ] && rm -rf "${target}/system-logs"
+        fi
+
+        # Both extras below are pulled into a scratch directory first,
+        # then packaged into a single .tar.gz FILE at ${target} and the
+        # scratch directory removed - see the EXCLUDE_ARGS comment above
+        # for why these must be files, not directories. Scratch dirs
+        # live under the plugin's own data dir (not on the destination
+        # drive) so a slow/large pull never leaves a half-written
+        # directory sitting inside the backup folder itself.
+        local scratch_root
+        scratch_root=$(mktemp -d "${DATA_DIR}/tmp_extras_${id}_XXXXXX")
+
         local remote_log_dir
         remote_log_dir=$(rb_resolve_remote_setting "$address" "logDirectory")
         if [ -n "$remote_log_dir" ]; then
@@ -261,9 +301,13 @@ backup_one() {
                     ;;
                 *)
                     echo "logs: logDirectory=$remote_log_dir is NOT under /home/fpp/media - pulling separately" >> "$logfile" 2>&1
-                    mkdir -p "${target}/system-logs"
+                    mkdir -p "${scratch_root}/system-logs"
                     rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
-                        -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${target}/system-logs/" >> "$logfile" 2>&1
+                        -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${scratch_root}/system-logs/" >> "$logfile" 2>&1
+                    if [ "$DRYRUN" != "1" ] && [ -n "$(ls -A "${scratch_root}/system-logs" 2>/dev/null)" ]; then
+                        tar -czf "${target}/system-logs.tar.gz" -C "${scratch_root}" system-logs
+                        echo "logs: packaged into system-logs.tar.gz" >> "$logfile" 2>&1
+                    fi
                     ;;
             esac
         else
@@ -272,12 +316,18 @@ backup_one() {
 
         if [ "$INCLUDE_SYSTEM_CONFIG" = "true" ]; then
             echo "system-config: pulling known system paths via sudo on the remote (best effort - missing paths are skipped)" >> "$logfile" 2>&1
-            mkdir -p "${target}/system-config"
+            mkdir -p "${scratch_root}/system-config"
             for p in "${SYSTEM_CONFIG_PATHS[@]}"; do
                 rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" --rsync-path="sudo rsync" \
-                    -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${p}" "${target}/system-config/" >> "$logfile" 2>&1
+                    -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${p}" "${scratch_root}/system-config/" >> "$logfile" 2>&1
             done
+            if [ "$DRYRUN" != "1" ] && [ -n "$(ls -A "${scratch_root}/system-config" 2>/dev/null)" ]; then
+                tar -czf "${target}/system-config.tar.gz" -C "${scratch_root}" system-config
+                echo "system-config: packaged into system-config.tar.gz" >> "$logfile" 2>&1
+            fi
         fi
+
+        rm -rf "$scratch_root"
     fi
 
     local total_size xfer_size num_files num_files_total total_files_line state
