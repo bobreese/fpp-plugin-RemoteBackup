@@ -400,20 +400,34 @@ switch ($action) {
         $active = @file_get_contents("$DATA_DIR/run_active.json");
         $activeData = $active ? json_decode($active, true) : ['active' => false];
 
+        $settings = rb_load_settings($SETTINGS_FILE);
+
+        // Host destination storage used/free/total - shown in the Status
+        // page header on every poll, independent of whether a run is
+        // active or a dry run was ever performed.
+        $destStorage = null;
+        if (!empty($settings['destinationMount']) && is_dir($settings['destinationMount'])) {
+            $dfFree = @disk_free_space($settings['destinationMount']);
+            $dfTotal = @disk_total_space($settings['destinationMount']);
+            if ($dfFree !== false && $dfTotal !== false) {
+                $destStorage = [
+                    'mountpoint' => $settings['destinationMount'],
+                    'totalBytes' => intval($dfTotal),
+                    'freeBytes' => intval($dfFree),
+                    'usedBytes' => intval($dfTotal) - intval($dfFree)
+                ];
+            }
+        }
+
         // If the most recent run was a dry run, build a space-comparison summary.
         $summary = null;
         $dryRemotes = array_filter($remotes, function ($r) { return !empty($r['dryRun']); });
         if (count($dryRemotes) > 0) {
-            $settings = rb_load_settings($SETTINGS_FILE);
             $estTotal = 0;
             foreach ($dryRemotes as $r) {
                 $estTotal += isset($r['transferredBytes']) ? intval($r['transferredBytes']) : 0;
             }
-            $avail = null;
-            if (!empty($settings['destinationMount']) && is_dir($settings['destinationMount'])) {
-                $df = @disk_free_space($settings['destinationMount']);
-                if ($df !== false) $avail = intval($df);
-            }
+            $avail = $destStorage ? $destStorage['freeBytes'] : null;
             $summary = [
                 'estimatedTotalBytes' => $estTotal,
                 'availableBytes' => $avail,
@@ -421,7 +435,7 @@ switch ($action) {
             ];
         }
 
-        echo json_encode(['ok' => true, 'active' => !empty($activeData['active']), 'remotes' => $remotes, 'dryRunSummary' => $summary]);
+        echo json_encode(['ok' => true, 'active' => !empty($activeData['active']), 'remotes' => $remotes, 'dryRunSummary' => $summary, 'destStorage' => $destStorage]);
         break;
     }
 

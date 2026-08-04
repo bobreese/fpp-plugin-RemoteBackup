@@ -24,6 +24,7 @@ $rbPlugin = basename(__DIR__);
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-backedup-refresh" title="Rescan storage">&#8635;</button>
             </div>
         </div>
+        <div class="p-2" id="rb-dest-storage" style="font-size:0.9em; color:#555;">Host storage: (loading...)</div>
         <div class="p-2" id="rb-backedup-info" style="display:none; border-top:1px solid #ddd; margin-top:4px;"></div>
     </fieldset>
 
@@ -168,6 +169,17 @@ $rbPlugin = basename(__DIR__);
                     '<td>' + (r.target || '') + '</td>' +
                     '</tr>';
             }).join('');
+        }
+
+        var destEl = document.getElementById('rb-dest-storage');
+        if (data.destStorage) {
+            var d = data.destStorage;
+            var pct = d.totalBytes ? Math.round((d.usedBytes / d.totalBytes) * 100) : 0;
+            destEl.textContent = 'Host storage (' + d.mountpoint + '): ' +
+                humanBytes(d.usedBytes) + ' used / ' + humanBytes(d.freeBytes) + ' free of ' + humanBytes(d.totalBytes) +
+                ' (' + pct + '% used)';
+        } else {
+            destEl.textContent = 'Host storage: not mounted or not configured - check Config > Storage.';
         }
 
         var panel = document.getElementById('rb-dryrun-panel');
