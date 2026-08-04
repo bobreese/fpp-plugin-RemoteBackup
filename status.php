@@ -124,6 +124,19 @@ $rbPlugin = basename(__DIR__);
         return n.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
     }
 
+    // Like humanBytes(), but floors the unit at MB instead of dropping to
+    // B/KB for small values - used for the dry-run summary, where B/KB
+    // readings (e.g. "762 B" for a near-empty incremental diff) read like
+    // something is broken even though they're technically correct.
+    function humanBytesMB(n) {
+        n = parseInt(n || 0, 10);
+        var mb = n / (1024 * 1024);
+        if (mb >= 1024) {
+            return (mb / 1024).toFixed(2) + ' GB';
+        }
+        return mb.toFixed(2) + ' MB';
+    }
+
     var STATE_LABEL = {
         queued: 'Queued', running: 'Running', done: 'Done',
         'dry-run-complete': 'Dry Run Complete', error: 'Error'
@@ -192,8 +205,8 @@ $rbPlugin = basename(__DIR__);
             var verdict = s.sufficient === null ? 'Unknown (destination not mounted?)'
                 : (s.sufficient ? '<span style="color:green">Sufficient space available</span>' : '<span style="color:red">NOT enough free space on destination</span>');
             document.getElementById('rb-dryrun-summary').innerHTML =
-                'Estimated total transfer: <b>' + humanBytes(s.estimatedTotalBytes) + '</b><br>' +
-                'Available on destination: <b>' + (s.availableBytes != null ? humanBytes(s.availableBytes) : 'unknown') + '</b><br>' +
+                'Estimated total transfer: <b>' + humanBytesMB(s.estimatedTotalBytes) + '</b><br>' +
+                'Available on destination: <b>' + (s.availableBytes != null ? humanBytesMB(s.availableBytes) : 'unknown') + '</b><br>' +
                 verdict;
         } else {
             panel.style.display = 'none';
