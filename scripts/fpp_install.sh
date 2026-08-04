@@ -12,6 +12,19 @@ echo " Remote Backup plugin - installing"
 echo "=================================================================="
 
 # --- Make sure required tools are present -----------------------------
+# Deliberately a plain `apt-get install`, NOT declared in pluginInfo.json's
+# dependencies.packages. FPP ref-counts packages declared there per-plugin
+# and, on uninstall, apt-get REMOVES a package once no other plugin/user
+# claims it (www/common/packages.inc.php: RemoveSystemPackageRequester).
+# rsync, jq, openssh-client, and curl are foundational tools other things
+# on the system can genuinely depend on - on a real Pi5 running this
+# plugin, declaring them that way caused uninstalling this plugin to
+# `apt-get remove rsync`, which cascaded (via a real apt Depends:) into
+# removing raspi-firmware, and `apt-get remove openssh-client` cascaded
+# into removing the entire ssh/openssh-server stack, locking out SSH
+# access to the Host. Installing them here instead (install-if-missing,
+# never auto-removed by FPP) avoids that entirely - do not move this list
+# into pluginInfo.json's dependencies.packages.
 for pkg in rsync jq openssh-client sshpass curl; do
     if ! dpkg -s "$pkg" >/dev/null 2>&1; then
         echo "Installing dependency: $pkg"

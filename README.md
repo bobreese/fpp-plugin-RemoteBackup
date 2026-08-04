@@ -46,7 +46,14 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 
 ## Requirements
 
-- `rsync`, `jq`, and an OpenSSH client on the Host (installed automatically if missing).
+- `rsync`, `jq`, an OpenSSH client, and `curl` on the Host (installed automatically if
+  missing by fpp_install.sh via a plain `apt-get install`). These are deliberately NOT
+  declared in pluginInfo.json's `dependencies.packages` - FPP ref-counts packages listed
+  there per-plugin and apt-removes one once no plugin/user still claims it, which is
+  unsafe for foundational tools other things on the system can genuinely depend on
+  (removing this plugin previously cascaded, via real apt dependencies, into removing
+  `raspi-firmware` and the entire `openssh-server`/`ssh` stack on a real Pi5 - see commit
+  history). Uninstalling this plugin now leaves them alone, full stop.
 - SSH access from the Host to each remote's `fpp` user. The install script generates a
   dedicated keypair (`~fpp/.ssh/id_rsa_remotebackup`); use the "Push SSH Key" button on
   the Config page to install it on each remote (requires `sshpass` on the Host, or copy
