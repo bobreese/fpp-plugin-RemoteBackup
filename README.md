@@ -29,8 +29,9 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - **USB drive management.** Detects an attached-but-unmounted USB drive, and can mount it
   (existing filesystem) or format it (ext4 or exFAT - exFAT recommended if you want the
   drive readable on Windows/Mac/another Pi) and mount it as `/mnt/Backups`, persisted via
-  `/etc/fstab`. The same drive can be re-formatted later from the Config page without
-  needing to unmount it by hand first.
+  `/etc/fstab`. The same drive can be re-formatted or unmounted later from the Config page -
+  Unmount detaches it (fstab entry removed, data untouched) so it is safe to unplug without
+  needing an SSH session.
 - **Browse and delete backups.** The Status page's "Backed Up" dropdown lists every backup
   on the destination storage with size/file-count/contents, and can delete an individual
   backup (type-to-confirm) if you want to reclaim space.

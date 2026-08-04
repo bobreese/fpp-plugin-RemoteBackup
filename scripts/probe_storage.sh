@@ -35,16 +35,41 @@ echo "$LSBLK_JSON" | jq --arg rootdisk "$ROOT_DISK" '
     [.blockdevices[] | recurse(.children[]?) ] ;
 
   (flatten_devs) as $devs
-  | ($devs | map(select(.mountpoint != null and .mountpoint != "" and (.fstype != null))
-      | select(.mountpoint | test("^/(proc|sys|dev|run)") | not))) as $mounted
-  | ($devs | map(select((.type == "part" or .type == "disk")
+  # lsblk only populates TRAN (and sometimes ROTA) on whole-disk rows,
+  # not on partition rows - a partition just reads back null for both.
+  # NVMe/SD-card root filesystems are always partitions (unlike the
+  # USB flow in this plugin, which formats/mounts the raw whole disk), so
+  # without this resolution step .tran=="nvme" never matches a real
+  # NVMe root partition at all, and it falls through to the SD Card
+  # fallback bucket by mistake - it never even reaches the NVMe bucket.
+  | ($devs | map(select(.type == "disk")) | map({(.name): {tran: .tran, rota: .rota}}) | add // {}) as $disktran
+  | ($devs | map(
+      . as $d
+      | ($disktran[$d.pkname // $d.name] // {tran: null, rota: null}) as $parent
+      | $d + {tran: ($d.tran // $parent.tran), rota: ($d.rota // $parent.rota)}
+    )) as $devs_r
+
+  | def is_nvme: .tran == "nvme";
+    def is_ssd: (.tran == "sata" or .tran == "ata") and (.rota == false or .rota == "0" or .rota == 0);
+    def is_usb: .tran == "usb";
+    def is_rootdisk: (.pkname == $rootdisk) or (.name == $rootdisk) or (.mountpoint == "/");
+
+    ($devs_r | map(select(.mountpoint != null and .mountpoint != "" and (.fstype != null))
+        | select(.mountpoint | test("^/(proc|sys|dev|run)") | not))) as $mounted
+  | ($devs_r | map(select((.type == "part" or .type == "disk")
       and (.mountpoint == null or .mountpoint == "")
-      and .tran == "usb"))) as $usb_unmounted
+      and is_usb))) as $usb_unmounted
   | {
-      nvme:   [ $mounted[] | select(.tran == "nvme") ],
-      ssd:    [ $mounted[] | select((.tran == "sata" or .tran == "ata") and (.rota == false or .rota == "0" or .rota == 0)) ],
-      usb:    [ $mounted[] | select(.tran == "usb") ],
-      sdcard: [ $mounted[] | select((.pkname == $rootdisk) or (.name == $rootdisk) or (.mountpoint == "/")) ],
+      nvme:   [ $mounted[] | select(is_nvme) ],
+      ssd:    [ $mounted[] | select(is_ssd) ],
+      usb:    [ $mounted[] | select(is_usb) ],
+      # Fallback bucket for whatever the OS root sits on when it is NOT
+      # already covered by one of the preferred/USB categories above -
+      # e.g. a real SD card or eMMC. Without excluding is_nvme/is_ssd/
+      # is_usb here, an NVMe- or USB-SSD-booted root would match
+      # is_rootdisk too and get listed a second time, mislabeled as
+      # "SD Card / System Storage".
+      sdcard: [ $mounted[] | select(is_rootdisk and (is_nvme or is_ssd or is_usb | not)) ],
       usbUnmounted: [ $usb_unmounted[] | {
           path: .path, kname: .kname, fstype: .fstype, uuid: .uuid, label: .label,
           sizeBytes: .size, hasFilesystem: (.fstype != null and .fstype != "")
@@ -73,9 +98,12 @@ enrich() {
         size=$(df -B1 --output=size "$mp" 2>/dev/null | tail -1 | tr -d ' ')
         [ -z "$avail" ] && avail=0
         [ -z "$size" ] && size=0
-        label=$(echo "$item" | jq -r '.path // .name')
-        echo "$item" | jq -c --argjson avail "$avail" --argjson size "$size" --arg label "$label" \
-            '. + {availBytes: $avail, sizeBytesDf: $size, deviceLabel: $label}'
+        devlabel=$(echo "$item" | jq -r '.path // .name')
+        # NOTE: the --arg name can't be "label" - jq >=1.6 reserves that
+        # identifier for its `label $out | ... break $out` control-flow
+        # syntax and will fail to compile the filter below with it.
+        echo "$item" | jq -c --argjson avail "$avail" --argjson size "$size" --arg devlabel "$devlabel" \
+            '. + {availBytes: $avail, sizeBytesDf: $size, deviceLabel: $devlabel}'
     done | jq -s '.'
 }
 

@@ -189,6 +189,23 @@ switch ($action) {
         break;
     }
 
+    case 'unmountUsb': {
+        if ($method !== 'POST') rb_fail('POST required');
+
+        $active = @file_get_contents("$DATA_DIR/run_active.json");
+        $activeData = $active ? json_decode($active, true) : null;
+        if ($activeData && !empty($activeData['active'])) {
+            rb_fail('A backup run is currently in progress. Stop it (or wait for it to finish) before unmounting the destination drive.', 409);
+        }
+
+        rb_log_line("UNMOUNT requested");
+        $out = rb_run("$SCRIPTS_DIR/unmount_usb.sh", [], 20);
+        $data = json_decode((string)$out, true);
+        if (!$data) $data = ['ok' => false, 'error' => 'No response from unmount_usb.sh - see data/logs/ajax.log'];
+        echo json_encode($data);
+        break;
+    }
+
     case 'formatUsb': {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();

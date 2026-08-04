@@ -147,6 +147,7 @@ $rbPlugin = basename(__DIR__);
                 // (mounted at /mnt/Backups) - never for the SD card/
                 // NVMe/SSD the OS itself might be running from.
                 if (mp === '/mnt/Backups') {
+                    html += ' <button type="button" class="btn btn-sm btn-outline-secondary rb-unmount-usb" data-device="' + (d.path || d.deviceLabel) + '">Unmount</button>';
                     html += ' <button type="button" class="btn btn-sm btn-outline-danger rb-reformat-usb" data-device="' + (d.path || d.deviceLabel) + '" data-size="' + humanBytes(d.sizeBytes) + '">Re-format...</button>';
                 }
                 html += '</div>';
@@ -170,6 +171,26 @@ $rbPlugin = basename(__DIR__);
         }
 
         el.innerHTML = html;
+
+        Array.prototype.forEach.call(document.getElementsByClassName('rb-unmount-usb'), function (btn) {
+            btn.addEventListener('click', function () {
+                if (!confirm('Unmount the backup destination drive from /mnt/Backups?\n\nBackups already on it are kept - this just detaches it from the system so it is safe to physically unplug. You will need to Mount it again (Config > Storage) before the next backup run.')) return;
+                btn.disabled = true;
+                btn.textContent = 'Unmounting...';
+                api('unmountUsb', { body: {} }).then(function (res) {
+                    if (res.ok) {
+                        alert('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + '\n\nIt is now safe to disconnect the drive.');
+                        api('probeStorage').then(function (r2) {
+                            if (r2.ok) { state.storage = r2.data; renderStorage(); }
+                        });
+                    } else {
+                        alert('Unmount failed: ' + (res.error || 'unknown error'));
+                        btn.disabled = false;
+                        btn.textContent = 'Unmount';
+                    }
+                });
+            });
+        });
 
         Array.prototype.forEach.call(document.getElementsByClassName('rb-mount-usb'), function (btn) {
             btn.addEventListener('click', function () {
