@@ -74,9 +74,23 @@ fi
 
 echo ""
 echo "Remote Backup plugin removed."
-echo "Left alone on purpose (shared with the rest of the system, not"
-echo "specific to this plugin): the rsync/jq/openssh-client/sshpass/"
-echo "exfatprogs packages, and the /mnt/Backups mount point itself."
+echo ""
+# Don't just assert these were left alone - prove it, right here in the
+# uninstall log, by actually checking dpkg. This plugin's pluginInfo.json
+# deliberately declares zero "dependencies.packages" (see fpp_install.sh
+# for why), so FPP's own package ref-counting step - which runs BEFORE
+# this script and would otherwise apt-get remove a package once no
+# plugin/user still claims it - had nothing to act on. exfatprogs was
+# never declared anywhere and is included here for the same reason.
+echo "System packages (checked just now, not just asserted):"
+for pkg in rsync jq openssh-client sshpass curl exfatprogs; do
+    if dpkg -s "$pkg" >/dev/null 2>&1; then
+        echo "  $pkg: still installed - untouched by this uninstall"
+    else
+        echo "  $pkg: not installed on this system (either never installed, or removed by you separately - not by this uninstall)"
+    fi
+done
+echo "The /mnt/Backups mount point itself was also left alone."
 echo ""
 echo "If any FPP Playlist/Schedule/Event used this plugin's 'Run Remote"
 echo "Backup' or 'Run Remote Backup Dry Run' commands, remove those"
