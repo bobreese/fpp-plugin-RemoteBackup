@@ -275,13 +275,24 @@ backup_one() {
         fi
     fi
 
-    local total_size xfer_size num_files state
+    local total_size xfer_size num_files num_files_total total_files_line state
     total_size=$(grep -m1 '^Total file size:' "$logfile" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
     xfer_size=$(grep -m1 '^Total transferred file size:' "$logfile" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
-    num_files=$(grep -m1 '^Number of files transferred:' "$logfile" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
+    # rsync 3.1+ renamed this line to "Number of regular files transferred:"
+    # (older versions used "Number of files transferred:") - match either so
+    # this keeps working across the rsync versions FPP images actually ship.
+    num_files=$(grep -m1 -E '^Number of (regular files transferred|files transferred):' "$logfile" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
+    # "Number of files: 60 (reg: 38, dir: 22)" - the total file count in the
+    # source tree. Prefer the "reg:" (regular files only, excludes
+    # directories) breakdown when present; older rsync / trees with no
+    # subdirectories may omit it, so fall back to the bare total.
+    total_files_line=$(grep -m1 '^Number of files:' "$logfile")
+    num_files_total=$(echo "$total_files_line" | grep -oE 'reg: [0-9,]+' | grep -oE '[0-9,]+' | tr -d ',')
+    [ -z "$num_files_total" ] && num_files_total=$(echo "$total_files_line" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
     [ -z "$total_size" ] && total_size=0
     [ -z "$xfer_size" ] && xfer_size=0
     [ -z "$num_files" ] && num_files=0
+    [ -z "$num_files_total" ] && num_files_total=0
 
     if [ "$rc" -eq 0 ]; then
         state="done"
@@ -299,9 +310,9 @@ backup_one() {
     rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
         --arg run "$RUN_ID" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" \
         --arg state "$state" --arg t "$(rb_now_iso)" --arg target "$target" --arg log "$logfile" --arg errdetail "$error_detail" \
-        --argjson rc "$rc" --argjson totalSize "$total_size" --argjson xferSize "$xfer_size" --argjson numFiles "$num_files" \
+        --argjson rc "$rc" --argjson totalSize "$total_size" --argjson xferSize "$xfer_size" --argjson numFiles "$num_files" --argjson numFilesTotal "$num_files_total" \
         '{id:$id, hostname:$hostname, address:$address, state:$state, dryRun:$dryrun, runId:$run, finishedAt:$t,
-          target:$target, logFile:$log, exitCode:$rc, totalBytes:$totalSize, transferredBytes:$xferSize, filesTransferred:$numFiles, errorDetail:$errdetail}')"
+          target:$target, logFile:$log, exitCode:$rc, totalBytes:$totalSize, transferredBytes:$xferSize, filesTransferred:$numFiles, totalFiles:$numFilesTotal, errorDetail:$errdetail}')"
 
     rb_log "finished rsync for $id rc=$rc xferBytes=$xfer_size files=$num_files"
 }

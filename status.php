@@ -36,6 +36,9 @@ $rbPlugin = basename(__DIR__);
     <fieldset class="border rounded p-2 mt-2">
         <legend>Backup Status</legend>
         <div class="p-2">
+            <style>
+                #rb-status-table th, #rb-status-table td { padding: 0.55rem 0.9rem; }
+            </style>
             <table class="table table-sm" id="rb-status-table">
                 <thead>
                     <tr>
@@ -44,7 +47,7 @@ $rbPlugin = basename(__DIR__);
                         <th>State</th>
                         <th>Current File</th>
                         <th>Progress</th>
-                        <th>Transferred / Total</th>
+                        <th>Files</th>
                         <th>Backup Folder</th>
                     </tr>
                 </thead>
@@ -155,7 +158,7 @@ $rbPlugin = basename(__DIR__);
             remotes.sort(function (a, b) { return (a.hostname || '').localeCompare(b.hostname || ''); });
             body.innerHTML = remotes.map(function (r) {
                 var label = STATE_LABEL[r.state] || r.state;
-                var xfer = (r.transferredBytes != null) ? humanBytes(r.transferredBytes) + ' / ' + humanBytes(r.totalBytes) : '-';
+                var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
                 var fileCell = (r.state === 'error')
                     ? '<span style="color:#a00" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
                     : (r.currentFile || '');
