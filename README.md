@@ -24,6 +24,9 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   space-efficiently via `rsync --link-dest`.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
+  Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
+  page) is kept for its most recent 15 runs; older ones are pruned automatically at the
+  end of each backup run.
 - **FPP Commands** ("Run Remote Backup" / "Run Remote Backup Dry Run") so backups can be
   triggered from FPP's built-in Scheduler, Playlists, or Events.
 - **USB drive management.** Detects an attached-but-unmounted USB drive, and can mount it
