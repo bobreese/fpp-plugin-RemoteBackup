@@ -187,7 +187,7 @@ echo '{"active": true}' > "${DATA_DIR}/run_active.json"
 
 backup_one() {
     local remote_json="$1"
-    local id hostname address today target dest_root_for_id existing prev linkdest_opt=() extra=() logfile
+    local id hostname address today target existing prev linkdest_opt=() extra=() logfile
 
     id=$(echo "$remote_json" | jq -r '.id')
     hostname=$(echo "$remote_json" | jq -r '.hostname')
@@ -208,10 +208,27 @@ backup_one() {
         '{id:$id, hostname:$hostname, address:$address, state:"running", dryRun:$dryrun, runId:$run, startedAt:$t, currentFile:"", percent:0}')"
 
     if [ "$SNAPSHOT_MODE" = "true" ]; then
-        dest_root_for_id="${DEST_ROOT}/${id}"
-        mkdir -p "$dest_root_for_id"
-        target="${dest_root_for_id}/${id}-${today}"
-        prev=$(find "$dest_root_for_id" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "$(basename "$target")" 2>/dev/null | sort | tail -1)
+        # Snapshots live flat at the destination root, exactly like
+        # rolling-mode backups (<id>-<date>, e.g. Pi3_953-20260804) -
+        # NOT nested under a per-device "<id>/" container folder like
+        # earlier versions of this plugin used. That nesting was
+        # structural bait for FPP's own "Restore from USB" / File Copy
+        # Restore device browser: its scanner (GetAvailableBackupsFromDir()
+        # in FPP's own www/api/controllers/backups.php) lists ANY
+        # subdirectory it finds one level down, so the empty container
+        # folder itself (e.g. "Pi3_953") got listed as a selectable
+        # "backup" right alongside the real dated snapshot inside it
+        # ("Pi3_953/Pi3_953-20260804") - and since the container never
+        # holds anything but other folders, restoring FROM it silently
+        # "succeeds" while copying nothing at all. Flat naming gives
+        # every listed entry the same guarantee rolling mode already
+        # had: if FPP's dropdown shows it, it's real and restorable.
+        # (Backups made before this fix keep their old nested layout on
+        # disk untouched - this plugin's own browse/list/delete
+        # features still understand both layouts; only new snapshots
+        # going forward use the flat one.)
+        target="${DEST_ROOT}/${id}-${today}"
+        prev=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "$(basename "$target")" 2>/dev/null | sort | tail -1)
         mkdir -p "$target"
         if [ -n "$prev" ]; then
             extra+=(--link-dest="$prev")
