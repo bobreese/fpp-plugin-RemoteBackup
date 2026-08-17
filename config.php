@@ -10,7 +10,7 @@ $rbPlugin = basename(__DIR__);
     <fieldset class="border rounded p-2">
         <legend>Backup Host Mode</legend>
         <div class="p-2">
-            <div class="alert alert-warning" style="border:1px solid #c99; background:#fff3cd; padding:8px; margin-bottom:8px;">
+            <div class="callout callout-warning">
                 <strong>Important:</strong> Only <u>one</u> FPP system on your show network should have
                 Host Mode enabled. This system becomes the destination that pulls backups from the
                 others. Enabling Host Mode on more than one system will cause duplicate/competing
@@ -24,7 +24,7 @@ $rbPlugin = basename(__DIR__);
         <legend>Backup Destination Storage</legend>
         <div class="p-2">
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshStorage">Rescan Storage Devices</button>
-            <div id="rb-storageList" class="mt-2">Scanning...</div>
+            <div id="rb-storageList" class="mt-2 fpp-backup-action-loading">Scanning...</div>
             <small>NVMe/SSD storage is recommended and listed first when found. If none is present,
             attach a USB flash drive, or fall back to remaining space on the SD card.</small>
         </div>
@@ -34,7 +34,7 @@ $rbPlugin = basename(__DIR__);
         <legend>Remote Systems to Back Up</legend>
         <div class="p-2">
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshRemotes">Rescan MultiSync Remotes</button>
-            <div id="rb-remoteList" class="mt-2">Scanning...</div>
+            <div id="rb-remoteList" class="mt-2 fpp-backup-action-loading">Scanning...</div>
             <hr>
             <b>Manually add a remote</b> (use this if it wasn't found by MultiSync scan):<br>
             <input id="rb-manualHost" placeholder="Hostname, e.g. Pi5" style="width:180px">
@@ -126,6 +126,7 @@ $rbPlugin = basename(__DIR__);
 
     function renderStorage() {
         var el = document.getElementById('rb-storageList');
+        el.className = 'mt-2';
         if (!state.storage) { el.innerHTML = 'No data.'; return; }
         var groups = [
             ['nvme', 'NVMe (preferred)'],
@@ -177,21 +178,26 @@ $rbPlugin = basename(__DIR__);
 
         Array.prototype.forEach.call(document.getElementsByClassName('rb-unmount-usb'), function (btn) {
             btn.addEventListener('click', function () {
-                if (!confirm('Unmount the backup destination drive from /mnt/Backups?\n\nBackups already on it are kept - this just detaches it from the system so it is safe to physically unplug. You will need to Mount it again (Config > Storage) before the next backup run.')) return;
-                btn.disabled = true;
-                btn.textContent = 'Unmounting...';
-                api('unmountUsb', { body: {} }).then(function (res) {
-                    if (res.ok) {
-                        alert('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + '\n\nIt is now safe to disconnect the drive.');
-                        api('probeStorage').then(function (r2) {
-                            if (r2.ok) { state.storage = r2.data; renderStorage(); }
+                DisplayConfirmationDialog('rb-unmount-confirm', 'Unmount Backup Drive',
+                    'Unmount the backup destination drive from <code>/mnt/Backups</code>?<br><br>' +
+                    'Backups already on it are kept - this just detaches it from the system so it is safe to physically unplug. ' +
+                    'You will need to Mount it again (Config &gt; Storage) before the next backup run.',
+                    function () {
+                        btn.disabled = true;
+                        btn.textContent = 'Unmounting...';
+                        api('unmountUsb', { body: {} }).then(function (res) {
+                            if (res.ok) {
+                                $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { themeState: 'success' });
+                                api('probeStorage').then(function (r2) {
+                                    if (r2.ok) { state.storage = r2.data; renderStorage(); }
+                                });
+                            } else {
+                                $.jGrowl('Unmount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                btn.disabled = false;
+                                btn.textContent = 'Unmount';
+                            }
                         });
-                    } else {
-                        alert('Unmount failed: ' + (res.error || 'unknown error'));
-                        btn.disabled = false;
-                        btn.textContent = 'Unmount';
-                    }
-                });
+                    });
             });
         });
 
@@ -202,12 +208,12 @@ $rbPlugin = basename(__DIR__);
                 btn.textContent = 'Mounting...';
                 api('mountUsb', { body: { device: device } }).then(function (res) {
                     if (res.ok) {
-                        alert('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''));
+                        $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { themeState: 'success' });
                         api('probeStorage').then(function (r2) {
                             if (r2.ok) { state.storage = r2.data; renderStorage(); }
                         });
                     } else {
-                        alert('Mount failed: ' + (res.error || 'unknown error'));
+                        $.jGrowl('Mount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
                         btn.disabled = false;
                         btn.textContent = 'Mount as Backups';
                     }
@@ -220,39 +226,57 @@ $rbPlugin = basename(__DIR__);
         // handles unmounting/removing the fstab entry first when needed.
         function runFormatFlow(btn, device, size, isReformat, resetLabel) {
             var warnExtra = isReformat ? ' It is currently your backup destination - existing backups on it will be gone too.' : '';
-            if (!confirm('This will ERASE ALL DATA on ' + device + ' (' + size + ').' + warnExtra + '\n\nThis cannot be undone. Continue?')) return;
+            var modalId = 'rb-format-modal';
+            var bodyHtml =
+                '<div class="callout callout-danger mb-2">This will <b>ERASE ALL DATA</b> on ' + device + ' (' + size + ').' + warnExtra + ' This cannot be undone.</div>' +
+                '<table class="table table-sm table-borderless mb-0">' +
+                '<tr><td>Filesystem:</td><td>' +
+                '<select id="rb-format-fstype" class="form-select form-select-sm d-inline-block w-auto">' +
+                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
+                '<option value="ext4">ext4 (Linux only)</option>' +
+                '</select></td></tr>' +
+                '<tr><td>Type <code>' + device + '</code> to confirm:</td><td>' +
+                '<input type="text" id="rb-format-confirm" class="form-control form-control-sm d-inline-block w-auto" autocomplete="off"></td></tr>' +
+                '</table>';
 
-            var fsAnswer = prompt(
-                'Which filesystem?\n\n' +
-                '  exfat - recommended if you want to read this drive on Windows, a Mac,\n' +
-                '          or another Pi/computer directly. No 4GB single-file size limit\n' +
-                '          (unlike FAT32), unlike ext4 it needs no extra driver on Windows/Mac.\n\n' +
-                '  ext4  - Linux-only; plug it into Windows/Mac and it won\'t be readable\n' +
-                '          without extra software. Slightly more standard on Linux.\n\n' +
-                'Type exfat or ext4:',
-                'exfat'
-            );
-            if (fsAnswer !== 'exfat' && fsAnswer !== 'ext4') { alert('Type exactly "exfat" or "ext4" - aborted, nothing was formatted.'); return; }
-            var fstype = fsAnswer;
+            DoModalDialog({
+                id: modalId,
+                title: 'Format ' + device,
+                class: 'modal-m',
+                backdrop: true,
+                body: bodyHtml,
+                buttons: {
+                    Cancel: function () { CloseModalDialog(modalId); },
+                    Format: {
+                        class: 'btn-danger',
+                        click: function () {
+                            var fstype = document.getElementById('rb-format-fstype').value;
+                            var typed = document.getElementById('rb-format-confirm').value;
+                            if (typed !== device) {
+                                $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { themeState: 'danger' });
+                                return;
+                            }
+                            CloseModalDialog(modalId);
 
-            var typed = prompt('Last check - type the device path exactly to confirm formatting ' + device + ' as ' + fstype + ':');
-            if (typed !== device) { alert('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.'); return; }
-
-            btn.disabled = true;
-            btn.textContent = 'Formatting...';
-            api('formatUsb', {
-                body: { device: device, fstype: fstype, confirm: 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE' },
-                timeoutMs: 120000
-            }).then(function (res) {
-                if (res.ok) {
-                    alert('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : '') + (res.clearedAllStatus ? '\n\nAll previous backup status on the Status page was cleared since this was your active destination drive.' : ''));
-                    api('probeStorage').then(function (r2) {
-                        if (r2.ok) { state.storage = r2.data; renderStorage(); }
-                    });
-                } else {
-                    alert('Format failed: ' + (res.error || 'unknown error'));
-                    btn.disabled = false;
-                    btn.textContent = resetLabel;
+                            btn.disabled = true;
+                            btn.textContent = 'Formatting...';
+                            api('formatUsb', {
+                                body: { device: device, fstype: fstype, confirm: 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE' },
+                                timeoutMs: 120000
+                            }).then(function (res) {
+                                if (res.ok) {
+                                    $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : '') + (res.clearedAllStatus ? '. All previous backup status on the Status page was cleared since this was your active destination drive.' : ''), { themeState: 'success' });
+                                    api('probeStorage').then(function (r2) {
+                                        if (r2.ok) { state.storage = r2.data; renderStorage(); }
+                                    });
+                                } else {
+                                    $.jGrowl('Format failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                    btn.disabled = false;
+                                    btn.textContent = resetLabel;
+                                }
+                            });
+                        }
+                    }
                 }
             });
         }
@@ -274,9 +298,9 @@ $rbPlugin = basename(__DIR__);
 
     function keyStatusId(id) { return 'rb-keystatus-' + id.replace(/[^A-Za-z0-9]/g, '_'); }
 
-    function setKeyStatus(id, text, color) {
+    function setKeyStatus(id, text, cls) {
         var el = document.getElementById(keyStatusId(id));
-        if (el) { el.textContent = text; el.style.color = color || '#666'; }
+        if (el) { el.textContent = text; el.className = cls || 'text-muted'; }
     }
 
     // Shared by both the auto-push-on-select path and the manual button.
@@ -287,8 +311,31 @@ $rbPlugin = basename(__DIR__);
         return (el && el.value) || (state.settings && state.settings.sshPassword) || 'falcon';
     }
 
+    function promptSshPassword(addr, cb) {
+        var modalId = 'rb-sshpw-modal';
+        var bodyHtml = '<div class="mb-2">SSH password for <code>fpp@' + addr + '</code>:</div>' +
+            '<input type="password" id="rb-sshpw-input" class="form-control form-control-sm" value="' +
+            defaultSshPassword().replace(/"/g, '&quot;') + '" autocomplete="off">';
+        DoModalDialog({
+            id: modalId,
+            title: 'SSH Password',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            focus: 'rb-sshpw-input',
+            buttons: {
+                Cancel: function () { CloseModalDialog(modalId); },
+                Ok: function () {
+                    var pw = document.getElementById('rb-sshpw-input').value;
+                    CloseModalDialog(modalId);
+                    cb(pw);
+                }
+            }
+        });
+    }
+
     function pushKeyFor(id, address, password, announce) {
-        setKeyStatus(id, 'pushing key...', '#666');
+        setKeyStatus(id, 'pushing key...', 'text-muted');
         return api('pushSshKey', {
             body: {
                 address: address,
@@ -298,10 +345,10 @@ $rbPlugin = basename(__DIR__);
             }
         }).then(function (res) {
             if (res.ok) {
-                setKeyStatus(id, 'key installed', 'green');
+                setKeyStatus(id, 'key installed', 'text-success');
             } else {
-                setKeyStatus(id, 'key push failed - click "Push SSH Key" to retry with a password', 'red');
-                if (announce) alert(res.message || res.error || 'Failed');
+                setKeyStatus(id, 'key push failed - click "Push SSH Key" to retry with a password', 'text-danger');
+                if (announce) $.jGrowl(res.message || res.error || 'Failed', { themeState: 'danger' });
             }
             return res;
         });
@@ -309,6 +356,7 @@ $rbPlugin = basename(__DIR__);
 
     function renderRemotes() {
         var el = document.getElementById('rb-remoteList');
+        el.className = 'mt-2';
         if (!state.remotes.length) { el.innerHTML = '<em>No remotes found yet. Rescan, or add one manually below.</em>'; return; }
         var html = '<table class="table table-sm"><tr><th></th><th>Hostname</th><th>Address</th><th>Source</th><th></th></tr>';
         state.remotes.forEach(function (r) {
@@ -318,7 +366,7 @@ $rbPlugin = basename(__DIR__);
                 '<td>' + r.address + '</td>' +
                 '<td>' + (r.source || 'multisync') + '</td>' +
                 '<td><button type="button" class="btn btn-outline-secondary btn-sm rb-push-key" data-id="' + r.id + '" data-addr="' + r.address + '">Push SSH Key</button> ' +
-                '<small id="' + keyStatusId(r.id) + '" style="color:#666;"></small></td>' +
+                '<small id="' + keyStatusId(r.id) + '" class="text-muted"></small></td>' +
                 '</tr>';
         });
         html += '</table>';
@@ -328,8 +376,9 @@ $rbPlugin = basename(__DIR__);
             btn.addEventListener('click', function () {
                 var addr = btn.getAttribute('data-addr');
                 var id = btn.getAttribute('data-id');
-                var pw = prompt('SSH password for fpp@' + addr + ':', defaultSshPassword());
-                pushKeyFor(id, addr, pw, true);
+                promptSshPassword(addr, function (pw) {
+                    pushKeyFor(id, addr, pw, true);
+                });
             });
         });
 
@@ -345,7 +394,7 @@ $rbPlugin = basename(__DIR__);
                 if (chk.checked) {
                     pushKeyFor(id, addr, null, false);
                 } else {
-                    setKeyStatus(id, '', '#666');
+                    setKeyStatus(id, '', 'text-muted');
                 }
             });
         });
@@ -368,11 +417,25 @@ $rbPlugin = basename(__DIR__);
         return merged;
     }
 
+    // Shows/clears the spinner FPP's own loading states use (see
+    // .fpp-backup-action-loading in fpp.css) on a list container while a
+    // scan is in flight, matching the file-copy page's loading idiom.
+    function setScanning(elId) {
+        var el = document.getElementById(elId);
+        el.className = 'mt-2 fpp-backup-action-loading';
+        el.innerHTML = 'Scanning...';
+    }
+    function setScanError(elId, msg) {
+        var el = document.getElementById(elId);
+        el.className = 'mt-2';
+        el.innerHTML = 'Error: ' + msg;
+    }
+
     function loadAll() {
         api('loadSettings').then(function (res) {
             if (!res.ok) {
-                document.getElementById('rb-storageList').innerHTML = 'Error loading settings: ' + res.error;
-                document.getElementById('rb-remoteList').innerHTML = 'Error loading settings: ' + res.error;
+                setScanError('rb-storageList', res.error);
+                setScanError('rb-remoteList', res.error);
                 return;
             }
             state.settings = res.data;
@@ -391,38 +454,38 @@ $rbPlugin = basename(__DIR__);
         });
         api('probeStorage').then(function (res) {
             if (res.ok) { state.storage = res.data; renderStorage(); }
-            else { document.getElementById('rb-storageList').innerHTML = 'Error: ' + res.error; }
+            else { setScanError('rb-storageList', res.error); }
         });
         api('probeRemotes').then(function (res) {
             if (res.ok) {
                 state.remotes = mergeRemoteLists(res.data.remotes || [], state.remotes);
                 renderRemotes();
             } else {
-                document.getElementById('rb-remoteList').innerHTML = 'Error: ' + res.error;
+                setScanError('rb-remoteList', res.error);
             }
         });
     }
 
     document.getElementById('rb-refreshStorage').addEventListener('click', function () {
-        document.getElementById('rb-storageList').innerHTML = 'Scanning...';
+        setScanning('rb-storageList');
         api('probeStorage').then(function (res) {
             if (res.ok) { state.storage = res.data; renderStorage(); }
-            else { document.getElementById('rb-storageList').innerHTML = 'Error: ' + res.error; }
+            else { setScanError('rb-storageList', res.error); }
         });
     });
 
     document.getElementById('rb-refreshRemotes').addEventListener('click', function () {
-        document.getElementById('rb-remoteList').innerHTML = 'Scanning...';
+        setScanning('rb-remoteList');
         api('probeRemotes').then(function (res) {
             if (res.ok) { state.remotes = mergeRemoteLists(res.data.remotes || [], state.remotes); renderRemotes(); }
-            else { document.getElementById('rb-remoteList').innerHTML = 'Error: ' + res.error; }
+            else { setScanError('rb-remoteList', res.error); }
         });
     });
 
     document.getElementById('rb-addManual').addEventListener('click', function () {
         var host = document.getElementById('rb-manualHost').value.trim();
         var addr = document.getElementById('rb-manualAddr').value.trim();
-        if (!host || !addr) { alert('Hostname and IP address are both required.'); return; }
+        if (!host || !addr) { $.jGrowl('Hostname and IP address are both required.', { themeState: 'danger' }); return; }
         var id = host.replace(/[^A-Za-z0-9._-]+/g, '_');
         state.remotes.push({ id: id, hostname: host, address: addr, selected: true, source: 'manual' });
         document.getElementById('rb-manualHost').value = '';
@@ -461,10 +524,12 @@ $rbPlugin = basename(__DIR__);
                 state.settings = res.data;
                 state.remotes = res.data.remotes;
                 msg.textContent = 'Saved.';
-                msg.style.color = 'green';
+                msg.className = 'ms-2 text-success';
+                $.jGrowl('Remote Backup settings saved.', { themeState: 'success' });
             } else {
                 msg.textContent = 'Error: ' + (res.error || 'unknown');
-                msg.style.color = 'red';
+                msg.className = 'ms-2 text-danger';
+                $.jGrowl('Failed to save Remote Backup settings: ' + (res.error || 'unknown'), { themeState: 'danger' });
             }
             setTimeout(function () { msg.textContent = ''; }, 4000);
         });
