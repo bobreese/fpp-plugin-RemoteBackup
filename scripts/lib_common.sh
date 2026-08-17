@@ -63,7 +63,7 @@ rb_now_iso() {
 # backup container anyway (it'd dump show backups in next to /etc, /var,
 # etc.), so route that one case into a dedicated, fpp-writable folder that
 # still lives on the same filesystem free-space reporting already covers.
-RB_SDCARD_FALLBACK_DIR="/home/fpp/media/RemoteBackup-Local"
+RB_SDCARD_FALLBACK_DIR="/home/fpp/media/backups"
 rb_dest_root() {
     local mount="$1"
     if [ "$mount" = "/" ]; then
