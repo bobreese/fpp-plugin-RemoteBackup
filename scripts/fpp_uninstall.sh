@@ -58,7 +58,15 @@ fi
 DEST_MOUNT=""
 if [ -f "${PLUGINDIR}/data/settings.json" ] && command -v jq >/dev/null 2>&1; then
     DEST_MOUNT=$(jq -r '.destinationMount // empty' "${PLUGINDIR}/data/settings.json" 2>/dev/null)
-    DEST_MOUNT="${DEST_MOUNT%/}"
+    # "/" (the SD-card/system-storage fallback's mountpoint) is special-cased
+    # the same way run_backup.sh's rb_dest_root() does: backups under that
+    # choice actually live in a dedicated subfolder, never at "/" itself -
+    # see lib_common.sh for the full rationale.
+    if [ "$DEST_MOUNT" = "/" ]; then
+        DEST_MOUNT="/home/fpp/media/RemoteBackup-Local"
+    else
+        DEST_MOUNT="${DEST_MOUNT%/}"
+    fi
 fi
 
 # Backups live directly under the destination mount (no dedicated

@@ -36,7 +36,7 @@ if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     json_err "No destination storage configured/mounted"
     exit 0
 fi
-DEST_ROOT_REAL=$(realpath "${DEST_MOUNT%/}" 2>/dev/null)
+DEST_ROOT_REAL=$(realpath "$(rb_dest_root "$DEST_MOUNT")" 2>/dev/null)
 TARGET_REAL=$(realpath "$REQ_PATH" 2>/dev/null)
 
 # Must resolve to a real directory strictly inside the destination

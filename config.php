@@ -148,6 +148,14 @@ $rbPlugin = basename(__DIR__);
                 var id = 'rb-storage-' + mp.replace(/[^A-Za-z0-9]/g, '_');
                 html += '<div><label><input type="radio" name="rb-storage-choice" value="' + mp + '" ' + checked + ' id="' + id + '"> ' +
                     (d.deviceLabel || mp) + ' &mdash; mounted at ' + mp + ' &mdash; ' + humanBytes(d.availBytes) + ' free</label>';
+                // The SD-card/system-storage fallback reports the true
+                // filesystem root ("/") as its mountpoint - free space is
+                // measured there, but backups themselves are written into
+                // a dedicated writable subfolder (see rb_dest_root() in
+                // lib_common.sh), never into "/" itself.
+                if (mp === '/') {
+                    html += ' <small class="text-muted">(backups stored under /home/fpp/media/RemoteBackup-Local)</small>';
+                }
                 // Only ever offered for the drive THIS plugin manages
                 // (mounted at /mnt/Backups) - never for the SD card/
                 // NVMe/SSD the OS itself might be running from.

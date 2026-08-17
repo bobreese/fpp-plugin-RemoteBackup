@@ -68,7 +68,7 @@ SSH_KEY=$(rb_setting '.sshKeyPath' '/home/fpp/.ssh/id_rsa_remotebackup')
 # request, since this mount is meant to be dedicated to this plugin
 # anyway). mkdir -p is a no-op here since the mount already exists,
 # kept only for the case DEST_MOUNT ends up freshly created.
-DEST_ROOT="${DEST_MOUNT%/}"
+DEST_ROOT="$(rb_dest_root "$DEST_MOUNT")"
 mkdir -p "$DEST_ROOT"
 
 # --- Extras: FPP logs (wherever they really live) + optional system/  ---
