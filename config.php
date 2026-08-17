@@ -69,6 +69,7 @@ $rbPlugin = basename(__DIR__);
     </fieldset>
 
     <button type="button" class="btn btn-primary mt-2" id="rb-save">Save Settings</button>
+    <a class="btn btn-outline-secondary mt-2" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status</a>
     <span id="rb-saveMsg" class="ms-2"></span>
 </div>
 

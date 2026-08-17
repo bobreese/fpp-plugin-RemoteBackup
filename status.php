@@ -14,6 +14,7 @@ $rbPlugin = basename(__DIR__);
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-dryrun">Dry Run (selected remotes)</button>
                 <button type="button" class="btn btn-primary btn-sm" id="rb-start">Start Backup</button>
                 <button type="button" class="btn btn-danger btn-sm" id="rb-stop">Stop</button>
+                <a class="btn btn-outline-secondary btn-sm" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=config.php">Config</a>
                 <span id="rb-runMsg" class="ms-2"></span>
             </div>
             <div style="text-align:right;">
@@ -66,7 +67,7 @@ $rbPlugin = basename(__DIR__);
                 <option value="engine">engine.log (backup run engine)</option>
             </select>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-refresh">Refresh Log</button>
-            <label class="ms-2"><input type="checkbox" id="rb-log-autotail" checked> Auto-tail</label>
+            <label class="ms-2"><input type="checkbox" id="rb-log-autotail"> Auto-tail</label>
             <div><small id="rb-log-path" class="text-muted"></small></div>
             <pre id="rb-log-content" class="bg-body-secondary border rounded" style="max-height:300px;overflow:auto;padding:6px;margin-top:6px;">(not loaded yet)</pre>
         </div>
@@ -286,6 +287,27 @@ $rbPlugin = basename(__DIR__);
     });
 
     var logTailTimer = null;
+    var AUTOTAIL_STORAGE_KEY = 'rb-log-autotail';
+
+    // Auto-tail used to always be checked on page load, polling the log
+    // every 3s whether or not anyone was watching it. Persist the user's
+    // choice instead (localStorage, may be unavailable in some contexts -
+    // fails silently and just falls back to "off" every load) so leaving
+    // the Status page open doesn't churn the ajax.log endpoint by default.
+    function loadAutotailPref() {
+        try {
+            return localStorage.getItem(AUTOTAIL_STORAGE_KEY) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+    function saveAutotailPref(on) {
+        try {
+            localStorage.setItem(AUTOTAIL_STORAGE_KEY, on ? '1' : '0');
+        } catch (e) {
+            // ignore - just won't persist this session
+        }
+    }
 
     function loadLog(silent) {
         var which = document.getElementById('rb-log-which').value;
@@ -321,8 +343,12 @@ $rbPlugin = basename(__DIR__);
 
     document.getElementById('rb-log-refresh').addEventListener('click', function () { loadLog(false); });
     document.getElementById('rb-log-which').addEventListener('change', function () { loadLog(false); scheduleLogTail(); });
-    document.getElementById('rb-log-autotail').addEventListener('change', scheduleLogTail);
+    document.getElementById('rb-log-autotail').addEventListener('change', function (e) {
+        saveAutotailPref(e.target.checked);
+        scheduleLogTail();
+    });
 
+    document.getElementById('rb-log-autotail').checked = loadAutotailPref();
     loadLog(false);
     scheduleLogTail();
 
