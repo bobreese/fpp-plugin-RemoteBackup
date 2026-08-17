@@ -48,6 +48,31 @@ rb_now_iso() {
     date -u '+%Y-%m-%dT%H:%M:%SZ'
 }
 
+# rb_dest_root <destinationMount>: resolves the directory backups actually
+# live under, given the raw destinationMount setting.
+#
+# For every other storage choice (NVMe/SSD/USB, mounted at e.g.
+# /mnt/Backups) this is just the mountpoint itself, trailing slash
+# stripped. The "SD Card / System Storage (fallback)" choice is special:
+# probe_storage.sh reports the true filesystem root "/" as that option's
+# mountpoint (it's whatever the OS root sits on), and a plain "${mount%/}"
+# strip collapses "/" to an empty string - every backup path then resolved
+# to "/<id>-<date>", a write straight into the OS root that the fpp user
+# has no permission for, surfacing as a confusing "could not create/write
+# to target directory" error on every run. "/" itself was never a sane
+# backup container anyway (it'd dump show backups in next to /etc, /var,
+# etc.), so route that one case into a dedicated, fpp-writable folder that
+# still lives on the same filesystem free-space reporting already covers.
+RB_SDCARD_FALLBACK_DIR="/home/fpp/media/RemoteBackup-Local"
+rb_dest_root() {
+    local mount="$1"
+    if [ "$mount" = "/" ]; then
+        echo "$RB_SDCARD_FALLBACK_DIR"
+    else
+        echo "${mount%/}"
+    fi
+}
+
 # Bytes -> human readable, used only for logging (UI does its own formatting)
 rb_human_bytes() {
     numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "$1 bytes"

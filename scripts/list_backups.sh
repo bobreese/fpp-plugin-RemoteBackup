@@ -16,7 +16,7 @@ if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     echo '{"ok":false,"error":"No destination storage configured/mounted"}'
     exit 0
 fi
-DEST_ROOT="${DEST_MOUNT%/}"
+DEST_ROOT="$(rb_dest_root "$DEST_MOUNT")"
 if [ ! -d "$DEST_ROOT" ]; then
     echo '{"ok":true,"backups":[]}'
     exit 0
