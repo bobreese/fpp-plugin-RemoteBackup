@@ -24,7 +24,7 @@ $rbPlugin = basename(__DIR__);
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-backedup-refresh" title="Rescan storage">&#8635;</button>
             </div>
         </div>
-        <div class="p-2" id="rb-dest-storage" style="font-size:0.9em; color:#555;">Host storage: (loading...)</div>
+        <div class="p-2 text-muted" id="rb-dest-storage" style="font-size:0.9em;">Host storage: (loading...)</div>
         <div class="p-2" id="rb-backedup-info" style="display:none; border-top:1px solid #ddd; margin-top:4px;"></div>
     </fieldset>
 
@@ -67,8 +67,8 @@ $rbPlugin = basename(__DIR__);
             </select>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-refresh">Refresh Log</button>
             <label class="ms-2"><input type="checkbox" id="rb-log-autotail" checked> Auto-tail</label>
-            <div><small id="rb-log-path" style="color:#666;"></small></div>
-            <pre id="rb-log-content" style="max-height:300px;overflow:auto;background:#f7f7f7;border:1px solid #ddd;padding:6px;margin-top:6px;">(not loaded yet)</pre>
+            <div><small id="rb-log-path" class="text-muted"></small></div>
+            <pre id="rb-log-content" class="bg-body-secondary border rounded" style="max-height:300px;overflow:auto;padding:6px;margin-top:6px;">(not loaded yet)</pre>
         </div>
     </fieldset>
 </div>
@@ -173,14 +173,24 @@ $rbPlugin = basename(__DIR__);
                 var label = STATE_LABEL[r.state] || r.state;
                 var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
                 var fileCell = (r.state === 'error')
-                    ? '<span style="color:#a00" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
+                    ? '<span class="text-danger" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
                     : (r.currentFile || '');
+                var progressCell = '';
+                if (r.percent != null) {
+                    var barClass = 'progress-bar';
+                    if (r.state === 'running') barClass += ' progress-bar-striped progress-bar-animated';
+                    else if (r.state === 'error') barClass += ' bg-danger';
+                    else if (r.state === 'done' || r.state === 'dry-run-complete') barClass += ' bg-success';
+                    progressCell = '<div class="progress" style="height:1.2em;min-width:90px;">' +
+                        '<div class="' + barClass + '" role="progressbar" style="width:' + r.percent + '%;" ' +
+                        'aria-valuenow="' + r.percent + '" aria-valuemin="0" aria-valuemax="100">' + r.percent + '%</div></div>';
+                }
                 return '<tr>' +
                     '<td>' + (r.hostname || r.id) + '</td>' +
                     '<td>' + (r.address || '') + '</td>' +
                     '<td>' + label + '</td>' +
                     '<td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + ((r.currentFile || r.errorDetail || '')).replace(/"/g, '&quot;') + '">' + fileCell + '</td>' +
-                    '<td>' + (r.percent != null ? r.percent + '%' : '') + '</td>' +
+                    '<td>' + progressCell + '</td>' +
                     '<td>' + xfer + '</td>' +
                     '<td>' + (r.target || '') + '</td>' +
                     '</tr>';
@@ -203,7 +213,7 @@ $rbPlugin = basename(__DIR__);
             panel.style.display = '';
             var s = data.dryRunSummary;
             var verdict = s.sufficient === null ? 'Unknown (destination not mounted?)'
-                : (s.sufficient ? '<span style="color:green">Sufficient space available</span>' : '<span style="color:red">NOT enough free space on destination</span>');
+                : (s.sufficient ? '<span class="text-success">Sufficient space available</span>' : '<span class="text-danger">NOT enough free space on destination</span>');
             document.getElementById('rb-dryrun-summary').innerHTML =
                 'Estimated total transfer: <b>' + humanBytesMB(s.estimatedTotalBytes) + '</b><br>' +
                 'Available on destination: <b>' + (s.availableBytes != null ? humanBytesMB(s.availableBytes) : 'unknown') + '</b><br>' +
@@ -247,22 +257,24 @@ $rbPlugin = basename(__DIR__);
 
     document.getElementById('rb-start').addEventListener('click', function () {
         getSelectedRemoteIds().then(function (ids) {
-            if (!ids.length) { alert('No remotes are selected. Go to Config and select at least one.'); return; }
+            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { themeState: 'danger' }); return; }
             api('start', { body: { remotes: ids, dryRun: false } }).then(function (res) {
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
-                if (res.ok) { poll(); }
+                msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
+                if (res.ok) { poll(); } else { $.jGrowl('Failed to start backup: ' + res.error, { themeState: 'danger' }); }
             });
         });
     });
 
     document.getElementById('rb-dryrun').addEventListener('click', function () {
         getSelectedRemoteIds().then(function (ids) {
-            if (!ids.length) { alert('No remotes are selected. Go to Config and select at least one.'); return; }
+            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { themeState: 'danger' }); return; }
             api('start', { body: { remotes: ids, dryRun: true } }).then(function (res) {
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Dry run started.' : ('Error: ' + res.error);
-                if (res.ok) { poll(); }
+                msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
+                if (res.ok) { poll(); } else { $.jGrowl('Failed to start dry run: ' + res.error, { themeState: 'danger' }); }
             });
         });
     });
@@ -368,16 +380,45 @@ $rbPlugin = basename(__DIR__);
 
             document.getElementById('rb-delete-backup').addEventListener('click', function () {
                 var name = path.split('/').filter(Boolean).pop();
-                if (!confirm('Delete this backup?\n\n' + path + '\n(' + humanBytes(data.sizeBytes) + ')\n\nThis cannot be undone.')) return;
+                var modalId = 'rb-delete-backup-modal';
                 // Pre-fill the confirmation field with the backup's own name so
                 // there's nothing to manually retype - reviewing what's shown and
-                // clicking OK (or Cancel to back out) is the verification step.
-                // Editing/clearing it still requires an exact match below, so it's
-                // not just a rubber-stamp click.
-                var typed = prompt('Confirm deletion - the backup folder name is pre-filled below. Click OK to delete it, or Cancel to back out:', name);
-                if (typed === null) { return; }
-                if (typed !== name) { alert('Confirmation text did not match "' + name + '" - aborted, nothing was deleted.'); return; }
+                // clicking Delete is the verification step. Editing/clearing it
+                // still requires an exact match below, so it's not just a
+                // rubber-stamp click.
+                var bodyHtml =
+                    '<div class="callout callout-danger mb-2">Delete this backup? This cannot be undone.<br>' +
+                    '<code>' + path.replace(/</g, '&lt;') + '</code><br>' + humanBytes(data.sizeBytes) + '</div>' +
+                    '<div class="mb-1">Type the backup folder name to confirm:</div>' +
+                    '<input type="text" id="rb-delete-confirm" class="form-control form-control-sm" value="' +
+                    name.replace(/"/g, '&quot;') + '" autocomplete="off">';
 
+                DoModalDialog({
+                    id: modalId,
+                    title: 'Delete Backup',
+                    class: 'modal-m',
+                    backdrop: true,
+                    body: bodyHtml,
+                    focus: 'rb-delete-confirm',
+                    buttons: {
+                        Cancel: function () { CloseModalDialog(modalId); },
+                        Delete: {
+                            class: 'btn-danger',
+                            click: function () {
+                                var typed = document.getElementById('rb-delete-confirm').value;
+                                if (typed !== name) {
+                                    $.jGrowl('Confirmation text did not match "' + name + '" - aborted, nothing was deleted.', { themeState: 'danger' });
+                                    return;
+                                }
+                                CloseModalDialog(modalId);
+                                doDeleteBackup(path);
+                            }
+                        }
+                    }
+                });
+            });
+
+            function doDeleteBackup(path) {
                 var btn = document.getElementById('rb-delete-backup');
                 btn.disabled = true;
                 btn.textContent = 'Deleting...';
@@ -387,8 +428,9 @@ $rbPlugin = basename(__DIR__);
                     body: JSON.stringify({ path: path, confirm: 'I_UNDERSTAND_THIS_DELETES_THE_BACKUP' })
                 }).then(function (r) { return r.text(); }).then(function (txt) {
                     var res;
-                    try { res = JSON.parse(txt); } catch (e) { alert('Non-JSON response deleting backup.'); return; }
+                    try { res = JSON.parse(txt); } catch (e) { $.jGrowl('Non-JSON response deleting backup.', { themeState: 'danger' }); return; }
                     if (res.ok) {
+                        $.jGrowl('Backup deleted.', { themeState: 'success' });
                         panel.style.display = 'none';
                         document.getElementById('rb-backedup-select').value = '';
                         loadBackedUpList(false);
@@ -397,16 +439,16 @@ $rbPlugin = basename(__DIR__);
                         // with a Backup Folder that no longer exists.
                         poll();
                     } else {
-                        alert('Delete failed: ' + (res.error || 'unknown error'));
+                        $.jGrowl('Delete failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
                         btn.disabled = false;
                         btn.textContent = 'Delete This Backup';
                     }
                 }).catch(function (err) {
-                    alert('Request failed: ' + err.message);
+                    $.jGrowl('Request failed: ' + err.message, { themeState: 'danger' });
                     btn.disabled = false;
                     btn.textContent = 'Delete This Backup';
                 });
-            });
+            }
         }).catch(function () {
             panel.textContent = 'Request failed.';
         });
