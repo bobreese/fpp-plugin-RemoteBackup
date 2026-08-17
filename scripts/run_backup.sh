@@ -187,7 +187,7 @@ echo '{"active": true}' > "${DATA_DIR}/run_active.json"
 
 backup_one() {
     local remote_json="$1"
-    local id hostname address today target existing prev linkdest_opt=() extra=() logfile
+    local id hostname address today target existing prev linkdest_opt=() extra=() logfile target_ok
 
     id=$(echo "$remote_json" | jq -r '.id')
     hostname=$(echo "$remote_json" | jq -r '.hostname')
@@ -229,21 +229,41 @@ backup_one() {
         # going forward use the flat one.)
         target="${DEST_ROOT}/${id}-${today}"
         prev=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "$(basename "$target")" 2>/dev/null | sort | tail -1)
-        mkdir -p "$target"
+        # A dry run only reports what WOULD happen - it must never create,
+        # rename, or otherwise touch anything on the destination itself.
+        # rsync's own --dry-run (added to $extra below) already handles
+        # not writing file contents; this mkdir was unconditional and ran
+        # regardless, so a "dry run" was silently leaving a real empty
+        # backup folder behind on disk. --link-dest discovery above is
+        # read-only (find) so it stays as-is either way.
+        [ "$DRYRUN" = "1" ] || mkdir -p "$target"
         if [ -n "$prev" ]; then
             extra+=(--link-dest="$prev")
         fi
     else
         existing=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "${id}-${today}" 2>/dev/null | sort | tail -1)
         target="${DEST_ROOT}/${id}-${today}"
-        if [ -n "$existing" ] && [ ! -d "$target" ]; then
-            mv "$existing" "$target"
-            rb_log "renamed existing backup for $id: $(basename "$existing") -> $(basename "$target")"
+        if [ "$DRYRUN" = "1" ]; then
+            : # see snapshot-mode comment above - no mkdir/mv for a dry run
+        else
+            if [ -n "$existing" ] && [ ! -d "$target" ]; then
+                mv "$existing" "$target"
+                rb_log "renamed existing backup for $id: $(basename "$existing") -> $(basename "$target")"
+            fi
+            mkdir -p "$target"
         fi
-        mkdir -p "$target"
     fi
 
-    if [ ! -d "$target" ] || [ ! -w "$target" ]; then
+    # A dry run deliberately never creates $target (see above), so checking
+    # it here would always fail - the real precondition for a dry run is
+    # just that the destination itself is still writable. A real run still
+    # checks $target specifically, since that's what's about to be written to.
+    if [ "$DRYRUN" = "1" ]; then
+        target_ok=1; [ -w "$DEST_ROOT" ] || target_ok=0
+    else
+        target_ok=1; { [ -d "$target" ] && [ -w "$target" ]; } || target_ok=0
+    fi
+    if [ "$target_ok" = "0" ]; then
         rb_log "ERROR $id: could not create/write to target directory '$target' (destination likely unmounted or disconnected mid-run)"
         rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
             --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" --arg target "$target" \
