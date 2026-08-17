@@ -77,3 +77,24 @@ rb_dest_root() {
 rb_human_bytes() {
     numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "$1 bytes"
 }
+
+# rb_parse_rsync_bytes <token>: converts a numeric token as printed by
+# `rsync --stats` run with `-h` (human-readable, which run_backup.sh always
+# passes so the raw log stays readable) into a plain integer byte count.
+# Below ~1000 bytes -h prints comma-grouped plain digits (e.g. "5,242"),
+# but past that it switches to a decimal + unit suffix (e.g. "5.24M",
+# "610.44K", "1.02G") - a bare `grep -oE '[0-9,]+'` on that only ever
+# grabbed the digits before the decimal point ("5" out of "5.24M"),
+# silently truncating any multi-KB transfer down to a handful of bytes.
+# That's why the dry-run summary's "Estimated total transfer" could read
+# "0.00 MB" even when a real multi-megabyte transfer was estimated.
+rb_parse_rsync_bytes() {
+    local token="${1//,/}"
+    case "$token" in
+        *K) awk -v n="${token%K}" 'BEGIN { printf "%.0f", n * 1024 }' ;;
+        *M) awk -v n="${token%M}" 'BEGIN { printf "%.0f", n * 1024 * 1024 }' ;;
+        *G) awk -v n="${token%G}" 'BEGIN { printf "%.0f", n * 1024 * 1024 * 1024 }' ;;
+        *T) awk -v n="${token%T}" 'BEGIN { printf "%.0f", n * 1024 * 1024 * 1024 * 1024 }' ;;
+        *) echo "$token" ;;
+    esac
+}
