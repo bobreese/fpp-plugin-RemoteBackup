@@ -63,7 +63,7 @@ if [ -f "${PLUGINDIR}/data/settings.json" ] && command -v jq >/dev/null 2>&1; th
     # choice actually live in a dedicated subfolder, never at "/" itself -
     # see lib_common.sh for the full rationale.
     if [ "$DEST_MOUNT" = "/" ]; then
-        DEST_MOUNT="/home/fpp/media/RemoteBackup-Local"
+        DEST_MOUNT="/home/fpp/media/backups"
     else
         DEST_MOUNT="${DEST_MOUNT%/}"
     fi

@@ -154,7 +154,7 @@ $rbPlugin = basename(__DIR__);
                 // a dedicated writable subfolder (see rb_dest_root() in
                 // lib_common.sh), never into "/" itself.
                 if (mp === '/') {
-                    html += ' <small class="text-muted">(backups stored under /home/fpp/media/RemoteBackup-Local)</small>';
+                    html += ' <small class="text-muted">(backups stored under /home/fpp/media/backups)</small>';
                 }
                 // Only ever offered for the drive THIS plugin manages
                 // (mounted at /mnt/Backups) - never for the SD card/
