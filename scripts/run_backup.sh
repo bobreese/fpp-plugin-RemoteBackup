@@ -378,10 +378,25 @@ backup_one() {
         if [ "$INCLUDE_SYSTEM_CONFIG" = "true" ]; then
             echo "system-config: pulling known system paths via sudo on the remote (best effort - missing paths are skipped)" >> "$logfile" 2>&1
             mkdir -p "${scratch_root}/system-config"
+            # One rsync call with all SYSTEM_CONFIG_PATHS as separate source
+            # args, instead of one call per path in a loop. rsync opens a
+            # single remote-shell (ssh+sudo) session for multiple sources
+            # against the same host and places each under the destination
+            # by its own basename - identical layout to the old per-path
+            # calls (dirs land as subdirs, files as files, confirmed against
+            # a real rsync run). A missing path still only skips that one
+            # source and reports its own "No such file or directory", same
+            # as before; every other path still transfers in the same run.
+            # Previously each of the 8 paths opened its own SSH+sudo
+            # connection, and the remote's login banner (MOTD) got printed
+            # once per connection - 8 near-identical banner blocks cluttering
+            # every remote's log for what's fundamentally one fetch.
+            local system_config_srcs=()
             for p in "${SYSTEM_CONFIG_PATHS[@]}"; do
-                rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" --rsync-path="sudo rsync" \
-                    -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${p}" "${scratch_root}/system-config/" >> "$logfile" 2>&1
+                system_config_srcs+=("${SSH_USER}@${rsync_host}:${p}")
             done
+            rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" --rsync-path="sudo rsync" \
+                -e "$ssh_cmd" "${system_config_srcs[@]}" "${scratch_root}/system-config/" >> "$logfile" 2>&1
             if [ "$DRYRUN" != "1" ] && [ -n "$(ls -A "${scratch_root}/system-config" 2>/dev/null)" ]; then
                 tar -czf "${target}/system-config.tar.gz" -C "${scratch_root}" system-config
                 echo "system-config: packaged into system-config.tar.gz" >> "$logfile" 2>&1
