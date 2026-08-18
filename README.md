@@ -101,7 +101,7 @@ Add via FPP's Plugin Manager using this repository's URL, or `git clone` it into
 The plugin registers two FPP Commands (`commands/descriptions.json`) that show up in
 FPP's own Scheduler automatically - no extra scripting needed:
 
-1. **Select which remotes to back up.** On the Config page, check the remotes you want
+1. **Select which remotes to back up.** On the Remote Backup Config page, check the remotes you want
    included and hit Save Settings. A scheduled run always backs up whatever is currently
    checked there - the command itself takes no per-run arguments.
 2. **Open FPP's Scheduler** and add a new scheduled entry.
