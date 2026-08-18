@@ -10,6 +10,9 @@
                 <li><b>Select remotes.</b> The Config page scans FPP's MultiSync system list for
                     candidate remotes. Check the ones you want backed up, or add one manually by
                     hostname/IP if it isn't discovered automatically.</li>
+                <li><b>Click "Save Settings" at the bottom of the Config page.</b> Nothing above is
+                    applied until you do - Host Mode, the destination device, selected remotes, and
+                    every option on this page only take effect once saved.</li>
                 <li><b>Authenticate.</b> Each remote needs to accept SSH connections from the Host
                     for the fpp user. Use the "Push SSH Key" button next to a remote to install the
                     Host's dedicated backup key (generated automatically on plugin install), or copy
