@@ -89,6 +89,28 @@ rb_remote_status_name() {
     curl -s --max-time 5 "http://${urlhost}/api/system/status" 2>/dev/null | jq -r '.status_name // empty' 2>/dev/null
 }
 
+# rb_host_addresses: this system's own local IP addresses, space-separated.
+rb_host_addresses() {
+    hostname -I 2>/dev/null
+}
+
+# rb_is_host_address <address>: true if the given address is one of this
+# Host's own local IPs (or a loopback/localhost alias) - i.e. a configured
+# "remote" at that address is actually this Host itself, not a separate
+# system. Used by run_backup.sh to back it up as a local copy instead of
+# an SSH pull, and by scripts/host_info.sh to back the same recognition
+# in the Config page's remote list ("(Host)" label).
+rb_is_host_address() {
+    local addr="$1" ip
+    case "$addr" in
+        127.0.0.1 | ::1 | localhost) return 0 ;;
+    esac
+    for ip in $(rb_host_addresses); do
+        [ "$ip" = "$addr" ] && return 0
+    done
+    return 1
+}
+
 # Bytes -> human readable, used only for logging (UI does its own formatting)
 rb_human_bytes() {
     numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "$1 bytes"

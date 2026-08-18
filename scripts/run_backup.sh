@@ -257,13 +257,54 @@ echo '{"active": true}' > "${DATA_DIR}/run_active.json"
 
 backup_one() {
     local remote_json="$1"
-    local id hostname address today target existing prev linkdest_opt=() extra=() logfile target_ok
+    local id hostname address today target existing prev linkdest_opt=() extra=() logfile target_ok is_host host_exclude=()
 
     id=$(echo "$remote_json" | jq -r '.id')
     hostname=$(echo "$remote_json" | jq -r '.hostname')
     address=$(echo "$remote_json" | jq -r '.address')
     today=$(date '+%Y%m%d')
     logfile="${LOG_DIR}/${id}-${RUN_ID}.log"
+
+    # A selected "remote" can actually be this Host itself - MultiSync's
+    # own system list can include it, or someone adds it manually - see
+    # rb_is_host_address() in lib_common.sh. Backed up as a local copy
+    # further down instead of an SSH pull to itself.
+    is_host=0
+    rb_is_host_address "$address" && is_host=1
+
+    if [ "$is_host" = "1" ]; then
+        local media_real dest_real
+        media_real=$(realpath -m /home/fpp/media 2>/dev/null)
+        dest_real=$(realpath -m "$DEST_ROOT" 2>/dev/null)
+        if [ -n "$media_real" ] && [ "$dest_real" = "$media_real" ]; then
+            # Destination IS /home/fpp/media itself, not some subfolder of
+            # it - source and destination would be the exact same
+            # directory. Nothing to exclude our way out of; refuse.
+            rb_log "ERROR $id: destination '$DEST_ROOT' is /home/fpp/media itself - source and destination would be the same directory."
+            rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
+                --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" \
+                '{id:$id, hostname:$hostname, address:$address, state:"error", dryRun:$dryrun, runId:$run, finishedAt:$t, errorDetail:"Destination is /home/fpp/media itself, which is where the Host stores its own source data - source and destination would be the same directory. Pick NVMe/SSD/USB storage for a Host backup instead."}')"
+            return
+        fi
+        case "$dest_real" in
+            "$media_real"/*)
+                # The SD Card/System Storage fallback destination lives at
+                # /home/fpp/media/backups (see rb_dest_root() in
+                # lib_common.sh) - a subdirectory of the very tree a
+                # Host-local backup copies FROM. Rather than refusing the
+                # whole Host backup over this, exclude just that one
+                # subdirectory from the copy (rsync --exclude, anchored at
+                # the source root) and back up everything else in
+                # /home/fpp/media normally - the other selected remotes'
+                # backups living there are plugin-managed destination
+                # data, not part of what "back up the Host" should mean
+                # anyway.
+                local dest_rel="${dest_real#"$media_real"/}"
+                host_exclude=(--exclude="/${dest_rel}")
+                rb_log "NOTE $id: destination '$DEST_ROOT' is inside /home/fpp/media (SD Card/System Storage fallback) - excluding '/${dest_rel}' from the Host's own backup so it doesn't copy its own destination folder into itself."
+                ;;
+        esac
+    fi
 
     if ! rb_dest_mounted; then
         rb_log "ABORT $id: destination '$DEST_MOUNT' is not mounted (checked just before starting this remote)"
@@ -354,9 +395,19 @@ backup_one() {
     case "$address" in
         *:*) rsync_host="[${address}]" ;;
     esac
-    local src="${SSH_USER}@${rsync_host}:/home/fpp/media/"
+    local src rsync_xport=()
+    if [ "$is_host" = "1" ]; then
+        # The Host backing itself up: a plain local-to-local copy, not an
+        # SSH round trip to itself - no key to push, no dependency on its
+        # own sshd, and none of the "did I push my own key to myself"
+        # setup an SSH pull would otherwise need.
+        src="/home/fpp/media/"
+    else
+        src="${SSH_USER}@${rsync_host}:/home/fpp/media/"
+        rsync_xport=(-e "$ssh_cmd")
+    fi
 
-    rb_log "starting rsync for $id ($address) -> $target (dryRun=$DRYRUN delete=$DELETE_EXTRA snapshot=$SNAPSHOT_MODE)"
+    rb_log "starting rsync for $id ($address) -> $target (dryRun=$DRYRUN delete=$DELETE_EXTRA snapshot=$SNAPSHOT_MODE local=$is_host)"
 
     # --outbuf=line is the key bit: rsync's stdout is fully buffered (not
     # line-buffered) whenever it's not attached to a terminal, which is
@@ -365,8 +416,8 @@ backup_one() {
     # buffer and may not hit the log for a long time (sometimes only at
     # exit), which is why Current File/Progress looked empty during a run.
     rsync -a -h -v --stats --info=progress2 --outbuf=line --copy-links \
-        "${EXCLUDE_ARGS[@]}" "${extra[@]}" \
-        -e "$ssh_cmd" "$src" "${target}/" > "$logfile" 2>&1 &
+        "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${extra[@]}" \
+        "${rsync_xport[@]}" "$src" "${target}/" > "$logfile" 2>&1 &
     local rsync_pid=$!
     echo "$rsync_pid" > "${PIDS_DIR}/${id}.pid"
 
@@ -433,8 +484,13 @@ backup_one() {
                 *)
                     echo "logs: logDirectory=$remote_log_dir is NOT under /home/fpp/media - pulling separately" >> "$logfile" 2>&1
                     mkdir -p "${scratch_root}/system-logs"
-                    rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
-                        -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${scratch_root}/system-logs/" >> "$logfile" 2>&1
+                    if [ "$is_host" = "1" ]; then
+                        rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
+                            "${remote_log_dir%/}/" "${scratch_root}/system-logs/" >> "$logfile" 2>&1
+                    else
+                        rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
+                            -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${scratch_root}/system-logs/" >> "$logfile" 2>&1
+                    fi
                     if [ "$DRYRUN" != "1" ] && [ -n "$(ls -A "${scratch_root}/system-logs" 2>/dev/null)" ]; then
                         tar -czf "${target}/system-logs.tar.gz" -C "${scratch_root}" system-logs
                         echo "logs: packaged into system-logs.tar.gz" >> "$logfile" 2>&1
@@ -461,12 +517,22 @@ backup_one() {
             # connection, and the remote's login banner (MOTD) got printed
             # once per connection - 8 near-identical banner blocks cluttering
             # every remote's log for what's fundamentally one fetch.
-            local system_config_srcs=()
-            for p in "${SYSTEM_CONFIG_PATHS[@]}"; do
-                system_config_srcs+=("${SSH_USER}@${rsync_host}:${p}")
-            done
-            rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" --rsync-path="sudo rsync" \
-                -e "$ssh_cmd" "${system_config_srcs[@]}" "${scratch_root}/system-config/" >> "$logfile" 2>&1
+            if [ "$is_host" = "1" ]; then
+                # Local paths, elevated with a plain local sudo instead of
+                # --rsync-path="sudo rsync" over SSH (that flag only makes
+                # sense when there's a remote shell involved) - passwordless
+                # local sudo for the fpp user is already relied on elsewhere
+                # in this plugin (format_usb.sh, mount_usb.sh).
+                sudo rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
+                    "${SYSTEM_CONFIG_PATHS[@]}" "${scratch_root}/system-config/" >> "$logfile" 2>&1
+            else
+                local system_config_srcs=()
+                for p in "${SYSTEM_CONFIG_PATHS[@]}"; do
+                    system_config_srcs+=("${SSH_USER}@${rsync_host}:${p}")
+                done
+                rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" --rsync-path="sudo rsync" \
+                    -e "$ssh_cmd" "${system_config_srcs[@]}" "${scratch_root}/system-config/" >> "$logfile" 2>&1
+            fi
             if [ "$DRYRUN" != "1" ] && [ -n "$(ls -A "${scratch_root}/system-config" 2>/dev/null)" ]; then
                 tar -czf "${target}/system-config.tar.gz" -C "${scratch_root}" system-config
                 echo "system-config: packaged into system-config.tar.gz" >> "$logfile" 2>&1
