@@ -3,7 +3,24 @@ set -e
 
 # fpp-plugin-RemoteBackup install script
 
-. ${FPPDIR}/scripts/common
+# If FPPDIR isn't already set (plugin manager sets it), try to infer a
+# sensible default so the installer can be run manually from the plugin
+# tree (useful when debugging or running over SSH). FPP's layout places
+# plugins under "$FPPDIR/plugins/<plugin>", so walk up from this
+# script's location to find $FPPDIR.
+if [ -z "${FPPDIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    PLUGINDIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+    FPPDIR="$(cd "$PLUGINDIR/.." && pwd)"
+fi
+
+# Source FPP-wide helpers if available; if not, continue with a warning
+# so the installer can still run in minimal environments.
+if [ -f "${FPPDIR}/scripts/common" ]; then
+    . "${FPPDIR}/scripts/common"
+else
+    echo "WARNING: ${FPPDIR}/scripts/common not found; continuing without it"
+fi
 
 PLUGINDIR="${FPPDIR}/plugins/fpp-plugin-RemoteBackup"
 

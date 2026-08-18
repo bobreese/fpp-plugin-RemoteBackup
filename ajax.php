@@ -78,17 +78,33 @@ function rb_run($scriptPath, $args = [], $timeoutSec = 20) {
     foreach ($args as $a) {
         $cmd .= ' ' . escapeshellarg($a);
     }
-    $errFile = tempnam($LOG_DIR, 'stderr_');
-    $out = shell_exec($cmd . ' 2>' . escapeshellarg($errFile));
-    $stderr = @file_get_contents($errFile);
-    @unlink($errFile);
-    $rc = null; // shell_exec doesn't expose exit code directly; treat null-output as failure below
+
+    // Use proc_open so we can capture stdout, stderr, and the exit code reliably.
+    $descriptors = [
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w']
+    ];
+    $process = proc_open($cmd, $descriptors, $pipes);
+    $out = '';
+    $stderr = '';
+    $return_value = null;
+    if (is_resource($process)) {
+        $out = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $return_value = proc_close($process);
+    } else {
+        $stderr = 'proc_open failed';
+        $return_value = 255;
+    }
+
     if ($out === null || trim((string)$out) === '') {
         rb_log_line("RUN EMPTY OUTPUT cmd=$cmd stderr=" . substr((string)$stderr, 0, 500));
     } elseif (!empty($stderr)) {
-        rb_log_line("RUN cmd=$cmd (had stderr) stderr=" . substr($stderr, 0, 500));
+        rb_log_line("RUN cmd=$cmd (rc=$return_value) stderr=" . substr($stderr, 0, 500));
     } else {
-        rb_log_line("RUN OK cmd=$cmd");
+        rb_log_line("RUN OK cmd=$cmd rc=$return_value");
     }
     return $out;
 }
@@ -113,7 +129,7 @@ function rb_default_settings() {
         'snapshotMode' => false,
         'sshUser' => 'fpp',
         'sshPort' => 22,
-        'sshPassword' => 'falcon',
+        'sshPassword' => null,
         'sshKeyPath' => '/home/fpp/.ssh/id_rsa_remotebackup',
         // NOTE: logs were previously excluded by default here (Logs/*,
         // logs/*) - removed since a backup that silently drops FPP's
@@ -298,7 +314,19 @@ switch ($action) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword'] as $k) {
-            if (isset($body[$k])) $settings[$k] = (string)$body[$k];
+            if (!isset($body[$k])) continue;
+            // Treat an empty sshPassword as "unset" so the system default
+            // (rb_default_settings' 'falcon') remains in effect unless a
+            // non-empty password is explicitly saved by the user.
+            if ($k === 'sshPassword') {
+                if ($body[$k] === '') {
+                    if (isset($settings['sshPassword'])) unset($settings['sshPassword']);
+                } else {
+                    $settings['sshPassword'] = (string)$body[$k];
+                }
+            } else {
+                $settings[$k] = (string)$body[$k];
+            }
         }
         foreach (['maxConcurrent', 'sshPort'] as $k) {
             if (isset($body[$k])) $settings[$k] = (int)$body[$k];
@@ -352,7 +380,18 @@ switch ($action) {
         $user = isset($body['sshUser']) ? $body['sshUser'] : 'fpp';
         $port = isset($body['sshPort']) ? intval($body['sshPort']) : 22;
         $settingsForDefault = rb_load_settings($SETTINGS_FILE);
-        $password = isset($body['password']) && $body['password'] !== '' ? $body['password'] : ($settingsForDefault['sshPassword'] ?: 'falcon');
+        // Password precedence: explicit POSTed password (if non-empty),
+        // then plugin-wide stored password (if set and non-empty), then
+        // finally the FPP factory default 'falcon'. Treat null/empty as
+        // unset.
+        $password = null;
+        if (isset($body['password']) && $body['password'] !== '') {
+            $password = $body['password'];
+        } elseif (!empty($settingsForDefault['sshPassword'])) {
+            $password = $settingsForDefault['sshPassword'];
+        } else {
+            $password = 'falcon';
+        }
         if (!$address) rb_fail('address required');
 
         $out = rb_run("$SCRIPTS_DIR/ssh_setup.sh", [$address, $user, (string)$port, $password], 20);
