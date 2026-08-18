@@ -351,6 +351,22 @@ switch ($action) {
             rb_fail('A backup run is already in progress', 409);
         }
 
+        // Pulling media off a device's SD card while fppd is actively
+        // reading those same files for playback risks stutters/dropped
+        // frames during a live show, so refuse the WHOLE run (not just the
+        // busy remote) if any selected remote is currently playing a
+        // sequence. This is a synchronous pre-check purely for immediate
+        // UI feedback - run_backup.sh performs the same check itself and
+        // is the guard that actually matters, since it also covers
+        // Scheduler-triggered and manual/cron runs that never go through
+        // this endpoint at all.
+        $playCheckArgs = empty($ids) ? [] : ['--remotes', implode(',', array_map('rb_slugify', $ids))];
+        $playCheck = rb_run_json("$SCRIPTS_DIR/check_remotes_playing.sh", $playCheckArgs, 20);
+        if ($playCheck && !empty($playCheck['playing'])) {
+            $names = array_map(function ($r) { return $r['hostname']; }, $playCheck['playing']);
+            rb_fail('Refusing to start: currently playing a sequence - ' . implode(', ', $names), 409);
+        }
+
         // Clear stale per-remote status files from any previous run so
         // the UI table doesn't show leftovers from unrelated remotes.
         foreach (glob("$STATUS_DIR/*.json") as $f) { @unlink($f); }
