@@ -65,7 +65,7 @@ $rbPlugin = basename(__DIR__);
             <br>
             SSH user: <input id="rb-sshUser" style="width:8em">
             SSH port: <input id="rb-sshPort" type="number" style="width:6em">
-            Default SSH password: <input id="rb-sshPassword" type="password" style="width:10em" placeholder="falcon">
+            Default SSH password: <input id="rb-sshPassword" type="password" style="width:10em" placeholder="">
             <small>(used automatically when you select a remote - only needed if you've changed it fleet-wide from the FPP default)</small><br>
             <br>
             Exclude patterns (one per line, paths are relative to the remote's <code>/home/fpp/media</code>):<br>
