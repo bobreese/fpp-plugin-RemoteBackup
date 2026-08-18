@@ -183,6 +183,13 @@ switch ($action) {
         break;
     }
 
+    case 'hostInfo': {
+        $data = rb_run_json("$SCRIPTS_DIR/host_info.sh", [], 10);
+        if (!$data) $data = ['hostname' => '', 'addresses' => []];
+        echo json_encode(['ok' => true, 'data' => $data]);
+        break;
+    }
+
     case 'mountUsb': {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();

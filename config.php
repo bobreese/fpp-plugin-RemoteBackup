@@ -123,7 +123,22 @@ $rbPlugin = basename(__DIR__);
         return n.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
     }
 
-    var state = { settings: null, storage: null, remotes: [] };
+    var state = { settings: null, storage: null, remotes: [], hostInfo: null };
+
+    // isHostRemote: true if the given remote entry (from state.remotes) is
+    // actually this Host itself - e.g. MultiSync's own system list can
+    // include the Host, or someone adds it manually. Mirrors
+    // rb_is_host_address() in lib_common.sh, which run_backup.sh uses to
+    // back such an entry up as a local copy instead of an SSH pull.
+    function isHostRemote(r) {
+        if (!r) return false;
+        var addr = r.address;
+        if (addr === '127.0.0.1' || addr === '::1' || addr === 'localhost') return true;
+        if (state.hostInfo && state.hostInfo.addresses && state.hostInfo.addresses.indexOf(addr) !== -1) return true;
+        if (state.hostInfo && state.hostInfo.hostname && r.hostname &&
+            r.hostname.toLowerCase() === state.hostInfo.hostname.toLowerCase()) return true;
+        return false;
+    }
 
     function renderStorage() {
         var el = document.getElementById('rb-storageList');
@@ -369,13 +384,19 @@ $rbPlugin = basename(__DIR__);
         if (!state.remotes.length) { el.innerHTML = '<em>No remotes found yet. Rescan, or add one manually below.</em>'; return; }
         var html = '<table class="table table-sm"><tr><th></th><th>Hostname</th><th>Address</th><th>Source</th><th></th></tr>';
         state.remotes.forEach(function (r) {
+            var isHost = isHostRemote(r);
+            var hostTag = isHost ?
+                ' <span class="badge text-bg-secondary" title="This is the Host itself - backed up locally, not over SSH">Host</span>' : '';
+            var actionCell = isHost ?
+                '<small class="text-muted">Local backup - no SSH key needed</small>' :
+                '<button type="button" class="btn btn-outline-secondary btn-sm rb-push-key" data-id="' + r.id + '" data-addr="' + r.address + '">Push SSH Key</button> ' +
+                '<small id="' + keyStatusId(r.id) + '" class="text-muted"></small>';
             html += '<tr>' +
                 '<td><input type="checkbox" class="rb-remote-check" data-id="' + r.id + '" data-addr="' + r.address + '" ' + (r.selected ? 'checked' : '') + '></td>' +
-                '<td>' + r.hostname + '</td>' +
+                '<td>' + r.hostname + hostTag + '</td>' +
                 '<td>' + r.address + '</td>' +
                 '<td>' + (r.source || 'multisync') + '</td>' +
-                '<td><button type="button" class="btn btn-outline-secondary btn-sm rb-push-key" data-id="' + r.id + '" data-addr="' + r.address + '">Push SSH Key</button> ' +
-                '<small id="' + keyStatusId(r.id) + '" class="text-muted"></small></td>' +
+                '<td>' + actionCell + '</td>' +
                 '</tr>';
         });
         html += '</table>';
@@ -391,15 +412,19 @@ $rbPlugin = basename(__DIR__);
             });
         });
 
-        // Auto-push the Host's SSH key the moment a remote is selected,
-        // so checking the box is enough to make it backup-ready - no
-        // separate manual step needed unless the default password fails.
+        // Auto-push this backup Host's own SSH key to a remote the moment
+        // it's selected, so checking the box is enough to make it
+        // backup-ready - no separate manual step needed unless the
+        // default password fails. Skipped for the Host itself (the "Host"
+        // badge) - it's backed up as a local copy, not over SSH, so it
+        // has no key to push.
         Array.prototype.forEach.call(document.getElementsByClassName('rb-remote-check'), function (chk) {
             chk.addEventListener('change', function () {
                 var id = chk.getAttribute('data-id');
                 var addr = chk.getAttribute('data-addr');
                 var r = state.remotes.filter(function (x) { return x.id === id; })[0];
                 if (r) r.selected = chk.checked;
+                if (r && isHostRemote(r)) return;
                 if (chk.checked) {
                     pushKeyFor(id, addr, null, false);
                 } else {
@@ -441,6 +466,18 @@ $rbPlugin = basename(__DIR__);
     }
 
     function loadAll() {
+        // Fetched first (and awaited) rather than in parallel with the
+        // rest below: it's a fast, purely-local lookup (no network scan),
+        // and renderRemotes() needs state.hostInfo already populated the
+        // very first time it runs, or the "Host" badge would only appear
+        // after some later re-render.
+        api('hostInfo').then(function (res) {
+            if (res.ok) { state.hostInfo = res.data; }
+            loadAllAfterHostInfo();
+        });
+    }
+
+    function loadAllAfterHostInfo() {
         api('loadSettings').then(function (res) {
             if (!res.ok) {
                 setScanError('rb-storageList', res.error);
