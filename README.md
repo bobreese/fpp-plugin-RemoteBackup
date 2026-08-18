@@ -14,6 +14,15 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   folder, never into `/` itself.
 - **MultiSync-aware remote discovery.** Queries FPP's own `/api/fppd/multiSyncSystems`
   endpoint to list candidate remotes; remotes can also be added manually by hostname/IP.
+- **The Host backs itself up locally, not over SSH.** MultiSync's own system list (or a
+  manual add) can include the Host running this plugin - selecting it is marked with a
+  "Host" badge on the Config page, and it's backed up as a plain local file copy instead
+  of an SSH pull to itself (no key to push, no sshd round trip for a same-machine copy).
+  If the destination is the SD Card/System Storage fallback (which lives inside
+  `/home/fpp/media` itself), that one destination subfolder is excluded from the Host's
+  own copy so it doesn't try to back its own backups up into itself - the rest of
+  `/home/fpp/media` still backs up normally, and other devices' existing backups there
+  are left untouched.
 - **rsync pull over SSH**, with a concurrency-limited queue: the first 2 selected remotes
   (configurable) start immediately, and each completion backfills the next queued remote.
 - **Dry run mode.** `--dry-run` against all selected remotes, summed and compared to free
@@ -180,6 +189,7 @@ fpp-plugin-RemoteBackup/
     probe_storage.sh         NVMe/SSD/USB/SD detection
     probe_remotes.sh         MultiSync remote discovery
     check_remotes_playing.sh checks each remote's FPP status for active playback
+    host_info.sh             reports this Host's own hostname/IPs for the "Host" badge
     run_backup.sh            the rsync pull engine (concurrency, delete, snapshots)
     ssh_setup.sh              pushes the backup SSH key to a remote
   commands/
@@ -202,6 +212,15 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** local (non-SSH) backup handling for the Host itself, when it's selected as
+  one of the "remotes" to back up (MultiSync's own system list can include it, or it can
+  be added manually). Backed up as a plain local `rsync` copy instead of an SSH pull to
+  itself, labeled with a "Host" badge on the Config page (which also skips the
+  now-irrelevant SSH-key push UI for that row). If the destination is the SD Card/System
+  Storage fallback - which lives inside `/home/fpp/media` itself - that one destination
+  subfolder is excluded from the Host's own copy rather than either recursing into it or
+  refusing the whole Host backup outright; everything else in `/home/fpp/media` still
+  backs up normally, and other devices' existing backups there are left untouched.
 - **Added** a guard that refuses to start a backup (manual or scheduled) if any selected
   remote is currently playing a sequence, to avoid reading a device's SD card for backup
   while its own fppd is actively reading those same files for playback. Checks every
