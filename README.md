@@ -119,9 +119,12 @@ A few things worth knowing before scheduling it:
   return immediately - the Scheduler entry itself finishes right away, while the actual
   backup keeps running and reports progress on the plugin's Status page, not in the
   Scheduler's own log.
-- Neither command checks whether a backup is already running before starting another -
-  avoid scheduling "Run Remote Backup" more often than a full run typically takes, or
-  overlapping runs could compete for the same destination.
+- A second run can't actually start while one is already in progress - `run_backup.sh`
+  holds an exclusive lock (`data/run.lock`) for its whole duration, so a Scheduler entry
+  that fires mid-run is refused outright rather than competing for the same destination.
+  It's still worth not scheduling entries close enough together that this becomes the
+  normal outcome - a refused run explains why in `data/logs/engine.log` and in FPP's own
+  command output, but it still means that scheduled backup didn't happen.
 - Host Mode must be enabled and destination storage configured/mounted before the
   schedule fires, same as running it manually - otherwise the scheduled run fails
   immediately (visible in its log, but nothing gets backed up).
@@ -188,6 +191,13 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a hard guard against two backup runs overlapping. `run_backup.sh` now takes
+  an exclusive `flock` on `data/run.lock` for its whole duration; anything that tries to
+  start a second run while one is active - a Scheduler entry, a manual click, a second
+  Scheduler entry firing too close together - is refused outright, with the reason
+  logged to `data/logs/engine.log` and echoed in FPP's own command output for the
+  Scheduler case, instead of silently starting a competing run against the same
+  destination.
 - **Fixed:** backups (and dry runs) silently failing with "could not create/write to
   target directory" whenever the destination was the SD Card/System Storage fallback
   option. Its mountpoint is the filesystem root (`/`), which collapsed to an invalid

@@ -28,6 +28,30 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# --- Refuse to start a second run while one is already in progress ------
+# The UI's ajax.php 'start' action already checks run_active.json before
+# launching this script, but that's a plain read-then-launch with a real
+# race: two near-simultaneous starts (e.g. a Scheduler-triggered run and a
+# manual click, or two Scheduler entries too close together) can both pass
+# that check before either process gets far enough to write active:true
+# itself. It's also the ONLY guard for anything that invokes this script
+# directly - commands/run_remote_backup*.sh (FPP's Scheduler) and any
+# manual/cron invocation bypass ajax.php entirely.
+#
+# flock is kernel-enforced and atomic, and - unlike a hand-rolled JSON
+# flag - can never get stuck "held" by a process that crashed, was killed,
+# or lost power mid-run: the lock releases the instant this script's file
+# descriptor closes, no matter how it exits. This is the authoritative
+# guard; run_active.json remains just the UI's "is something running"
+# display flag, still written further below exactly as before.
+LOCK_FILE="${DATA_DIR}/run.lock"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    rb_log "ABORT: refusing to start - another Remote Backup run is already in progress (run.lock is held by another process). Check the Status page, or Stop the current run first."
+    echo "A Remote Backup run is already in progress. Check the Status page (data/logs/engine.log has the detail), or Stop the current run first." >&2
+    exit 1
+fi
+
 if [ ! -f "$SETTINGS_FILE" ]; then
     echo "No settings.json found; configure the plugin first." >&2
     exit 1
