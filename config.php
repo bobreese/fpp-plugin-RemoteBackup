@@ -65,7 +65,7 @@ $rbPlugin = basename(__DIR__);
             <br>
             SSH user: <input id="rb-sshUser" style="width:8em">
             SSH port: <input id="rb-sshPort" type="number" style="width:6em">
-            Default SSH password: <input id="rb-sshPassword" type="password" style="width:10em" placeholder="falcon">
+            Default SSH password: <input id="rb-sshPassword" type="password" style="width:10em" placeholder="">
             <small>(used automatically when you select a remote - only needed if you've changed it fleet-wide from the FPP default)</small><br>
             <br>
             Exclude patterns (one per line, paths are relative to the remote's <code>/home/fpp/media</code>):<br>
@@ -333,18 +333,22 @@ $rbPlugin = basename(__DIR__);
     }
 
     // Shared by both the auto-push-on-select path and the manual button.
-    // password === null means "don't prompt, just try the FPP default"
-    // (used for auto-push, so selecting remotes stays a one-click action).
+    // Returns the explicit password (if entered), or the stored plugin-wide
+    // password (if set), or null.  null means "don't prompt, just try the
+    // FPP default" (used for auto-push so selecting remotes stays a
+    // one-click action); the server will finally fall back to 'falcon'.
     function defaultSshPassword() {
         var el = document.getElementById('rb-sshPassword');
-        return (el && el.value) || (state.settings && state.settings.sshPassword) || 'falcon';
+        if (el && el.value !== '') return el.value;
+        if (state.settings && state.settings.sshPassword) return state.settings.sshPassword;
+        return null;
     }
 
     function promptSshPassword(addr, cb) {
         var modalId = 'rb-sshpw-modal';
         var bodyHtml = '<div class="mb-2">SSH password for <code>fpp@' + addr + '</code>:</div>' +
             '<input type="password" id="rb-sshpw-input" class="form-control form-control-sm" value="' +
-            defaultSshPassword().replace(/"/g, '&quot;') + '" autocomplete="off">';
+            (defaultSshPassword() || '').replace(/"/g, '&quot;') + '" autocomplete="off">';
         DoModalDialog({
             id: modalId,
             title: 'SSH Password',
@@ -498,7 +502,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-logRetentionCount').value = state.settings.logRetentionCount || 15;
             document.getElementById('rb-sshUser').value = state.settings.sshUser || 'fpp';
             document.getElementById('rb-sshPort').value = state.settings.sshPort || 22;
-            document.getElementById('rb-sshPassword').value = state.settings.sshPassword || 'falcon';
+            document.getElementById('rb-sshPassword').value = state.settings.sshPassword || '';
             document.getElementById('rb-excludes').value = (state.settings.excludes || []).join('\n');
             state.remotes = state.settings.remotes || [];
             renderRemotes();
@@ -566,7 +570,7 @@ $rbPlugin = basename(__DIR__);
             logRetentionCount: parseInt(document.getElementById('rb-logRetentionCount').value, 10) || 15,
             sshUser: document.getElementById('rb-sshUser').value || 'fpp',
             sshPort: parseInt(document.getElementById('rb-sshPort').value, 10) || 22,
-            sshPassword: document.getElementById('rb-sshPassword').value || 'falcon',
+            sshPassword: document.getElementById('rb-sshPassword').value,
             excludes: document.getElementById('rb-excludes').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean),
             remotes: remotesOut
         };

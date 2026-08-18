@@ -129,7 +129,7 @@ function rb_default_settings() {
         'snapshotMode' => false,
         'sshUser' => 'fpp',
         'sshPort' => 22,
-        'sshPassword' => 'falcon',
+        'sshPassword' => null,
         'sshKeyPath' => '/home/fpp/.ssh/id_rsa_remotebackup',
         // NOTE: logs were previously excluded by default here (Logs/*,
         // logs/*) - removed since a backup that silently drops FPP's
@@ -314,7 +314,19 @@ switch ($action) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword'] as $k) {
-            if (isset($body[$k])) $settings[$k] = (string)$body[$k];
+            if (!isset($body[$k])) continue;
+            // Treat an empty sshPassword as "unset" so the system default
+            // (rb_default_settings' 'falcon') remains in effect unless a
+            // non-empty password is explicitly saved by the user.
+            if ($k === 'sshPassword') {
+                if ($body[$k] === '') {
+                    if (isset($settings['sshPassword'])) unset($settings['sshPassword']);
+                } else {
+                    $settings['sshPassword'] = (string)$body[$k];
+                }
+            } else {
+                $settings[$k] = (string)$body[$k];
+            }
         }
         foreach (['maxConcurrent', 'sshPort'] as $k) {
             if (isset($body[$k])) $settings[$k] = (int)$body[$k];
@@ -368,7 +380,18 @@ switch ($action) {
         $user = isset($body['sshUser']) ? $body['sshUser'] : 'fpp';
         $port = isset($body['sshPort']) ? intval($body['sshPort']) : 22;
         $settingsForDefault = rb_load_settings($SETTINGS_FILE);
-        $password = isset($body['password']) && $body['password'] !== '' ? $body['password'] : ($settingsForDefault['sshPassword'] ?: 'falcon');
+        // Password precedence: explicit POSTed password (if non-empty),
+        // then plugin-wide stored password (if set and non-empty), then
+        // finally the FPP factory default 'falcon'. Treat null/empty as
+        // unset.
+        $password = null;
+        if (isset($body['password']) && $body['password'] !== '') {
+            $password = $body['password'];
+        } elseif (!empty($settingsForDefault['sshPassword'])) {
+            $password = $settingsForDefault['sshPassword'];
+        } else {
+            $password = 'falcon';
+        }
         if (!$address) rb_fail('address required');
 
         $out = rb_run("$SCRIPTS_DIR/ssh_setup.sh", [$address, $user, (string)$port, $password], 20);
