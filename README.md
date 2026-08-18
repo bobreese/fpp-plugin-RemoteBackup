@@ -43,8 +43,16 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - **Dated, per-remote backups.** Each remote's backup folder is named
   `<Hostname>-<YYYYMMDD>` (e.g. `Pi5-20260803`) and remotes are never mixed together.
   By default this is a single rolling "current" backup (renamed to today's date and
-  updated in place each run); an optional snapshot mode keeps full dated history
-  space-efficiently via `rsync --link-dest`.
+  updated in place each run); enabling **"Keep dated snapshot history"** in Config
+  instead keeps every run as its own dated folder, so you end up with one
+  `<Hostname>-<YYYYMMDD>` folder per day a backup ran for that remote (e.g.
+  `Pi5-20260801`, `Pi5-20260802`, `Pi5-20260803`, ...) instead of just the latest.
+  Unchanged files between consecutive runs are hard-linked (`rsync --link-dest`)
+  rather than copied again, so extra snapshots cost very little disk space - but
+  each one is still a real, complete, ordinary folder on disk. There's no delta or
+  index to reconstruct: any single dated snapshot folder is fully self-contained and
+  restorable entirely on its own, exactly like a rolling backup, whether or not the
+  snapshots next to it still exist.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
@@ -116,6 +124,18 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   - Rolling mode (the default) only ever keeps each remote's most recent backup - restoring
     an older point in time requires Snapshot mode to have been enabled before that backup
     was made.
+  - **Restoring from a specific snapshot.** With Snapshot mode, a remote has several
+    `<Hostname>-<YYYYMMDD>` folders side by side at the destination root - one per day a
+    backup ran - and File Copy Restore's device browser lists all of them individually, by
+    date, exactly like it lists a rolling backup. Just pick the date you want; there is no
+    "latest" special case to worry about, and restoring from an older snapshot doesn't
+    require anything from a newer one to exist. This plugin's own Status page "Backed Up"
+    dropdown is the fastest way to see which dates are actually available for a remote
+    before you go looking in File Copy Restore. One layout note for older backups:
+    snapshots made by a plugin version from before this was documented were nested one
+    level deeper (`<Hostname>/<Hostname>-<YYYYMMDD>/`) - those still restore fine, you just
+    browse one folder deeper to reach them; every snapshot made since is flat, directly at
+    the destination root, same as rolling backups.
 
 ## Requirements
 
@@ -180,8 +200,15 @@ A few things worth knowing before scheduling it:
 
 ## Uninstall
 
-Uninstalling through FPP's Plugin Manager runs `scripts/fpp_uninstall.sh`
-before removing the plugin's own directory. That script:
+Uninstalling through FPP's Plugin Manager first tells fppd to unload this plugin -
+which explicitly unregisters its "Run Remote Backup" and "Run Remote Backup Dry Run"
+commands (confirmed against FPP's own `www/api/controllers/plugin.php` and
+`src/Plugins.cpp`: `UninstallPlugin()` calls `FPPDPluginLifecycle($plugin, 'unload')`
+before anything else runs, and fppd's `unloadPlugin()` explicitly calls
+`CommandManager::removeCommand()` for each one) - so both disappear from the
+Scheduler's "Run Command" dropdown immediately, with no reboot or fppd restart
+needed. Only then does it run `scripts/fpp_uninstall.sh` before removing the
+plugin's own directory. That script:
 
 - Stops any backup that's actively running.
 - Deletes the dedicated SSH keypair it created (`~fpp/.ssh/id_rsa_remotebackup`).
@@ -257,6 +284,15 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Verified and documented** that uninstalling removes "Run Remote Backup" and "Run
+  Remote Backup Dry Run" from the Scheduler's "Run Command" dropdown immediately - traced
+  through FPP's own uninstall flow (`www/api/controllers/plugin.php` unloads the plugin
+  from fppd, which unregisters its commands via `CommandManager::removeCommand()`, before
+  `fpp_uninstall.sh` even runs) and added the explanation to the Uninstall section.
+- **Documented** what a Snapshot mode "snapshot" actually is (a complete, independently
+  restorable dated folder, hard-linked to its neighbors only to save space - not a
+  diff/delta needing anything reconstructed) and how to restore from a specific one via
+  File Copy Restore, including the flat-vs-legacy-nested folder layout for older backups.
 - **Fixed:** "Push SSH Key" (and scheduled backups) failing with no working password
   after a remote was reimaged/rebuilt - `ssh -o StrictHostKeyChecking=accept-new` only
   auto-trusts a host it has never seen before, so a remote whose IP/hostname stayed the
