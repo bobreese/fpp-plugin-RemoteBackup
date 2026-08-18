@@ -12,10 +12,35 @@ $rbPlugin = basename(__DIR__);
         <div class="p-2" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
             <div>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-dryrun">Dry Run (selected remotes)</button>
-                <button type="button" class="btn btn-primary btn-sm" id="rb-start">Start Backup</button>
-                <button type="button" class="btn btn-danger btn-sm" id="rb-stop">Stop</button>
-                <a class="btn btn-outline-secondary btn-sm" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=config.php">Config</a>
+                <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-dryrun" data-help-title="Dry Run" style="font-size:0.8em; cursor:help;"></i>
+                <button type="button" class="btn btn-primary btn-sm ms-1" id="rb-start">Start Backup</button>
+                <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-start" data-help-title="Start Backup" style="font-size:0.8em; cursor:help;"></i>
+                <button type="button" class="btn btn-danger btn-sm ms-1" id="rb-stop">Stop</button>
+                <a class="btn btn-outline-secondary btn-sm ms-1" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=config.php">Config</a>
+                <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-config" data-help-title="Config" style="font-size:0.8em; cursor:help;"></i>
                 <span id="rb-runMsg" class="ms-2"></span>
+
+                <div id="rb-help-dryrun" class="d-none">
+                    <div class="fpp-help-content">
+                        <p class="mb-0">Simulates a backup for the selected remotes without changing anything - no
+                            files are copied and no backup folder is created. Shows the estimated transfer size and
+                            whether the destination has enough free space, so you can check before running for real.</p>
+                    </div>
+                </div>
+                <div id="rb-help-start" class="d-none">
+                    <div class="fpp-help-content">
+                        <p class="mb-0">Runs a real backup: pulls files via rsync from every remote selected on the
+                            Config page onto this Host's destination storage. Files are actually copied (and
+                            mirrored/deleted if that option is enabled) - this is not a simulation.</p>
+                    </div>
+                </div>
+                <div id="rb-help-config" class="d-none">
+                    <div class="fpp-help-content">
+                        <p class="mb-0">Opens the Config page - choose which remotes to back up, pick the
+                            destination storage, and set backup options like delete-mirroring, snapshot mode, and
+                            SSH settings.</p>
+                    </div>
+                </div>
             </div>
             <div style="text-align:right;">
                 <label for="rb-backedup-select"><b>Backed Up</b></label><br>
@@ -488,6 +513,26 @@ $rbPlugin = basename(__DIR__);
     });
 
     loadBackedUpList(false);
+
+    // "?" in circle help popovers on the Dry Run / Start Backup / Config
+    // buttons, matching the fpp-help-popover pattern FPP's own
+    // system-stats.php page uses (fa-question-circle icon + a hidden
+    // #<id> div holding the popover body, wired up as a Bootstrap
+    // popover). Scoped to #rb-status so this never touches icons any
+    // other plugin/page might add with the same class.
+    document.querySelectorAll('#rb-status .fpp-help-popover').forEach(function (icon) {
+        var contentEl = document.getElementById(icon.dataset.helpContent);
+        if (contentEl && typeof bootstrap !== 'undefined' && bootstrap.Popover) {
+            new bootstrap.Popover(icon, {
+                title: icon.dataset.helpTitle || '',
+                content: contentEl.innerHTML,
+                html: true,
+                trigger: 'hover focus',
+                placement: 'bottom',
+                sanitize: false
+            });
+        }
+    });
 
     poll();
 })();
