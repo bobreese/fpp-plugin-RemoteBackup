@@ -48,8 +48,11 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
-  page) is kept for its most recent 15 runs; older ones are pruned automatically at the
-  end of each backup run. The Diagnostic Log's Auto-tail checkbox is off by default and
+  page, up to 5000 lines - it says plainly if a log is long enough that it's still had to
+  truncate) is kept for its most recent runs (15 by default, configurable in Config >
+  Backup Options); older ones are pruned automatically at the end of each backup run, and
+  immediately - across every remote, not just ones that happen to run again - whenever you
+  change that number. The Diagnostic Log's Auto-tail checkbox is off by default and
   remembers your last choice (per browser) instead of always polling. The Status and
   Config pages link to each other, and the Dry Run/Start Backup/Config buttons each have
   a "?" help popover (matching FPP's own System Stats page style) explaining what they do.
@@ -194,6 +197,7 @@ fpp-plugin-RemoteBackup/
     check_remotes_playing.sh checks each remote's FPP status for active playback
     host_info.sh             reports this Host's own hostname/IPs for the "Host" badge
     run_backup.sh            the rsync pull engine (concurrency, delete, snapshots)
+    prune_logs.sh            applies logRetentionCount to every remote's logs immediately on save
     ssh_setup.sh              pushes the backup SSH key to a remote
   commands/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh
@@ -215,6 +219,17 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Diagnostic Log on the Status page silently truncating to only its last
+  200 lines with no indication anything was cut off - easy to hit since rsync's
+  `-v --info=progress2` output can produce many lines per second with no TTY to
+  overwrite in place. The cap is now 5000 lines, and if a log is still longer than that
+  the viewer says so plainly (e.g. "showing last 5000 of 7000 lines") instead of just
+  quietly showing a partial log.
+- **Added** a "Run logs to keep per remote" option in Config > Backup Options
+  (`logRetentionCount`, default 15). Lowering it prunes every remote's existing logs
+  down to the new count immediately when you save, rather than only taking effect
+  gradually as remotes happen to run again - including logs left behind by a remote
+  that's since been removed from Config.
 - **Fixed:** MultiSync remote scanning showing a dual-stack remote's IPv6 address
   instead of its IPv4. FPP reports each address a system has been seen at as its own
   separate entry rather than one entry per device, so a dual-stack remote appeared
