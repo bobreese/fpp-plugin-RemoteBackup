@@ -92,6 +92,30 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - **Browse and delete backups.** The Status page's "Backed Up" dropdown lists every backup
   on the destination storage with size/file-count/contents, and can delete an individual
   backup (type-to-confirm) if you want to reclaim space.
+- **Restoring a backup.** This plugin only handles the pull; it has no restore button of
+  its own, by design - use FPP's own built-in **File Copy Backup/Restore** page (Content
+  Setup) on whichever system you're restoring to, so recovery goes through FPP's own,
+  well-tested restore path instead of a second one this plugin would have to maintain.
+  Point its "Remote Storage" source at the destination drive, browse into that remote's
+  `<Hostname>-<YYYYMMDD>` folder (or `<Hostname>/<YYYYMMDD>` if Snapshot mode was enabled),
+  and restore the sequences/media/playlists/effects you need. A few things that make this
+  smoother:
+  - If the destination is a portable USB drive, click **Unmount** on the Config page
+    first - FPP's own device pickers (including File Copy Restore's) never list a drive
+    this plugin still has mounted, and this is the single most common "I don't see my
+    backup drive" surprise.
+  - You don't have to restore to the same physical remote a backup came from - point File
+    Copy Restore at any `<Hostname>-<YYYYMMDD>` folder from a system you're rebuilding or
+    cloning, e.g. after replacing a dead SD card.
+  - The `logs/` and `system-config.tar.gz` archives inside a backup (if "Include system
+    config" is enabled) are deliberately packaged as `.tar.gz` rather than plain folders
+    so File Copy Restore's device browser doesn't mistake them for restorable show-content
+    backups - they aren't part of its file-level restore. Pull those out yourself (`tar
+    xzf`) over SSH/SCP if you need the remote's original `/etc/fpp`, network config, or
+    relocated log directory back.
+  - Rolling mode (the default) only ever keeps each remote's most recent backup - restoring
+    an older point in time requires Snapshot mode to have been enabled before that backup
+    was made.
 
 ## Requirements
 
@@ -233,6 +257,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a Features section explanation of how to actually restore a backup: this
+  plugin has no restore button of its own, by design - use FPP's own built-in File Copy
+  Backup/Restore page, unmounting a portable destination drive first so FPP's device
+  pickers can see it, plus notes on cross-restoring to a different remote and why the
+  `logs`/`system-config.tar.gz` archives need manual extraction instead.
 - **Added** a step to the Help page's walkthrough calling out that Config page changes
   (Host Mode, destination device, selected remotes, any option) only take effect after
   clicking "Save Settings" at the bottom of the page - easy to miss since the page has
