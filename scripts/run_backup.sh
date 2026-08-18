@@ -257,7 +257,7 @@ echo '{"active": true}' > "${DATA_DIR}/run_active.json"
 
 backup_one() {
     local remote_json="$1"
-    local id hostname address today target existing prev linkdest_opt=() extra=() logfile target_ok is_host
+    local id hostname address today target existing prev linkdest_opt=() extra=() logfile target_ok is_host host_exclude=()
 
     id=$(echo "$remote_json" | jq -r '.id')
     hostname=$(echo "$remote_json" | jq -r '.hostname')
@@ -276,21 +276,32 @@ backup_one() {
         local media_real dest_real
         media_real=$(realpath -m /home/fpp/media 2>/dev/null)
         dest_real=$(realpath -m "$DEST_ROOT" 2>/dev/null)
+        if [ -n "$media_real" ] && [ "$dest_real" = "$media_real" ]; then
+            # Destination IS /home/fpp/media itself, not some subfolder of
+            # it - source and destination would be the exact same
+            # directory. Nothing to exclude our way out of; refuse.
+            rb_log "ERROR $id: destination '$DEST_ROOT' is /home/fpp/media itself - source and destination would be the same directory."
+            rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
+                --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" \
+                '{id:$id, hostname:$hostname, address:$address, state:"error", dryRun:$dryrun, runId:$run, finishedAt:$t, errorDetail:"Destination is /home/fpp/media itself, which is where the Host stores its own source data - source and destination would be the same directory. Pick NVMe/SSD/USB storage for a Host backup instead."}')"
+            return
+        fi
         case "$dest_real" in
-            "$media_real" | "$media_real"/*)
+            "$media_real"/*)
                 # The SD Card/System Storage fallback destination lives at
                 # /home/fpp/media/backups (see rb_dest_root() in
-                # lib_common.sh) - a subdirectory of the very tree we'd be
-                # copying FROM. Copying /home/fpp/media into a destination
-                # nested inside itself is a real, not hypothetical, risk
-                # with that storage choice specifically - refuse rather
-                # than let rsync loose on a source that contains its own
-                # destination.
-                rb_log "ERROR $id: destination '$DEST_ROOT' is inside /home/fpp/media itself - cannot back up the Host to a location inside its own media tree (this happens with the SD Card/System Storage fallback destination)."
-                rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
-                    --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" \
-                    '{id:$id, hostname:$hostname, address:$address, state:"error", dryRun:$dryrun, runId:$run, finishedAt:$t, errorDetail:"Destination is inside /home/fpp/media itself, which is where the Host stores its own source data - cannot back the Host up into a location inside its own media tree. Pick NVMe/SSD/USB storage for a Host backup instead."}')"
-                return
+                # lib_common.sh) - a subdirectory of the very tree a
+                # Host-local backup copies FROM. Rather than refusing the
+                # whole Host backup over this, exclude just that one
+                # subdirectory from the copy (rsync --exclude, anchored at
+                # the source root) and back up everything else in
+                # /home/fpp/media normally - the other selected remotes'
+                # backups living there are plugin-managed destination
+                # data, not part of what "back up the Host" should mean
+                # anyway.
+                local dest_rel="${dest_real#"$media_real"/}"
+                host_exclude=(--exclude="/${dest_rel}")
+                rb_log "NOTE $id: destination '$DEST_ROOT' is inside /home/fpp/media (SD Card/System Storage fallback) - excluding '/${dest_rel}' from the Host's own backup so it doesn't copy its own destination folder into itself."
                 ;;
         esac
     fi
@@ -405,7 +416,7 @@ backup_one() {
     # buffer and may not hit the log for a long time (sometimes only at
     # exit), which is why Current File/Progress looked empty during a run.
     rsync -a -h -v --stats --info=progress2 --outbuf=line --copy-links \
-        "${EXCLUDE_ARGS[@]}" "${extra[@]}" \
+        "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${extra[@]}" \
         "${rsync_xport[@]}" "$src" "${target}/" > "$logfile" 2>&1 &
     local rsync_pid=$!
     echo "$rsync_pid" > "${PIDS_DIR}/${id}.pid"
