@@ -383,6 +383,15 @@ backup_one() {
         # setup an SSH pull would otherwise need.
         src="/home/fpp/media/"
     else
+        # A remote reimaged/restored since its key was last pushed (or
+        # since the last successful backup) keeps its known_hosts-recorded
+        # identity stale on this Host, which StrictHostKeyChecking=accept-new
+        # (above) does NOT auto-forgive - it only trusts a host it has never
+        # seen before. Without this, a rebuilt remote fails every scheduled
+        # backup with a host-key-verification error until someone happens to
+        # notice and re-runs "Push SSH Key" by hand. See
+        # rb_clear_stale_host_key in lib_common.sh for the full rationale.
+        rb_clear_stale_host_key "$address" "$SSH_PORT"
         src="${SSH_USER}@${rsync_host}:/home/fpp/media/"
         rsync_xport=(-e "$ssh_cmd")
     fi

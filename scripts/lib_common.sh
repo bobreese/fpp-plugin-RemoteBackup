@@ -140,6 +140,29 @@ rb_prune_remote_logs() {
     done
 }
 
+# rb_clear_stale_host_key <address> [port]: drops any existing SSH
+# known_hosts entry for a remote before connecting. All of this plugin's
+# ssh/rsync calls use StrictHostKeyChecking=accept-new, which only
+# auto-trusts a host it has NEVER seen before - a remote that's been
+# reimaged/rebuilt (new SSH host keys generated, but the same IP or
+# hostname) instead hard-fails every connection attempt with "REMOTE
+# HOST IDENTIFICATION HAS CHANGED", a failure that has nothing to do
+# with credentials, so no amount of retrying "Push SSH Key" with a
+# password ever fixes it. Reimaging a remote and using "Push SSH Key"
+# (or a scheduled backup) to re-trust it afterward is exactly the
+# situation this plugin exists to support, so clearing the stale entry
+# here is the intended, expected outcome rather than a MITM downgrade -
+# the real host identity is still learned fresh on this very connection,
+# same as it would be for a remote never seen before.
+rb_clear_stale_host_key() {
+    local addr="$1" port="${2:-22}"
+    ssh-keygen -R "$addr" >/dev/null 2>&1
+    if [ -n "$port" ] && [ "$port" != "22" ]; then
+        ssh-keygen -R "[${addr}]:${port}" >/dev/null 2>&1
+    fi
+    return 0
+}
+
 # Bytes -> human readable, used only for logging (UI does its own formatting)
 rb_human_bytes() {
     numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "$1 bytes"

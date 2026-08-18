@@ -45,6 +45,15 @@ SSH_HOST="$ADDRESS"
 
 REMOTE_CMD='umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys; KEY=$(cat); grep -qxF "$KEY" ~/.ssh/authorized_keys 2>/dev/null || echo "$KEY" >> ~/.ssh/authorized_keys; echo DONE'
 
+# A remote that's been reimaged/rebuilt keeps the same IP/hostname but
+# gets brand new SSH host keys, so this Host's known_hosts still has the
+# OLD one on file. That alone makes ssh refuse the connection outright
+# ("REMOTE HOST IDENTIFICATION HAS CHANGED") regardless of password -
+# exactly the case "Push SSH Key" (this script) exists to recover from,
+# so clear any stale entry before connecting rather than making the user
+# SSH in by hand to run ssh-keygen -R themselves.
+rb_clear_stale_host_key "$ADDRESS" "$SSH_PORT"
+
 # Bounded independently of whatever timeout the caller (ajax.php)
 # applies to this whole script, and NumberOfPasswordPrompts=1 stops ssh
 # from sitting there re-prompting (with nothing able to answer it) if
