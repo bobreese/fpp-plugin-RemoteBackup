@@ -233,6 +233,14 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a step to the Help page's walkthrough calling out that Config page changes
+  (Host Mode, destination device, selected remotes, any option) only take effect after
+  clicking "Save Settings" at the bottom of the page - easy to miss since the page has
+  no inline "unsaved changes" indicator.
+- **Documented** two known-harmless, currently-unreachable gaps in `fpp_uninstall.sh`
+  in the Uninstall section: a stray `/etc/fstab` `sed -i` backup file is never cleaned
+  up, and the SSH keypair is removed from a hardcoded path rather than the
+  (UI-unreachable) `sshKeyPath` setting.
 - **Fixed:** `commands/descriptions.json` used the wrong schema (an object keyed by
   command name, with `file`/`description` keys) so FPP's Scheduler never actually
   parsed it - "Run Remote Backup" and "Run Remote Backup Dry Run" never appeared in
