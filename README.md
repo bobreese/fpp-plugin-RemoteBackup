@@ -179,6 +179,20 @@ If any FPP Playlist/Schedule/Event referenced this plugin's "Run Remote
 Backup" or "Run Remote Backup Dry Run" commands, remove those references
 yourself - they won't do anything once the plugin is gone.
 
+**Known minor gaps**, both harmless and neither reachable through normal use
+of the plugin today:
+
+- `fpp_uninstall.sh`, `format_usb.sh`, and `unmount_usb.sh` each edit
+  `/etc/fstab` with `sed -i.rb-*-bak`, which leaves a small backup copy of
+  `/etc/fstab` behind (e.g. `/etc/fstab.rb-uninstall-bak`). Nothing ever
+  cleans these up - cosmetic filesystem litter, not a functional issue.
+- `fpp_uninstall.sh` removes the SSH keypair from a hardcoded path
+  (`~fpp/.ssh/id_rsa_remotebackup`) rather than reading the `sshKeyPath`
+  setting. `sshKeyPath` is accepted by the `saveSettings` API but has no
+  Config page field to change it, so in practice it's always the default
+  and this never diverges - it would only matter if that path were ever
+  changed via a direct API call.
+
 ## Directory layout
 
 ```
