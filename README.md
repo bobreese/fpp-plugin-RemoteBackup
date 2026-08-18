@@ -22,6 +22,12 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   runs, so it is safe to run repeatedly with no side effects.
 - **Delete handling.** Optional `rsync --delete` so the host backup mirrors deletions made
   on the remote, or leave it off to only ever accumulate files.
+- **Won't start while a show is running.** Before a manual or scheduled run touches
+  anything, every selected remote's own FPP API is checked; if any of them are currently
+  playing a sequence, the whole run is refused (not just that remote) rather than risking
+  stutters/dropped frames from reading the same SD card fppd is actively playing off of.
+  A remote that can't be reached is treated as unknown, not playing, so it doesn't block
+  backing up everything else.
 - **Dated, per-remote backups.** Each remote's backup folder is named
   `<Hostname>-<YYYYMMDD>` (e.g. `Pi5-20260803`) and remotes are never mixed together.
   By default this is a single rolling "current" backup (renamed to today's date and
@@ -125,6 +131,10 @@ A few things worth knowing before scheduling it:
   It's still worth not scheduling entries close enough together that this becomes the
   normal outcome - a refused run explains why in `data/logs/engine.log` and in FPP's own
   command output, but it still means that scheduled backup didn't happen.
+- A scheduled run is also refused outright (same "explains why, but didn't happen"
+  outcome) if any selected remote is actively playing a sequence at the moment it fires -
+  worth keeping in mind if you schedule backups during hours a show might still be
+  running rather than only overnight.
 - Host Mode must be enabled and destination storage configured/mounted before the
   schedule fires, same as running it manually - otherwise the scheduled run fails
   immediately (visible in its log, but nothing gets backed up).
@@ -169,6 +179,7 @@ fpp-plugin-RemoteBackup/
     lib_common.sh            shared bash helpers (settings, status files)
     probe_storage.sh         NVMe/SSD/USB/SD detection
     probe_remotes.sh         MultiSync remote discovery
+    check_remotes_playing.sh checks each remote's FPP status for active playback
     run_backup.sh            the rsync pull engine (concurrency, delete, snapshots)
     ssh_setup.sh              pushes the backup SSH key to a remote
   commands/
@@ -191,6 +202,12 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a guard that refuses to start a backup (manual or scheduled) if any selected
+  remote is currently playing a sequence, to avoid reading a device's SD card for backup
+  while its own fppd is actively reading those same files for playback. Checks every
+  selected remote's FPP API in parallel and refuses the whole run, not just the busy
+  remote; a remote that can't be reached is treated as unknown rather than playing, so
+  it never blocks backing up everything else.
 - **Added** a hard guard against two backup runs overlapping. `run_backup.sh` now takes
   an exclusive `flock` on `data/run.lock` for its whole duration; anything that tries to
   start a second run while one is active - a Scheduler entry, a manual click, a second
