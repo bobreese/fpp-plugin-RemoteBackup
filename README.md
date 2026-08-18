@@ -257,6 +257,14 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** "Push SSH Key" (and scheduled backups) failing with no working password
+  after a remote was reimaged/rebuilt - `ssh -o StrictHostKeyChecking=accept-new` only
+  auto-trusts a host it has never seen before, so a remote whose IP/hostname stayed the
+  same but whose SSH host keys regenerated on rebuild made every connection attempt fail
+  outright with "REMOTE HOST IDENTIFICATION HAS CHANGED", which no amount of retrying
+  with the correct password could fix. Both `ssh_setup.sh` and `run_backup.sh` now clear
+  any stale `known_hosts` entry for a remote before connecting - exactly the recovery
+  "Push SSH Key" exists to perform.
 - **Added** a Features section explanation of how to actually restore a backup: this
   plugin has no restore button of its own, by design - use FPP's own built-in File Copy
   Backup/Restore page, unmounting a portable destination drive first so FPP's device
