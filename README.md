@@ -14,6 +14,9 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   folder, never into `/` itself.
 - **MultiSync-aware remote discovery.** Queries FPP's own `/api/fppd/multiSyncSystems`
   endpoint to list candidate remotes; remotes can also be added manually by hostname/IP.
+  A dual-stack remote (announced with both an IPv4 and an IPv6 address) is recognized as
+  one device and its real IPv4 address is preferred; if it's only ever seen over IPv6,
+  mDNS (`<hostname>.local`) is tried as a fallback before settling for the IPv6 address.
 - **The Host backs itself up locally, not over SSH.** MultiSync's own system list (or a
   manual add) can include the Host running this plugin - selecting it is marked with a
   "Host" badge on the Config page, and it's backed up as a plain local file copy instead
@@ -212,6 +215,13 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** MultiSync remote scanning showing a dual-stack remote's IPv6 address
+  instead of its IPv4. FPP reports each address a system has been seen at as its own
+  separate entry rather than one entry per device, so a dual-stack remote appeared
+  twice (once per address); the old parsing treated those as independent candidates
+  and let whichever one it saw last silently win, which was always the IPv6 entry.
+  Remotes are now grouped by hostname first, with a real IPv4 address always preferred
+  over IPv6 within that group.
 - **Added** local (non-SSH) backup handling for the Host itself, when it's selected as
   one of the "remotes" to back up (MultiSync's own system list can include it, or it can
   be added manually). Backed up as a plain local `rsync` copy instead of an SSH pull to
