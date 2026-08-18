@@ -73,6 +73,22 @@ rb_dest_root() {
     fi
 }
 
+# rb_remote_status_name <address>: queries a remote's own FPP web API for
+# its current fppd status_name (e.g. "idle", "playing", "testing",
+# "paused") - the same GET /api/system/status endpoint FPP's own UI polls.
+# Prints nothing (not even a blank line) if the remote can't be reached,
+# which callers treat as "unknown" rather than "playing" - an unrelated
+# remote being offline shouldn't block a backup of every OTHER selected
+# remote; that remote's own transfer already fails normally on its own.
+rb_remote_status_name() {
+    local addr="$1" urlhost
+    case "$addr" in
+        *:*) urlhost="[${addr}]" ;;
+        *) urlhost="$addr" ;;
+    esac
+    curl -s --max-time 5 "http://${urlhost}/api/system/status" 2>/dev/null | jq -r '.status_name // empty' 2>/dev/null
+}
+
 # Bytes -> human readable, used only for logging (UI does its own formatting)
 rb_human_bytes() {
     numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "$1 bytes"

@@ -196,6 +196,52 @@ if [ "$COUNT" -eq 0 ]; then
     exit 1
 fi
 
+# --- Refuse to start if any selected remote is actively playing a show --
+# Pulling media off a device's SD card while its own fppd is actively
+# reading those same files for playback risks stutters/dropped frames
+# during a live show - so before touching anything, ask every selected
+# remote's own FPP API whether it's currently playing, and abort the
+# WHOLE run (not just the busy remote) if any of them are. This is the
+# authoritative guard - ajax.php's 'start' action does the same check
+# itself first purely for immediate UI feedback, but every other way to
+# reach this script (a Scheduler entry, a manual/cron run) only ever goes
+# through here. Queried in parallel, same reasoning as
+# check_remotes_playing.sh: bounded by one curl timeout, not N of them.
+# A remote that can't be reached is NOT treated as "playing" - that's the
+# same "can't reach it" case backup_one() already handles per-remote
+# further down, and refusing the whole run over an unrelated remote being
+# offline would be worse than just letting its own transfer fail normally.
+PLAYCHECK_DIR=$(mktemp -d "${DATA_DIR}/tmp_playcheck_XXXXXX")
+PLAYCHECK_LIST=$(mktemp "${DATA_DIR}/tmp_playcheck_list_XXXXXX")
+echo "$REMOTES_JSON" | jq -c '.[]' > "$PLAYCHECK_LIST"
+# Reads from a file, NOT a pipe: `cmd | while read; do ... & done` runs the
+# loop in a subshell (every stage of a pipeline does, without `shopt -s
+# lastpipe`), so a `wait` afterwards - in the calling shell - would not
+# actually be waiting for jobs that subshell backgrounded; some could
+# still be mid-request when PLAYING_REMOTES gets read below. `< file`
+# keeps the loop (and everything it backgrounds) in this same shell.
+while IFS= read -r r; do
+    (
+        pc_id=$(echo "$r" | jq -r '.id')
+        pc_hostname=$(echo "$r" | jq -r '.hostname')
+        pc_address=$(echo "$r" | jq -r '.address')
+        pc_status=$(rb_remote_status_name "$pc_address")
+        if [ "$pc_status" = "playing" ]; then
+            echo "$pc_hostname ($pc_address)" > "${PLAYCHECK_DIR}/${pc_id}"
+        fi
+    ) &
+done < "$PLAYCHECK_LIST"
+wait
+PLAYING_REMOTES=$(cat "${PLAYCHECK_DIR}"/* 2>/dev/null)
+rm -rf "$PLAYCHECK_DIR"
+rm -f "$PLAYCHECK_LIST"
+if [ -n "$PLAYING_REMOTES" ]; then
+    reason="refusing to start - currently playing a sequence: $(echo "$PLAYING_REMOTES" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')"
+    rb_log "ABORT: $reason"
+    echo "A Remote Backup run was refused: $reason" >&2
+    exit 1
+fi
+
 rb_log "=== run start (dryRun=$DRYRUN runId=$RUN_ID remotes=$COUNT) ==="
 
 # Pre-write "queued" status for every remote so the UI shows the full
