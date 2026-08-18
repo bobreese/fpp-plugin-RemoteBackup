@@ -8,13 +8,18 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - **One Host, many remotes.** Designate a single FPP system as the Host. The install
   script and Config page both warn that only one system should ever have Host Mode enabled.
 - **Storage auto-detection.** Probes local block devices via `lsblk`/`df` and prefers
-  NVMe/SSD; if none is found it offers a USB flash drive or free space on the SD card.
+  NVMe/SSD; if none is found it offers a USB flash drive or free space on the SD card. The
+  SD-card/system-storage fallback reports the true filesystem root (`/`) for free-space
+  purposes, but backups themselves are written into a dedicated `/home/fpp/media/backups`
+  folder, never into `/` itself.
 - **MultiSync-aware remote discovery.** Queries FPP's own `/api/fppd/multiSyncSystems`
   endpoint to list candidate remotes; remotes can also be added manually by hostname/IP.
 - **rsync pull over SSH**, with a concurrency-limited queue: the first 2 selected remotes
   (configurable) start immediately, and each completion backfills the next queued remote.
 - **Dry run mode.** `--dry-run` against all selected remotes, summed and compared to free
-  space on the Host's destination before you commit to a real run.
+  space on the Host's destination before you commit to a real run. A dry run never creates,
+  renames, or otherwise touches anything on the destination - only `rsync --dry-run` itself
+  runs, so it is safe to run repeatedly with no side effects.
 - **Delete handling.** Optional `rsync --delete` so the host backup mirrors deletions made
   on the remote, or leave it off to only ever accumulate files.
 - **Dated, per-remote backups.** Each remote's backup folder is named
@@ -26,7 +31,10 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
   page) is kept for its most recent 15 runs; older ones are pruned automatically at the
-  end of each backup run.
+  end of each backup run. The Diagnostic Log's Auto-tail checkbox is off by default and
+  remembers your last choice (per browser) instead of always polling. The Status and
+  Config pages link to each other, and the Dry Run/Start Backup/Config buttons each have
+  a "?" help popover (matching FPP's own System Stats page style) explaining what they do.
 - **FPP Commands** ("Run Remote Backup" / "Run Remote Backup Dry Run") so backups can be
   triggered from FPP's built-in Scheduler, Playlists, or Events.
 - **USB drive management.** Detects an attached-but-unmounted USB drive, and can mount it
@@ -50,7 +58,10 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   `/home/fpp/media`. Optionally (on by default, toggle in Config > Backup Options) also
   pulls `/etc/fpp` and network config (hostname, WiFi, static IP) into a
   `system-config.tar.gz` archive via sudo on the remote - useful for a from-scratch
-  rebuild, not just restoring show content. Logs and system config are packaged as
+  rebuild, not just restoring show content. All of these system paths are fetched in a
+  single SSH+sudo session per remote (not one connection per path), so a remote whose
+  sshd prints a login banner doesn't flood the run log with repeated copies of it. Logs
+  and system config are packaged as
   `.tar.gz` files rather than left as plain folders so FPP's own "Restore from USB" /
   File Copy Restore device browser (which naively lists any subfolder under a backup as
   a separately-selectable "backup") doesn't show them as confusing, non-restorable
@@ -141,3 +152,33 @@ fpp-plugin-RemoteBackup/
 - The `/api/fppd/multiSyncSystems` response shape is parsed defensively (a few likely
   key names are tried); if your FPP version returns something different, remotes can
   always be added manually on the Config page as a fallback.
+
+## Changelog
+
+Notable fixes and changes, newest first (this plugin tracks `master` directly rather
+than tagging releases, so this is a running list rather than versioned entries):
+
+- **Fixed:** backups (and dry runs) silently failing with "could not create/write to
+  target directory" whenever the destination was the SD Card/System Storage fallback
+  option. Its mountpoint is the filesystem root (`/`), which collapsed to an invalid
+  empty path; backups for that option now go to a dedicated `/home/fpp/media/backups`
+  folder instead.
+- **Fixed:** a dry run creating a real (empty) backup folder on disk, and in rolling
+  mode even renaming an existing backup to today's date - dry runs now never touch the
+  destination at all; only `rsync --dry-run` runs.
+- **Fixed:** the dry-run summary's "Estimated total transfer" always reading `0.00 MB`
+  for any transfer over roughly 1KB. `rsync`'s human-readable `--stats` output (e.g.
+  `5.24M bytes`) wasn't being parsed correctly and silently truncated to a handful of
+  bytes; it's now parsed properly.
+- **Reduced** log noise from a remote's SSH login banner (MOTD) being printed once per
+  system-config path (up to 8 times per remote) when "Also back up system/network
+  config" is enabled - those paths are now fetched in a single SSH+sudo session.
+- **Changed** the Config/Status pages to use FPP's own dialog, toast, and color idioms
+  (matching the native File Copy and System Stats pages) instead of plain browser
+  `alert()`/`confirm()`/`prompt()` popups and hardcoded colors that didn't adapt to
+  FPP's dark theme.
+- **Added** cross-navigation buttons between the Status and Config pages, and "?" help
+  popovers on the Dry Run/Start Backup/Config buttons.
+- **Changed** the Diagnostic Log's Auto-tail checkbox to default off and remember your
+  last choice, instead of always polling every 3 seconds regardless of whether anyone's
+  watching.
