@@ -392,8 +392,13 @@ backup_one() {
     fi
 
     local total_size xfer_size num_files num_files_total total_files_line state
-    total_size=$(grep -m1 '^Total file size:' "$logfile" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
-    xfer_size=$(grep -m1 '^Total transferred file size:' "$logfile" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
+    # rsync's -h (human-readable, always passed - see the rsync invocation
+    # above) makes --stats print sizes past ~1000 bytes as a decimal +
+    # K/M/G/T suffix (e.g. "5.24M bytes") instead of plain digits, so the
+    # extracted token has to go through rb_parse_rsync_bytes rather than
+    # just stripping commas - see its comment for what broke without this.
+    total_size=$(rb_parse_rsync_bytes "$(grep -m1 '^Total file size:' "$logfile" | grep -oE '[0-9][0-9,]*(\.[0-9]+)?[KMGT]?' | head -1)")
+    xfer_size=$(rb_parse_rsync_bytes "$(grep -m1 '^Total transferred file size:' "$logfile" | grep -oE '[0-9][0-9,]*(\.[0-9]+)?[KMGT]?' | head -1)")
     # rsync 3.1+ renamed this line to "Number of regular files transferred:"
     # (older versions used "Number of files transferred:") - match either so
     # this keeps working across the rsync versions FPP images actually ship.
