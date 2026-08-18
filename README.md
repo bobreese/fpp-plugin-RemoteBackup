@@ -96,6 +96,36 @@ Add via FPP's Plugin Manager using this repository's URL, or `git clone` it into
 `/home/fpp/media/plugins/fpp-plugin-RemoteBackup` and run
 `scripts/fpp_install.sh`.
 
+## Scheduling backups
+
+The plugin registers two FPP Commands (`commands/descriptions.json`) that show up in
+FPP's own Scheduler automatically - no extra scripting needed:
+
+1. **Select which remotes to back up.** On the Config page, check the remotes you want
+   included and hit Save Settings. A scheduled run always backs up whatever is currently
+   checked there - the command itself takes no per-run arguments.
+2. **Open FPP's Scheduler** and add a new scheduled entry.
+3. For that entry's action, choose **Run Command**, then pick one of:
+   - **Run Remote Backup** - starts a real backup (rsync pull from every selected remote).
+   - **Run Remote Backup Dry Run** - simulates it and logs the estimated size vs.
+     available space, without copying anything (useful as an earlier "will this fit"
+     check before a real backup night - it updates the same "Estimated total transfer"
+     summary on the Status page).
+4. Set the day/time/recurrence you want and save the schedule entry.
+
+A few things worth knowing before scheduling it:
+
+- Both commands launch `scripts/run_backup.sh` in the background (`nohup ... &`) and
+  return immediately - the Scheduler entry itself finishes right away, while the actual
+  backup keeps running and reports progress on the plugin's Status page, not in the
+  Scheduler's own log.
+- Neither command checks whether a backup is already running before starting another -
+  avoid scheduling "Run Remote Backup" more often than a full run typically takes, or
+  overlapping runs could compete for the same destination.
+- Host Mode must be enabled and destination storage configured/mounted before the
+  schedule fires, same as running it manually - otherwise the scheduled run fails
+  immediately (visible in its log, but nothing gets backed up).
+
 ## Uninstall
 
 Uninstalling through FPP's Plugin Manager runs `scripts/fpp_uninstall.sh`
