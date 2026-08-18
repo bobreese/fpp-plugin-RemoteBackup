@@ -219,6 +219,12 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `commands/descriptions.json` used the wrong schema (an object keyed by
+  command name, with `file`/`description` keys) so FPP's Scheduler never actually
+  parsed it - "Run Remote Backup" and "Run Remote Backup Dry Run" never appeared in
+  the "Run Command" dropdown. Switched to the array-of-`{name, script, args}` schema
+  FPP actually expects (confirmed against FPP's own template plugin and another
+  working community plugin), so both commands now show up correctly.
 - **Fixed:** the Diagnostic Log on the Status page silently truncating to only its last
   200 lines with no indication anything was cut off - easy to hit since rsync's
   `-v --info=progress2` output can produce many lines per second with no TTY to

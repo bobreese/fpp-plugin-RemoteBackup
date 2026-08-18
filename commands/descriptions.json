@@ -1,12 +1,10 @@
-{
-	"Run Remote Backup": {
-		"file": "run_remote_backup.sh",
-		"description": "Starts a Remote Backup run (rsync pull from all selected MultiSync remotes) on this Host.",
-		"args": []
-	},
-	"Run Remote Backup Dry Run": {
-		"file": "run_remote_backup_dryrun.sh",
-		"description": "Runs Remote Backup in --dry-run mode against all selected remotes and logs the estimated transfer size vs. available space, without copying files.",
-		"args": []
-	}
+[
+{ "name": "Run Remote Backup",
+  "script": "run_remote_backup.sh",
+  "args": []
+},
+{ "name": "Run Remote Backup Dry Run",
+  "script": "run_remote_backup_dryrun.sh",
+  "args": []
 }
+]
