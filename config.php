@@ -58,6 +58,11 @@ $rbPlugin = basename(__DIR__);
             <input id="rb-maxConcurrent" type="number" min="1" max="8" style="width:4em">
             <small>(default 2: the first devices start immediately, each finished transfer lets the next queued remote start)</small><br>
             <br>
+            Run logs to keep per remote:
+            <input id="rb-logRetentionCount" type="number" min="1" max="500" style="width:5em">
+            <small>(default 15 - older run logs for each remote are deleted automatically after every backup, and immediately
+                when you change this number here)</small><br>
+            <br>
             SSH user: <input id="rb-sshUser" style="width:8em">
             SSH port: <input id="rb-sshPort" type="number" style="width:6em">
             Default SSH password: <input id="rb-sshPassword" type="password" style="width:10em" placeholder="falcon">
@@ -490,6 +495,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-maxConcurrent').value = state.settings.maxConcurrent || 2;
+            document.getElementById('rb-logRetentionCount').value = state.settings.logRetentionCount || 15;
             document.getElementById('rb-sshUser').value = state.settings.sshUser || 'fpp';
             document.getElementById('rb-sshPort').value = state.settings.sshPort || 22;
             document.getElementById('rb-sshPassword').value = state.settings.sshPassword || 'falcon';
@@ -557,6 +563,7 @@ $rbPlugin = basename(__DIR__);
             snapshotMode: document.getElementById('rb-snapshotMode').checked,
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
+            logRetentionCount: parseInt(document.getElementById('rb-logRetentionCount').value, 10) || 15,
             sshUser: document.getElementById('rb-sshUser').value || 'fpp',
             sshPort: parseInt(document.getElementById('rb-sshPort').value, 10) || 22,
             sshPassword: document.getElementById('rb-sshPassword').value || 'falcon',

@@ -346,7 +346,11 @@ $rbPlugin = basename(__DIR__);
             var data;
             try { data = JSON.parse(txt); } catch (e) { pre.textContent = 'Non-JSON response, raw output:\n' + txt; return; }
             if (data.ok) {
-                document.getElementById('rb-log-path').textContent = data.file;
+                var pathText = data.file;
+                if (data.truncated) {
+                    pathText += '  (showing last ' + data.shownLines + ' of ' + data.totalLines + ' lines)';
+                }
+                document.getElementById('rb-log-path').textContent = pathText;
                 pre.textContent = data.content || '(empty)';
                 if (wasAtBottom || !silent) pre.scrollTop = pre.scrollHeight;
             } else {

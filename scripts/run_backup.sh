@@ -109,29 +109,9 @@ INCLUDE_SYSTEM_CONFIG=$(rb_setting '.includeSystemConfig' 'true')
 # don't exist on a given remote are silently skipped, not an error.
 SYSTEM_CONFIG_PATHS=(/etc/fpp /etc/hostname /etc/hosts /etc/timezone /etc/network /etc/wpa_supplicant /etc/dhcpcd.conf /etc/netplan)
 
-# rb_prune_remote_logs: keeps only the newest KEEP per-remote run log
-# files (data/logs/<id>-<runId>.log) and deletes the rest. Called once
-# per remote at the end of its run, real or dry-run alike - nothing
-# else ever reads an old one (the UI's "view log" always opens the
-# newest match for a given remote, see ajax.php's getLog), so older
-# copies are pure disk-space dead weight otherwise. Filenames sort
-# chronologically as plain strings since runId is YYYYMMDD-HHMMSS, so
-# a lexical sort (not mtime) determines newest-first - robust even if
-# a file's mtime were ever touched independently of its name.
-rb_prune_remote_logs() {
-    local rid="$1" keep=15
-    local files=()
-    while IFS= read -r f; do
-        [ -n "$f" ] && files+=("$f")
-    done < <(cd "$LOG_DIR" 2>/dev/null && ls -1 -- "${rid}-"*.log 2>/dev/null | sort -r)
-    local i=0
-    for f in "${files[@]}"; do
-        i=$((i + 1))
-        if [ "$i" -gt "$keep" ]; then
-            rm -f "${LOG_DIR}/${f}"
-        fi
-    done
-}
+# rb_prune_remote_logs (per-remote run log retention) now lives in
+# lib_common.sh, shared with prune_logs.sh - see there for the full
+# comment.
 
 # rb_resolve_remote_setting: reads a live setting value directly from a
 # remote's own FPP web API (the same http://<host>/api/settings/<name>

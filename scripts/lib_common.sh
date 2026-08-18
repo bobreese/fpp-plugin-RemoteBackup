@@ -111,6 +111,35 @@ rb_is_host_address() {
     return 1
 }
 
+# rb_prune_remote_logs <remoteId> [keep]: keeps only the newest KEEP
+# per-remote run log files (data/logs/<id>-<runId>.log) and deletes the
+# rest. Called once per remote at the end of its run (real or dry-run
+# alike) by run_backup.sh, and also from prune_logs.sh to apply a changed
+# retention count immediately rather than waiting for each remote's next
+# run. KEEP defaults to the configured logRetentionCount setting (itself
+# defaulting to 15) when not passed explicitly. Nothing else ever reads
+# an old run log (the UI's "view log" always opens the newest match for a
+# given remote, see ajax.php's getLog), so older copies are pure
+# disk-space dead weight otherwise. Filenames sort chronologically as
+# plain strings since runId is YYYYMMDD-HHMMSS, so a lexical sort (not
+# mtime) determines newest-first - robust even if a file's mtime were
+# ever touched independently of its name.
+rb_prune_remote_logs() {
+    local rid="$1" keep="${2:-}"
+    [ -z "$keep" ] && keep=$(rb_setting '.logRetentionCount' '15')
+    local files=()
+    while IFS= read -r f; do
+        [ -n "$f" ] && files+=("$f")
+    done < <(cd "$LOG_DIR" 2>/dev/null && ls -1 -- "${rid}-"*.log 2>/dev/null | sort -r)
+    local i=0
+    for f in "${files[@]}"; do
+        i=$((i + 1))
+        if [ "$i" -gt "$keep" ]; then
+            rm -f "${LOG_DIR}/${f}"
+        fi
+    done
+}
+
 # Bytes -> human readable, used only for logging (UI does its own formatting)
 rb_human_bytes() {
     numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "$1 bytes"

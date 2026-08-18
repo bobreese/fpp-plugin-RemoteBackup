@@ -108,6 +108,7 @@ function rb_default_settings() {
         'destinationMount' => '',
         'destinationLabel' => '',
         'maxConcurrent' => 2,
+        'logRetentionCount' => 15,
         'deleteExtraneous' => false,
         'snapshotMode' => false,
         'sshUser' => 'fpp',
@@ -302,6 +303,13 @@ switch ($action) {
         foreach (['maxConcurrent', 'sshPort'] as $k) {
             if (isset($body[$k])) $settings[$k] = (int)$body[$k];
         }
+        if (isset($body['logRetentionCount'])) {
+            // Clamped rather than trusted outright - this feeds straight into
+            // a shell loop counter in prune_logs.sh/rb_prune_remote_logs, and
+            // 0 or negative would prune every single log, including the one
+            // from the run currently writing it.
+            $settings['logRetentionCount'] = max(1, min(500, (int)$body['logRetentionCount']));
+        }
         if (isset($body['excludes']) && is_array($body['excludes'])) {
             $settings['excludes'] = array_values($body['excludes']);
         }
@@ -325,6 +333,14 @@ switch ($action) {
         if (!rb_save_settings($SETTINGS_FILE, $settings)) {
             rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
         }
+
+        // Applies the (possibly just-changed) logRetentionCount to every
+        // remote's existing run logs right away, rather than leaving old
+        // ones sitting there until each remote's next run happens to prune
+        // its own. Best-effort - a pruning hiccup here should never fail
+        // the settings save itself.
+        rb_run("$SCRIPTS_DIR/prune_logs.sh", [], 15);
+
         echo json_encode(['ok' => true, 'data' => $settings]);
         break;
     }
@@ -478,17 +494,34 @@ switch ($action) {
         } else {
             $file = $AJAX_LOG;
         }
-        $lines = 200;
+        // 200 lines was nowhere near enough for a real rsync run log: -v
+        // (one line per file) plus --info=progress2 (a fresh line per
+        // progress update, since there's no TTY to redraw over) routinely
+        // produces thousands of lines well before a transfer finishes, so
+        // the Diagnostic Log was silently showing only the tail end of the
+        // CURRENT run and never the start - "does not show entire current
+        // log". Raised well past what a typical single-remote run log
+        // needs, and the response now says plainly when it's still had to
+        // truncate, instead of silently cutting content with no indication.
+        $lines = 5000;
         $content = '';
+        $totalLines = 0;
+        $truncated = false;
         if (file_exists($file)) {
             $all = @file($file);
             if ($all) {
-                $content = implode('', array_slice($all, -$lines));
+                $totalLines = count($all);
+                if ($totalLines > $lines) {
+                    $truncated = true;
+                    $content = implode('', array_slice($all, -$lines));
+                } else {
+                    $content = implode('', $all);
+                }
             }
         } else {
             $content = '(log file does not exist yet: ' . $file . ')';
         }
-        echo json_encode(['ok' => true, 'file' => $file, 'content' => $content]);
+        echo json_encode(['ok' => true, 'file' => $file, 'content' => $content, 'truncated' => $truncated, 'totalLines' => $totalLines, 'shownLines' => $lines]);
         break;
     }
 
