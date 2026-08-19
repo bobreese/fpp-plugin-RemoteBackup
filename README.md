@@ -371,6 +371,15 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** "Re-format..." (and, less obviously, formatting an unmounted drive that
+  already had a filesystem/partition on it) always failing with "Refusing to format
+  ... it is not reported as a USB device (tran=)", even on a genuine USB drive - both
+  pass `format_usb.sh` the drive's actual PARTITION path (e.g. `/dev/sda1`), but `lsblk`
+  only ever populates the `TRAN` column on the whole-disk row, never a partition row, so
+  the check always read back empty. It now resolves the parent disk first (already
+  computed a few lines earlier for the root-disk-protection check) and checks TRAN on
+  that. Affects both the primary destination and the new secondary clone drive below,
+  since both share this script.
 - **Added** an option to clone the entire current backup set to a second USB drive
   (`rsync --delete` exact mirror, manual only via a new "Start Clone" button on Status -
   no Scheduler command). Format/mount the second drive on Config's new "Clone Backups to
