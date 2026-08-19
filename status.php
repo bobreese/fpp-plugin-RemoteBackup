@@ -271,7 +271,7 @@ $rbPlugin = basename(__DIR__);
         if (data.destStorage) {
             var d = data.destStorage;
             var pct = d.totalBytes ? Math.round((d.usedBytes / d.totalBytes) * 100) : 0;
-            destEl.textContent = 'Host storage (' + d.mountpoint + '): ' +
+            destEl.textContent = 'Host storage (' + d.mountpoint + ')' + (d.label ? ' [' + d.label + ']' : '') + ': ' +
                 humanBytes(d.usedBytes) + ' used / ' + humanBytes(d.freeBytes) + ' free of ' + humanBytes(d.totalBytes) +
                 ' (' + pct + '% used)';
         } else {
@@ -334,7 +334,7 @@ $rbPlugin = basename(__DIR__);
             var d = res.secondaryStorage;
             var pct = d.totalBytes ? Math.round((d.usedBytes / d.totalBytes) * 100) : 0;
             secEl.className = 'p-1';
-            secEl.innerHTML = 'Secondary drive (' + d.mountpoint + '): ' +
+            secEl.innerHTML = 'Secondary drive (' + d.mountpoint + ')' + (d.label ? ' [' + d.label + ']' : '') + ': ' +
                 humanBytes(d.usedBytes) + ' used / ' + humanBytes(d.freeBytes) + ' free of ' + humanBytes(d.totalBytes) +
                 ' (' + pct + '% used)';
         } else {

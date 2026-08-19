@@ -387,6 +387,18 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** an optional volume label to the Format dialogs for both the primary
+  "Backup Destination Storage" drive and the "Clone Backups to a Second Drive"
+  drive (defaults to `Backups`, capped at 11 characters - the more restrictive of
+  the two supported filesystems' limits). When a drive has one, it's now shown
+  next to Host storage and the Secondary drive line on the Status page, and next
+  to the mounted device in each Config page storage list.
+- **Added** a "Log Files" section to the in-app About page explaining that this plugin's
+  logs live under its own `data/logs/` rather than FPP's own log directory (deliberate -
+  a single rsync run can log a fresh line per file/progress update with no TTY to
+  overwrite in place, and that volume doesn't belong flooding FPP's own File Manager
+  Logs view), and pointing to the Status page's Diagnostic Log dropdown as where to
+  actually view each one (`ajax.log`, `engine.log`, per-remote rsync logs, `clone.log`).
 - **Fixed:** the Diagnostic Log dropdown's `clone.log` option disappearing within seconds
   of the Status page loading. `updateLogOptions()` (called on every poll) rebuilds that
   dropdown's non-fixed options each time, but its `fixed` allowlist only ever protected
