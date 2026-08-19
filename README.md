@@ -380,6 +380,9 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Updated** the in-app About page's summary to name the actual storage types
+  ("local NVMe/SSD, USB, or SD storage") instead of the vaguer "this system's local
+  storage", matching the wording already used in the README and `pluginInfo.json`.
 - **Updated** the Directory layout section to break out `data/logs/` explicitly - what
   each log file actually is (`engine.log`, `ajax.log`, per-remote `<id>-<runId>.log`,
   `clone-<runId>.log`) - instead of a single terse "logs/" mention, and added the
