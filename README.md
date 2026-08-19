@@ -393,7 +393,7 @@ than tagging releases, so this is a running list rather than versioned entries):
   the two supported filesystems' limits). When a drive has one, it's now shown
   next to Host storage and the Secondary drive line on the Status page, and next
   to the mounted device in each Config page storage list.
-- **Added** a "Log Files" section to the in-app About page explaining that this plugin's
+- **Added** a "Log Files" section to the in-app Help page explaining that this plugin's
   logs live under its own `data/logs/` rather than FPP's own log directory (deliberate -
   a single rsync run can log a fresh line per file/progress update with no TTY to
   overwrite in place, and that volume doesn't belong flooding FPP's own File Manager
