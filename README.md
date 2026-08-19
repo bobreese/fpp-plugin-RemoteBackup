@@ -371,6 +371,12 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a "Restoring a Backup" section to the in-app Help page, covering both ways to
+  actually recover a backup through FPP's own File Copy Backup/Restore: over the network
+  with the drive still attached to the Host, or by unmounting it and plugging it directly
+  into the device being restored's own USB port (useful for a from-scratch rebuild with
+  no network yet) - the drive is recognized by any FPP system's device picker either way,
+  since this plugin always formats it with a real GPT partition table.
 - **Fixed:** the Status page's Clone section (and the primary destination's free-space
   line) could report a drive as mounted with plausible-looking free-space numbers even
   after it had been unmounted, because the check was only `is_dir()` - mounting creates
