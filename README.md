@@ -65,7 +65,8 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   Config pages link to each other, and the Dry Run/Start Backup/Config buttons each have
   a "?" help popover (matching FPP's own System Stats page style) explaining what they do.
 - **FPP Commands** ("Run Remote Backup" / "Run Remote Backup Dry Run") so backups can be
-  triggered from FPP's built-in Scheduler, Playlists, or Events.
+  triggered from FPP's built-in Scheduler, Playlists, or Events - see "Scheduling backups"
+  below.
 - **USB drive management.** Detects an attached-but-unmounted USB drive, and can mount it
   (existing filesystem) or format it (ext4 or exFAT - exFAT recommended if you want the
   drive readable on Windows/Mac/another Pi) and mount it as `/mnt/Backups`, persisted via
@@ -380,6 +381,9 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Updated** the Features section's FPP Commands bullet to point to the "Scheduling
+  backups" section below it, instead of leaving scheduling details only discoverable by
+  scrolling further down on your own.
 - **Fixed:** two leftover-status display issues on the Status page, found right after the
   tab-visibility fix above. The "Clone started."/"Backup started."/"Stopped." message next
   to the buttons was only ever set once, right when clicked, and never cleared - so it
