@@ -95,20 +95,35 @@ fi
 
 rb_log "format_usb: formatting $DEVICE as $FSTYPE (confirmed)"
 
+# Partition-table operations (wipefs/parted/partprobe below) MUST target
+# the whole disk, never a partition device node - $DEVICE is a partition
+# (e.g. /dev/sda1) whenever this is a re-format of an already-mounted
+# drive (its actual mounted device) or an initial format of an
+# unmounted-but-already-partitioned drive. Running `parted mklabel gpt`
+# against a partition node instead of its disk is exactly what produces
+# parted's "Partitions 1 thru 64 ... have been written but we have been
+# unable to inform the kernel of the change" - the kernel has no concept
+# of partitioning a partition. $DEV_DISK_NAME (resolved above for the
+# root-disk check, same as the TRAN check further up) is the parent
+# disk's kernel name when $DEVICE is a partition, empty when $DEVICE is
+# already a whole disk.
+DISK_DEVICE="$DEVICE"
+[ -n "$DEV_DISK_NAME" ] && DISK_DEVICE="/dev/$DEV_DISK_NAME"
+
 # FPP's own Settings > Storage dropdown and the File Copy Backup/
 # Restore "Remote Storage" device picker both come from the same
 # upstream function (GetAvailableBackupsDevices() in www/common.php),
 # which only recognizes device names matching /^sd[a-z][0-9]/ - i.e. a
 # PARTITION (like /dev/sda1), never a raw whole-disk device with no
 # partition table. Previously this script ran mkfs directly on the
-# whole disk ($DEVICE, e.g. /dev/sda), so FPP's own dropdowns could
+# whole disk ($DISK_DEVICE, e.g. /dev/sda), so FPP's own dropdowns could
 # never see backups on it. Fix: create a GPT partition table with a
 # single partition spanning the whole disk, and format/mount THAT
 # partition instead.
-rb_log "format_usb: wiping old signatures and creating GPT partition table on $DEVICE"
-sudo wipefs -a "$DEVICE" >/tmp/rb_wipefs_err_$$ 2>&1
+rb_log "format_usb: wiping old signatures and creating GPT partition table on $DISK_DEVICE"
+sudo wipefs -a "$DISK_DEVICE" >/tmp/rb_wipefs_err_$$ 2>&1
 rm -f /tmp/rb_wipefs_err_$$
-sudo partprobe "$DEVICE" 2>/dev/null || true
+sudo partprobe "$DISK_DEVICE" 2>/dev/null || true
 sleep 1
 
 if ! command -v parted >/dev/null 2>&1; then
@@ -120,7 +135,7 @@ if ! command -v parted >/dev/null 2>&1; then
     exit 0
 fi
 
-if ! sudo parted -s "$DEVICE" mklabel gpt mkpart primary 0% 100% >/tmp/rb_parted_err_$$ 2>&1; then
+if ! sudo parted -s "$DISK_DEVICE" mklabel gpt mkpart primary 0% 100% >/tmp/rb_parted_err_$$ 2>&1; then
     ERR=$(cat /tmp/rb_parted_err_$$ 2>/dev/null); rm -f /tmp/rb_parted_err_$$
     rb_log "format_usb FAILED (parted): $ERR"
     json_err "Creating partition table failed: ${ERR:-unknown error}"
@@ -128,19 +143,19 @@ if ! sudo parted -s "$DEVICE" mklabel gpt mkpart primary 0% 100% >/tmp/rb_parted
 fi
 rm -f /tmp/rb_parted_err_$$
 
-sudo partprobe "$DEVICE" 2>/dev/null || true
+sudo partprobe "$DISK_DEVICE" 2>/dev/null || true
 command -v udevadm >/dev/null 2>&1 && udevadm settle 2>/dev/null
 sleep 1
 
 # Resolve the actual partition device path rather than assuming a
 # naming convention (usually /dev/sda1, but be robust to other bus
 # naming like /dev/mmcblk0p1 or /dev/nvme0n1p1).
-PARTITION=$(lsblk -no PATH -l "$DEVICE" 2>/dev/null | sed -n '2p' | tr -d ' ')
+PARTITION=$(lsblk -no PATH -l "$DISK_DEVICE" 2>/dev/null | sed -n '2p' | tr -d ' ')
 if [ -z "$PARTITION" ] || [ ! -b "$PARTITION" ]; then
-    json_err "Partition table was created but the resulting partition device could not be found under $DEVICE. Try unplugging and reconnecting the drive, then retry."
+    json_err "Partition table was created but the resulting partition device could not be found under $DISK_DEVICE. Try unplugging and reconnecting the drive, then retry."
     exit 0
 fi
-rb_log "format_usb: created partition $PARTITION on $DEVICE"
+rb_log "format_usb: created partition $PARTITION on $DISK_DEVICE"
 
 if [ "$FSTYPE" = "exfat" ]; then
     if ! command -v mkfs.exfat >/dev/null 2>&1; then
@@ -168,7 +183,7 @@ else
     rm -f /tmp/rb_mkfs_err_$$
 fi
 
-sudo partprobe "$DEVICE" 2>/dev/null || true
+sudo partprobe "$DISK_DEVICE" 2>/dev/null || true
 sleep 1
 
 # Hand off to mount_usb.sh for the mount + fstab step - using the

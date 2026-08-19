@@ -371,6 +371,15 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** "Re-format..." (and formatting an unmounted-but-already-partitioned drive)
+  failing with parted's "Partitions 1 thru 64 ... have been written but we have been
+  unable to inform the kernel of the change." The PR #28 fix resolved this same
+  partition-vs-disk mixup for the TRAN safety check, but `wipefs`/`parted`/`partprobe`
+  themselves were still being run directly against whatever device was passed in - a
+  PARTITION (e.g. `/dev/sda1`) in exactly these two cases, not the whole disk. Writing a
+  new partition table onto a partition device node instead of its disk is exactly what
+  produces that parted error. Now resolves the parent disk first (reusing the same
+  `DEV_DISK_NAME` lookup) and runs every partitioning operation against that instead.
 - **Fixed:** Mount/Unmount/Push SSH Key sometimes reporting "timed out" even though the
   operation actually succeeded (confirmed by a Rescan showing the drive mounted right
   after). The browser's own request timeout defaulted to a flat 20s, but the
