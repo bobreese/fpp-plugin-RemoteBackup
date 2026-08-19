@@ -394,6 +394,8 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a "Full documentation on GitHub (README)" button near the top of the in-app
+  Help page, opening this README in a new tab for the complete reference.
 - **Added** an optional volume label to the Format dialogs for both the primary
   "Backup Destination Storage" drive and the "Clone Backups to a Second Drive"
   drive (defaults to `Backups`, capped at 11 characters - the more restrictive of
