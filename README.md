@@ -380,6 +380,17 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** two leftover-status display issues on the Status page, found right after the
+  tab-visibility fix above. The "Clone started."/"Backup started."/"Stopped." message next
+  to the buttons was only ever set once, right when clicked, and never cleared - so it
+  could sit there forever claiming a clone/backup had just started even after the actual
+  result (correctly) showed underneath that it had already finished or failed. Both
+  messages now clear once a definitive result is showing instead of lingering
+  indefinitely. Also, `finishedAt` timestamps (e.g. "Last clone finished ...") are
+  recorded in UTC ("Z" suffix) deliberately, since the Host and its remotes can have
+  different system timezones - but showing that raw string as-is reads as flat-out wrong
+  locally (e.g. "15:03:27Z" looks nothing like 10:03:27 AM Central, even though that IS
+  the correct conversion). Now converted to the browser's own local time for display.
 - **Fixed:** the Status page could appear to "get stuck" and never show a clone's (or a
   backup's) finished result, even though it had actually completed normally - reloading
   the page always showed the correct result immediately, confirming this was purely a
