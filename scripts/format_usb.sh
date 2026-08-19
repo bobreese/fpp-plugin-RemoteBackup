@@ -6,8 +6,12 @@
 # THIS ERASES THE DEVICE. Multiple safety checks below are defense in
 # depth on top of whatever confirmation the UI already required.
 #
-# Usage: format_usb.sh <device e.g. /dev/sda> <ext4|exfat> <confirm token> [mountpoint]
+# Usage: format_usb.sh <device e.g. /dev/sda> <ext4|exfat> <confirm token> [mountpoint] [label]
 # The confirm token must be exactly I_UNDERSTAND_THIS_ERASES_THE_DRIVE.
+# label is the filesystem volume label (default "Backups" if omitted/
+# empty) - ajax.php already sanitizes/truncates it before it gets here
+# (see rb_sanitize_label()), but it's re-truncated to 11 chars below
+# too in case this script is ever invoked directly.
 # Output JSON: {"ok":true,"fstype":"ext4","mountpoint":"/mnt/Backups", ...}
 
 . "$(dirname "$0")/lib_common.sh"
@@ -16,6 +20,13 @@ DEVICE="$1"
 FSTYPE="${2:-ext4}"
 CONFIRM="$3"
 MOUNT_POINT="${4:-/mnt/Backups}"
+# 11 chars is the more restrictive of the two filesystems this script
+# supports (legacy FAT/exFAT volume label limit; ext4 allows up to 16) -
+# capping uniformly here means the Config page's one label field never
+# has to reason about which filesystem is selected.
+LABEL="${5:-Backups}"
+[ -z "$LABEL" ] && LABEL="Backups"
+LABEL="${LABEL:0:11}"
 
 json_err() {
     printf '{"ok":false,"error":%s}\n' "$(printf '%s' "$1" | jq -Rs .)"
@@ -166,7 +177,7 @@ if [ "$FSTYPE" = "exfat" ]; then
         json_err "mkfs.exfat is not available and could not be installed automatically. Install exfatprogs manually, or use ext4."
         exit 0
     fi
-    if ! sudo mkfs.exfat -n Backups "$PARTITION" >/tmp/rb_mkfs_err_$$ 2>&1; then
+    if ! sudo mkfs.exfat -n "$LABEL" "$PARTITION" >/tmp/rb_mkfs_err_$$ 2>&1; then
         ERR=$(cat /tmp/rb_mkfs_err_$$ 2>/dev/null); rm -f /tmp/rb_mkfs_err_$$
         rb_log "format_usb FAILED (exfat): $ERR"
         json_err "mkfs.exfat failed: ${ERR:-unknown error}"
@@ -174,7 +185,7 @@ if [ "$FSTYPE" = "exfat" ]; then
     fi
     rm -f /tmp/rb_mkfs_err_$$
 else
-    if ! sudo mkfs.ext4 -F -L Backups "$PARTITION" >/tmp/rb_mkfs_err_$$ 2>&1; then
+    if ! sudo mkfs.ext4 -F -L "$LABEL" "$PARTITION" >/tmp/rb_mkfs_err_$$ 2>&1; then
         ERR=$(cat /tmp/rb_mkfs_err_$$ 2>/dev/null); rm -f /tmp/rb_mkfs_err_$$
         rb_log "format_usb FAILED (ext4): $ERR"
         json_err "mkfs.ext4 failed: ${ERR:-unknown error}"
@@ -211,4 +222,4 @@ if echo "$MOUNT_RESULT" | jq -e '.ok == true' >/dev/null 2>&1 && [ "$DEST_MOUNT_
     CLEARED=true
 fi
 
-echo "$MOUNT_RESULT" | jq --argjson cleared "$CLEARED" '. + {clearedAllStatus: $cleared}'
+echo "$MOUNT_RESULT" | jq --argjson cleared "$CLEARED" --arg label "$LABEL" '. + {clearedAllStatus: $cleared, label: $label}'

@@ -179,7 +179,7 @@ $rbPlugin = basename(__DIR__);
                 var checked = state.settings && state.settings.destinationMount === mp ? 'checked' : '';
                 var id = 'rb-storage-' + mp.replace(/[^A-Za-z0-9]/g, '_');
                 html += '<div><label><input type="radio" name="rb-storage-choice" value="' + mp + '" ' + checked + ' id="' + id + '"> ' +
-                    (d.deviceLabel || mp) + ' &mdash; mounted at ' + mp + ' &mdash; ' + humanBytes(d.availBytes) + ' free</label>';
+                    (d.deviceLabel || mp) + (d.label ? ' &mdash; volume label "' + d.label + '"' : '') + ' &mdash; mounted at ' + mp + ' &mdash; ' + humanBytes(d.availBytes) + ' free</label>';
                 // The SD-card/system-storage fallback reports the true
                 // filesystem root ("/") as its mountpoint - free space is
                 // measured there, but backups themselves are written into
@@ -283,6 +283,8 @@ $rbPlugin = basename(__DIR__);
                 '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
                 '<option value="ext4">ext4 (Linux only)</option>' +
                 '</select></td></tr>' +
+                '<tr><td>Volume label:</td><td>' +
+                '<input type="text" id="rb-format-label" class="form-control form-control-sm d-inline-block w-auto" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
                 '<tr><td>Type <code>' + device + '</code> to confirm:</td><td>' +
                 '<input type="text" id="rb-format-confirm" class="form-control form-control-sm d-inline-block w-auto" autocomplete="off"></td></tr>' +
                 '</table>';
@@ -299,6 +301,7 @@ $rbPlugin = basename(__DIR__);
                         class: 'btn-danger',
                         click: function () {
                             var fstype = document.getElementById('rb-format-fstype').value;
+                            var label = document.getElementById('rb-format-label').value;
                             var typed = document.getElementById('rb-format-confirm').value;
                             if (typed !== device) {
                                 $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { themeState: 'danger' });
@@ -309,7 +312,7 @@ $rbPlugin = basename(__DIR__);
                             btn.disabled = true;
                             btn.textContent = 'Formatting...';
                             api('formatUsb', {
-                                body: { device: device, fstype: fstype, confirm: 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE' },
+                                body: { device: device, fstype: fstype, confirm: 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE', label: label },
                                 timeoutMs: 120000
                             }).then(function (res) {
                                 if (res.ok) {
@@ -368,7 +371,7 @@ $rbPlugin = basename(__DIR__);
 
         var html = '';
         if (mounted) {
-            html += '<div><label>' + (mounted.deviceLabel || '/mnt/BackupsCopy') + ' &mdash; mounted at /mnt/BackupsCopy &mdash; ' +
+            html += '<div><label>' + (mounted.deviceLabel || '/mnt/BackupsCopy') + (mounted.label ? ' &mdash; volume label "' + mounted.label + '"' : '') + ' &mdash; mounted at /mnt/BackupsCopy &mdash; ' +
                 humanBytes(mounted.availBytes) + ' free</label>' +
                 ' <button type="button" class="btn btn-sm btn-outline-secondary rb-unmount-usb2" data-device="' + (mounted.path || mounted.deviceLabel) + '">Unmount</button>' +
                 ' <button type="button" class="btn btn-sm btn-outline-danger rb-reformat-usb2" data-device="' + (mounted.path || mounted.deviceLabel) + '" data-size="' + humanBytes(mounted.sizeBytes) + '">Re-format...</button>' +
@@ -455,6 +458,8 @@ $rbPlugin = basename(__DIR__);
                 '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
                 '<option value="ext4">ext4 (Linux only)</option>' +
                 '</select></td></tr>' +
+                '<tr><td>Volume label:</td><td>' +
+                '<input type="text" id="rb-format2-label" class="form-control form-control-sm d-inline-block w-auto" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
                 '<tr><td>Type <code>' + device + '</code> to confirm:</td><td>' +
                 '<input type="text" id="rb-format2-confirm" class="form-control form-control-sm d-inline-block w-auto" autocomplete="off"></td></tr>' +
                 '</table>';
@@ -471,6 +476,7 @@ $rbPlugin = basename(__DIR__);
                         class: 'btn-danger',
                         click: function () {
                             var fstype = document.getElementById('rb-format2-fstype').value;
+                            var label = document.getElementById('rb-format2-label').value;
                             var typed = document.getElementById('rb-format2-confirm').value;
                             if (typed !== device) {
                                 $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { themeState: 'danger' });
@@ -481,7 +487,7 @@ $rbPlugin = basename(__DIR__);
                             btn.disabled = true;
                             btn.textContent = 'Formatting...';
                             api('formatSecondary', {
-                                body: { device: device, fstype: fstype, confirm: 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE' },
+                                body: { device: device, fstype: fstype, confirm: 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE', label: label },
                                 timeoutMs: 120000
                             }).then(function (res) {
                                 if (res.ok) {

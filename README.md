@@ -387,6 +387,12 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** an optional volume label to the Format dialogs for both the primary
+  "Backup Destination Storage" drive and the "Clone Backups to a Second Drive"
+  drive (defaults to `Backups`, capped at 11 characters - the more restrictive of
+  the two supported filesystems' limits). When a drive has one, it's now shown
+  next to Host storage and the Secondary drive line on the Status page, and next
+  to the mounted device in each Config page storage list.
 - **Added** a "Log Files" section to the in-app About page explaining that this plugin's
   logs live under its own `data/logs/` rather than FPP's own log directory (deliberate -
   a single rsync run can log a fresh line per file/progress update with no TTY to

@@ -145,6 +145,32 @@ function rb_is_mounted($path) {
     return false;
 }
 
+// Sanitizes a user-supplied filesystem volume label before it ever
+// reaches a shell command: strips anything but alphanumerics/space/
+// hyphen/underscore (mkfs.exfat/mkfs.ext4 both reject or mangle some
+// punctuation anyway, and this keeps it simple rather than trying to
+// allow-list per-filesystem quirks), then truncates to 11 chars - the
+// more restrictive of the two filesystems this plugin supports (legacy
+// FAT/exFAT volume label limit; ext4 allows up to 16). format_usb.sh
+// re-truncates too in case it's ever invoked directly, so this is
+// defense in depth, not the only place it's enforced. Falls back to
+// "Backups" for an empty/all-invalid-characters input.
+function rb_sanitize_label($label) {
+    $label = preg_replace('/[^A-Za-z0-9 _-]/', '', (string)$label);
+    $label = trim(substr($label, 0, 11));
+    return $label !== '' ? $label : 'Backups';
+}
+
+// Looks up a mounted filesystem's volume label by mountpoint, or null
+// if it doesn't have one (or isn't mounted) - findmnt's LABEL column
+// pulls this from blkid without needing to separately resolve the
+// underlying device first.
+function rb_volume_label($mountpoint) {
+    $out = @shell_exec('findmnt -no LABEL ' . escapeshellarg($mountpoint) . ' 2>/dev/null');
+    $label = trim((string)$out);
+    return $label !== '' ? $label : null;
+}
+
 function rb_default_settings() {
     return [
         'hostModeEnabled' => false,
@@ -271,6 +297,7 @@ switch ($action) {
         $device = isset($body['device']) ? $body['device'] : '';
         $fstype = isset($body['fstype']) ? $body['fstype'] : 'ext4';
         $confirm = isset($body['confirm']) ? $body['confirm'] : '';
+        $label = rb_sanitize_label(isset($body['label']) ? $body['label'] : '');
         if (!$device || substr($device, 0, 5) !== '/dev/') rb_fail('Invalid device path');
         if ($confirm !== 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE') rb_fail('Missing confirmation');
 
@@ -288,8 +315,8 @@ switch ($action) {
         }
         file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => true, 'action' => 'format']));
 
-        rb_log_line("FORMAT requested device=$device fstype=$fstype");
-        $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm], 90);
+        rb_log_line("FORMAT requested device=$device fstype=$fstype label=$label");
+        $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm, '/mnt/Backups', $label], 90);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'error' => 'No response from format_usb.sh - see data/logs/ajax.log'];
 
@@ -332,6 +359,7 @@ switch ($action) {
         $device = isset($body['device']) ? $body['device'] : '';
         $fstype = isset($body['fstype']) ? $body['fstype'] : 'ext4';
         $confirm = isset($body['confirm']) ? $body['confirm'] : '';
+        $label = rb_sanitize_label(isset($body['label']) ? $body['label'] : '');
         if (!$device || substr($device, 0, 5) !== '/dev/') rb_fail('Invalid device path');
         if ($confirm !== 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE') rb_fail('Missing confirmation');
 
@@ -340,8 +368,8 @@ switch ($action) {
         }
         file_put_contents("$DATA_DIR/clone_active.json", json_encode(['active' => true, 'action' => 'format-secondary']));
 
-        rb_log_line("FORMAT SECONDARY requested device=$device fstype=$fstype");
-        $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm, '/mnt/BackupsCopy'], 90);
+        rb_log_line("FORMAT SECONDARY requested device=$device fstype=$fstype label=$label");
+        $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm, '/mnt/BackupsCopy', $label], 90);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'error' => 'No response from format_usb.sh - see data/logs/ajax.log'];
 
@@ -623,7 +651,8 @@ switch ($action) {
                     'mountpoint' => '/mnt/BackupsCopy',
                     'totalBytes' => intval($dfTotal),
                     'freeBytes' => intval($dfFree),
-                    'usedBytes' => intval($dfTotal) - intval($dfFree)
+                    'usedBytes' => intval($dfTotal) - intval($dfFree),
+                    'label' => rb_volume_label('/mnt/BackupsCopy')
                 ];
             }
         }
@@ -663,7 +692,8 @@ switch ($action) {
                     'mountpoint' => $settings['destinationMount'],
                     'totalBytes' => intval($dfTotal),
                     'freeBytes' => intval($dfFree),
-                    'usedBytes' => intval($dfTotal) - intval($dfFree)
+                    'usedBytes' => intval($dfTotal) - intval($dfFree),
+                    'label' => rb_volume_label($settings['destinationMount'])
                 ];
             }
         }
