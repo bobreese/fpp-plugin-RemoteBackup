@@ -307,17 +307,24 @@ $rbPlugin = basename(__DIR__);
 
     function renderCloneStatus(res) {
         var secEl = document.getElementById('rb-clone-secondary-storage');
-        if (res.secondaryStorage) {
+        var mounted = !!res.secondaryStorage;
+        if (mounted) {
             var d = res.secondaryStorage;
             var pct = d.totalBytes ? Math.round((d.usedBytes / d.totalBytes) * 100) : 0;
-            secEl.textContent = 'Secondary drive (' + d.mountpoint + '): ' +
+            secEl.className = 'p-1';
+            secEl.innerHTML = 'Secondary drive (' + d.mountpoint + '): ' +
                 humanBytes(d.usedBytes) + ' used / ' + humanBytes(d.freeBytes) + ' free of ' + humanBytes(d.totalBytes) +
                 ' (' + pct + '% used)';
         } else {
-            secEl.textContent = 'Secondary drive: not mounted - format/mount it on the Config page first.';
+            // Visually distinct from the normal muted status line, not just
+            // present in the DOM - easy to skim past as plain gray text
+            // otherwise, and this is exactly the state where clicking
+            // "Start Clone" would previously do nothing useful.
+            secEl.className = 'p-1 text-danger';
+            secEl.innerHTML = '<b>Secondary drive not mounted</b> - format/mount it on the Config page first.';
         }
 
-        document.getElementById('rb-clone-start').disabled = !!res.active;
+        document.getElementById('rb-clone-start').disabled = !!res.active || !mounted;
 
         var c = res.clone;
         var progress = document.getElementById('rb-clone-progress');
