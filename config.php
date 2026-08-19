@@ -226,7 +226,14 @@ $rbPlugin = basename(__DIR__);
                     function () {
                         btn.disabled = true;
                         btn.textContent = 'Unmounting...';
-                        api('unmountUsb', { body: {} }).then(function (res) {
+                        // timeoutMs kept comfortably above mount_usb.sh's/
+                        // unmount_usb.sh's own server-side rb_run() timeout
+                        // (20-25s) - the fetch() default (20s) was aborting
+                        // marginally BEFORE the server gave up, so a mount/
+                        // unmount that was still genuinely in progress (and
+                        // would have succeeded) got reported as "timed out"
+                        // even though it actually completed a moment later.
+                        api('unmountUsb', { body: {}, timeoutMs: 30000 }).then(function (res) {
                             if (res.ok) {
                                 $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { themeState: 'success' });
                                 api('probeStorage').then(function (r2) {
@@ -247,7 +254,7 @@ $rbPlugin = basename(__DIR__);
                 var device = btn.getAttribute('data-device');
                 btn.disabled = true;
                 btn.textContent = 'Mounting...';
-                api('mountUsb', { body: { device: device } }).then(function (res) {
+                api('mountUsb', { body: { device: device }, timeoutMs: 35000 }).then(function (res) {
                     if (res.ok) {
                         $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { themeState: 'success' });
                         api('probeStorage').then(function (r2) {
@@ -395,7 +402,9 @@ $rbPlugin = basename(__DIR__);
                     function () {
                         btn.disabled = true;
                         btn.textContent = 'Unmounting...';
-                        api('unmountSecondary', { body: {} }).then(function (res) {
+                        // See the primary Unmount handler above for why
+                        // timeoutMs is set explicitly here.
+                        api('unmountSecondary', { body: {}, timeoutMs: 30000 }).then(function (res) {
                             if (res.ok) {
                                 $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { themeState: 'success' });
                                 api('probeStorage').then(function (r2) {
@@ -416,7 +425,11 @@ $rbPlugin = basename(__DIR__);
                 var device = btn.getAttribute('data-device');
                 btn.disabled = true;
                 btn.textContent = 'Mounting...';
-                api('mountSecondary', { body: { device: device } }).then(function (res) {
+                // See the primary Mount handler above for why timeoutMs is
+                // set explicitly here - this is exactly the "Mount as clone
+                // drive failed: timed out" bug (the mount had actually
+                // succeeded; a Rescan afterward showed it mounted).
+                api('mountSecondary', { body: { device: device }, timeoutMs: 35000 }).then(function (res) {
                     if (res.ok) {
                         $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { themeState: 'success' });
                         api('probeStorage').then(function (r2) {
@@ -547,13 +560,19 @@ $rbPlugin = basename(__DIR__);
 
     function pushKeyFor(id, address, password, announce) {
         setKeyStatus(id, 'pushing key...', 'text-muted');
+        // timeoutMs kept above ssh_setup.sh's own worst-case runtime
+        // (its internal `timeout --kill-after=5 20` allows up to 25s) -
+        // see the primary Mount/Unmount handlers above for the same
+        // "client aborted before the server actually finished" issue
+        // this was otherwise exposed to.
         return api('pushSshKey', {
             body: {
                 address: address,
                 sshUser: document.getElementById('rb-sshUser').value || 'fpp',
                 sshPort: document.getElementById('rb-sshPort').value || 22,
                 password: password || defaultSshPassword()
-            }
+            },
+            timeoutMs: 30000
         }).then(function (res) {
             if (res.ok) {
                 setKeyStatus(id, 'key installed', 'text-success');
