@@ -192,6 +192,12 @@ All of this happens on the Config page, under **Backup Destination Storage**.
      exactly that reason. The other option, **ext4, is Linux-only**; a Windows or Mac
      machine won't be able to read the drive at all without extra third-party software, so
      only pick it if the drive is never leaving Linux systems.
+   - Optionally set a **volume label** - defaults to `Backups`, up to 11 characters (the
+     more restrictive limit of the two filesystems above). This is the filesystem's own
+     label, e.g. what shows up as the drive's name in a file manager on another computer -
+     handy for telling multiple backup drives apart at a glance. Once set, it's shown
+     alongside the drive on the Config page's storage list and next to "Host storage" on
+     the Status page.
    - Type the device path shown in the dialog (e.g. `/dev/sda`) into the confirm box
      exactly as shown - this is a safety check since formatting **erases everything
      already on the drive**, and the button stays disabled until it matches.
@@ -200,12 +206,13 @@ All of this happens on the Config page, under **Backup Destination Storage**.
 3. **Mount it** (only needed if the drive already has a filesystem you want to keep, so
    you skipped formatting): click **"Mount as Backups"** next to it. Either path (format or
    plain mount) mounts the drive at `/mnt/Backups` and adds it to `/etc/fstab` so it's
-   automatically remounted after a reboot.
+   automatically remounted after a reboot. A drive mounted this way (rather than formatted
+   here) only shows a volume label if one was already set on it elsewhere.
 4. **Activate it as the destination.** Once mounted, the drive appears in the main
-   storage list above with a radio button (`<label> - mounted at /mnt/Backups - X free`).
-   Select it, then click **"Save Settings"** at the bottom of the page - like every other
-   Config change, nothing takes effect, including which storage is actually used, until
-   you save.
+   storage list above with a radio button (`<label> - mounted at /mnt/Backups - X free`,
+   plus `- volume label "<label>"` when the drive has one). Select it, then click
+   **"Save Settings"** at the bottom of the page - like every other Config change, nothing
+   takes effect, including which storage is actually used, until you save.
 
 A few related things:
 
