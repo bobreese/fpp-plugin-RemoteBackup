@@ -353,7 +353,16 @@ fpp-plugin-RemoteBackup/
     ssh_setup.sh              pushes the backup SSH key to a remote
   commands/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh
-  data/                      settings.json, per-remote status/*.json, logs/ (created on install)
+  data/                      created on install
+    settings.json            Config page's saved settings
+    status/<id>.json         each remote's live status, polled by the Status page
+    run_active.json, clone_active.json, *.lock, pids/    run/clone overlap guards
+    logs/
+      engine.log             run_backup.sh's own log (start/finish, refusals, errors)
+      ajax.log                every backend script ajax.php invokes, plus its stderr
+      <id>-<runId>.log        one full rsync run log per remote per run (kept per
+                               Config > Backup Options' "Run logs to keep per remote")
+      clone-<runId>.log       one per Clone Backups to a Second Drive run
 ```
 
 ## Notes / assumptions
@@ -371,6 +380,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Updated** the Directory layout section to break out `data/logs/` explicitly - what
+  each log file actually is (`engine.log`, `ajax.log`, per-remote `<id>-<runId>.log`,
+  `clone-<runId>.log`) - instead of a single terse "logs/" mention, and added the
+  previously-undocumented `status/`, `run_active.json`/`clone_active.json`, and lock/pid
+  files.
 - **Added** a "Restoring a Backup" section to the in-app Help page, covering both ways to
   actually recover a backup through FPP's own File Copy Backup/Restore: over the network
   with the drive still attached to the Host, or by unmounting it and plugging it directly
