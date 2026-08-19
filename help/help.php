@@ -1,4 +1,11 @@
 <div class="mt-2">
+    <div class="mb-2">
+        <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/README.md"
+           target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+            Full documentation on GitHub (README) &#8599;
+        </a>
+    </div>
+
     <fieldset class="border rounded p-2">
         <legend>How Remote Backup Works</legend>
         <div class="p-2">
