@@ -106,6 +106,65 @@
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2">
+        <legend>Restoring a Backup</legend>
+        <div class="p-2">
+            This plugin only ever pulls backups down - it has no restore button of its own, by
+            design. Recovery always goes through FPP's own built-in <b>File Copy Backup/Restore</b>
+            page (under Content Setup), which already knows how to restore
+            sequences/media/playlists/effects safely. There are two ways to get to it, depending on
+            where the destination drive physically is at the time:
+            <ol>
+                <li><b>Using the Host, over the network.</b> Leave the destination drive right where
+                    it is, still attached to the Host. On whichever system you're restoring to, open
+                    its own <i>File Copy Backup/Restore</i> page, point the "Remote Storage" source at
+                    the Host, and browse into the remote's own
+                    <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder (or
+                    <code>&lt;Hostname&gt;/&lt;YYYYMMDD&gt;</code> if Snapshot mode was enabled) to
+                    restore from. This is the easiest option whenever the system you're restoring to
+                    still has working network access back to the Host.</li>
+                <li><b>Using the drive directly in the device's own USB port.</b> Useful when the
+                    system you're restoring has no network access yet (e.g. a from-scratch rebuild
+                    after a dead SD card) or you'd just rather not depend on the network for it.
+                    <ol type="a">
+                        <li>On the Config page, <b>Unmount</b> the destination drive from the Host
+                            first - never unplug it while still mounted.</li>
+                        <li>Physically move the drive to the system you're restoring, and plug it into
+                            one of <i>that system's own</i> USB ports.</li>
+                        <li>Open <i>that system's own</i> File Copy Backup/Restore page. Because this
+                            plugin always formats destination drives with a real GPT partition table
+                            (not a filesystem directly on the raw disk), the drive is recognized by
+                            FPP's own device picker on any FPP system, not just this plugin - it'll
+                            show up there the same way it would in this plugin's own Config page.</li>
+                        <li>Browse into that remote's own <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code>
+                            folder on the drive - the same layout as restoring over the network, just
+                            browsed locally instead. The drive normally holds every selected remote's
+                            backups side by side; ignore the others and pick the one that's yours.</li>
+                        <li>When you're done, move the drive back to the Host, Mount it again on the
+                            Config page, and re-select it as the destination if needed before the next
+                            backup run - only one system can have it plugged in at a time.</li>
+                    </ol>
+                </li>
+            </ol>
+            A few things that apply either way:
+            <ul>
+                <li>You don't have to restore to the same physical remote a backup came from - either
+                    method works just as well for rebuilding/cloning onto a different system, as long
+                    as you pick that remote's own folder on the drive.</li>
+                <li>The <code>system-logs.tar.gz</code>/<code>system-config.tar.gz</code> archives
+                    inside a backup (if "Include system config" is enabled) are deliberately packaged
+                    as <code>.tar.gz</code> files rather than plain folders, specifically so File Copy
+                    Restore's device browser doesn't mistake them for restorable show-content backups
+                    of their own - they aren't part of its file-level restore either way. Extract those
+                    yourself (<code>tar xzf</code>) over SSH/SCP if you need the original
+                    <code>/etc/fpp</code>, network config, or relocated log directory back.</li>
+                <li>Rolling mode (the default) only ever keeps each remote's most recent backup -
+                    restoring an older point in time requires Snapshot mode to have been enabled
+                    before that backup was made.</li>
+            </ul>
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2">
         <legend>Delete Handling</legend>
         <div class="p-2">
             "Delete files in the host backup that were removed on the remote" controls whether
