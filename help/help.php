@@ -121,6 +121,17 @@
             <b>Run Remote Backup Dry Run</b> - that can be triggered from FPP's own Scheduler,
             Playlists, or Events just like any other FPP command, so backups can run automatically
             on a recurring schedule.
+            <p class="mb-0 mt-2">Before a scheduled run actually starts, every <i>selected</i> remote's
+            own FPP API is checked. If <b>any one</b> of them is currently playing a sequence, the
+            <b>entire</b> run is refused - not just that one remote's backup, all of them - and nothing
+            gets backed up that cycle. This is deliberate: a backup pulls files directly off the same
+            SD card/storage fppd is actively reading from during playback, and doing that while a show
+            is running risks stutters or dropped frames. A remote that can't be reached at all is
+            treated as unknown, not as playing, so one remote being offline doesn't block backing up
+            every other one. If a scheduled run gets refused this way, it's logged with the reason in
+            <code>data/logs/engine.log</code> (viewable from the Status page's Diagnostic Log) and in
+            FPP's own command output for that Scheduler entry - worth checking there before assuming a
+            scheduled backup silently failed for no reason.</p>
         </div>
     </fieldset>
 </div>

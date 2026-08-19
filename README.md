@@ -371,6 +371,12 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** in the Help page's Scheduling section that a scheduled run is refused
+  entirely - not just skipped for the busy remote - if any one selected remote is
+  currently playing a sequence, why (reading the same storage fppd is actively playing
+  off of), that an unreachable remote counts as unknown rather than playing so it doesn't
+  block the others, and where to check (`engine.log`/Scheduler command output) when a
+  scheduled backup silently didn't run.
 - **Fixed:** "Re-format..." (and formatting an unmounted-but-already-partitioned drive)
   failing with parted's "Partitions 1 thru 64 ... have been written but we have been
   unable to inform the kernel of the change." The PR #28 fix resolved this same
