@@ -387,6 +387,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Diagnostic Log dropdown's `clone.log` option disappearing within seconds
+  of the Status page loading. `updateLogOptions()` (called on every poll) rebuilds that
+  dropdown's non-fixed options each time, but its `fixed` allowlist only ever protected
+  `ajax`/`engine` from removal - `clone` was never added to it, so the very first poll
+  after page load deleted the option that was right there in the initial HTML.
 - **Added** to Install: a fallback for when FPP's Plugin Manager doesn't list the plugin
   (paste `pluginInfo.json`'s raw GitHub URL into "Find a Plugin"), and a Beta Test
   warning to use with care.

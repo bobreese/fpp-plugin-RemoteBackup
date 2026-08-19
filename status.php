@@ -207,7 +207,7 @@ $rbPlugin = basename(__DIR__);
     function updateLogOptions(remotes) {
         var sel = document.getElementById('rb-log-which');
         var current = sel.value;
-        var fixed = ['ajax', 'engine'];
+        var fixed = ['ajax', 'engine', 'clone'];
         // Drop stale remote: options, then re-add one per remote currently known.
         Array.prototype.slice.call(sel.options).forEach(function (opt) {
             if (fixed.indexOf(opt.value) === -1) sel.removeChild(opt);
