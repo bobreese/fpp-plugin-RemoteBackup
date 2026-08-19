@@ -380,6 +380,14 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Status page could appear to "get stuck" and never show a clone's (or a
+  backup's) finished result, even though it had actually completed normally - reloading
+  the page always showed the correct result immediately, confirming this was purely a
+  live-update problem, not the clone/backup itself stalling. Browsers throttle
+  `setTimeout` heavily in a backgrounded/minimized tab, easy to hit since a clone of the
+  whole backup set can run for many minutes, well past when someone tabs away. The page
+  now re-polls immediately the moment the tab becomes visible again instead of waiting on
+  whatever throttled timer was still pending.
 - **Updated** the in-app About page's summary to name the actual storage types
   ("local NVMe/SSD, USB, or SD storage") instead of the vaguer "this system's local
   storage", matching the wording already used in the README and `pluginInfo.json`.

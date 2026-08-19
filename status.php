@@ -640,6 +640,24 @@ $rbPlugin = basename(__DIR__);
         }
     });
 
+    // Browsers throttle setTimeout/setInterval heavily in a backgrounded
+    // or minimized tab - easy to hit here since a clone of the whole
+    // backup set can run for many minutes, well past when someone tabs
+    // away to do something else. The poll chains eventually still fire on
+    // their own, but "eventually" can be a very long wait once throttled,
+    // which reads as the page having silently stopped updating even
+    // though the clone (or backup) actually finished normally. Re-poll
+    // immediately the moment the tab becomes visible again instead of
+    // waiting on whatever throttled timer was still pending - both poll()
+    // and pollClone() already clear their own pending timer before
+    // rescheduling, so this can't create a duplicate polling chain.
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            poll();
+            pollClone();
+        }
+    });
+
     poll();
     pollClone();
 })();
