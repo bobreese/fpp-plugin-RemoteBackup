@@ -371,6 +371,18 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Status page's Clone section (and the primary destination's free-space
+  line) could report a drive as mounted with plausible-looking free-space numbers even
+  after it had been unmounted, because the check was only `is_dir()` - mounting creates
+  the mountpoint directory, and unmounting deliberately leaves that now-empty directory
+  behind, so `is_dir()` stayed true regardless and silently reported the *root*
+  filesystem's free space as if it belonged to the drive. Both now check `/proc/mounts`
+  directly. The Clone section also now shows **"Secondary drive not mounted"** as a
+  clearly-styled warning (not just muted gray text) and disables "Start Clone" whenever
+  the secondary drive isn't actually mounted, instead of letting you click it into a
+  confusing false "Clone started." followed by a delayed failure a few seconds later -
+  `startClone` itself now checks the mount status up front and fails that request
+  outright with an accurate message.
 - **Documented** in the Help page's Scheduling section that a scheduled run is refused
   entirely - not just skipped for the busy remote - if any one selected remote is
   currently playing a sequence, why (reading the same storage fppd is actively playing

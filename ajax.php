@@ -130,6 +130,21 @@ function rb_is_active($file) {
     return $data && !empty($data['active']);
 }
 
+// True if $path is currently an active mountpoint - reads /proc/mounts
+// directly rather than shelling out to the `mountpoint` command, since
+// this is just a quick pre-flight check (e.g. startClone below) and not
+// worth a process spawn for. is_dir() alone isn't enough here: an
+// unmounted-but-still-present empty directory would pass it too.
+function rb_is_mounted($path) {
+    $mounts = @file('/proc/mounts');
+    if (!$mounts) return false;
+    foreach ($mounts as $line) {
+        $parts = preg_split('/\s+/', trim($line));
+        if (isset($parts[1]) && $parts[1] === $path) return true;
+    }
+    return false;
+}
+
 function rb_default_settings() {
     return [
         'hostModeEnabled' => false,
@@ -546,6 +561,16 @@ switch ($action) {
         if (rb_is_active("$DATA_DIR/clone_active.json")) {
             rb_fail('A backup clone is already in progress', 409);
         }
+        // clone_backups.sh already refuses internally if the secondary
+        // drive isn't mounted, but that check only happens after this
+        // request has already returned {ok:true,started:true} (it runs in
+        // the background) - the Status page briefly showed "Clone
+        // started." before the next poll caught up to the real error a
+        // couple seconds later. Checking here instead means an unmounted
+        // drive fails this request outright, with an accurate response.
+        if (!rb_is_mounted('/mnt/BackupsCopy')) {
+            rb_fail('Secondary drive is not mounted at /mnt/BackupsCopy - format/mount it on the Config page first.', 409);
+        }
 
         rb_log_line("START CLONE requested");
         $cmd = escapeshellcmd("$SCRIPTS_DIR/clone_backups.sh") . ' > ' .
@@ -582,9 +607,15 @@ switch ($action) {
 
         // Free/used space on the secondary drive, same shape as
         // 'status''s destStorage, so the Status page can show it whether
-        // or not a clone has ever actually run yet.
+        // or not a clone has ever actually run yet. rb_is_mounted(), not
+        // is_dir() - mount_usb.sh's `mkdir -p` creates /mnt/BackupsCopy
+        // before it ever mounts anything there, and unmounting leaves the
+        // now-empty directory behind (by design - see unmount_usb.sh), so
+        // is_dir() alone stays true long after the drive is gone and would
+        // report the ROOT filesystem's free space as if it were the
+        // drive's, instead of correctly showing "not mounted."
         $secondaryStorage = null;
-        if (is_dir('/mnt/BackupsCopy')) {
+        if (rb_is_mounted('/mnt/BackupsCopy')) {
             $dfFree = @disk_free_space('/mnt/BackupsCopy');
             $dfTotal = @disk_total_space('/mnt/BackupsCopy');
             if ($dfFree !== false && $dfTotal !== false) {
@@ -614,9 +645,17 @@ switch ($action) {
 
         // Host destination storage used/free/total - shown in the Status
         // page header on every poll, independent of whether a run is
-        // active or a dry run was ever performed.
+        // active or a dry run was ever performed. rb_is_mounted(), not
+        // is_dir() - same reasoning as cloneStatus's secondaryStorage
+        // below: an unmounted destination's directory can still exist on
+        // disk (e.g. the SD-card fallback's dedicated folder, or a USB
+        // mountpoint left behind after unmounting), and is_dir() alone
+        // would then report the wrong filesystem's free space as the
+        // destination's. The "/" (SD Card/System Storage fallback) case
+        // is exempt, same as run_backup.sh's own rb_dest_mounted() - "/"
+        // is always mounted by definition, there's nothing to check.
         $destStorage = null;
-        if (!empty($settings['destinationMount']) && is_dir($settings['destinationMount'])) {
+        if (!empty($settings['destinationMount']) && ($settings['destinationMount'] === '/' || rb_is_mounted($settings['destinationMount']))) {
             $dfFree = @disk_free_space($settings['destinationMount']);
             $dfTotal = @disk_total_space($settings['destinationMount']);
             if ($dfFree !== false && $dfTotal !== false) {
