@@ -74,8 +74,20 @@ if [ -n "$CURRENT_MP" ]; then
     fi
 fi
 
-# Only format devices FPP identified as USB-attached.
-TRAN=$(lsblk -no TRAN "$DEVICE" 2>/dev/null | head -1 | tr -d ' ')
+# Only format devices FPP identified as USB-attached. lsblk only
+# populates TRAN on a whole-disk row, never a partition row - $DEVICE
+# is a partition (e.g. /dev/sda1) whenever this is a re-format of an
+# already-mounted drive (its actual mounted device) or an initial
+# format of an unmounted-but-already-partitioned drive, so a direct
+# TRAN lookup on $DEVICE itself always came back empty and refused
+# every one of those unconditionally - only formatting a brand-new,
+# never-partitioned whole disk (e.g. /dev/sda) ever actually worked.
+# $DEV_DISK_NAME (resolved above for the root-disk check) is the
+# parent disk's kernel name when $DEVICE is a partition, empty when
+# $DEVICE is already a whole disk - check TRAN on whichever that is.
+TRAN_CHECK_DEV="$DEVICE"
+[ -n "$DEV_DISK_NAME" ] && TRAN_CHECK_DEV="/dev/$DEV_DISK_NAME"
+TRAN=$(lsblk -no TRAN "$TRAN_CHECK_DEV" 2>/dev/null | head -1 | tr -d ' ')
 if [ "$TRAN" != "usb" ]; then
     json_err "Refusing to format $DEVICE - it is not reported as a USB device (tran=$TRAN)."
     exit 0
