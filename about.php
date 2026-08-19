@@ -2,7 +2,8 @@
     <fieldset class="border rounded p-2">
         <legend>Remote Backup</legend>
         <div class="p-2">
-            Pulls rsync backups of one or more MultiSync remotes onto this system's local storage.
+            Pulls rsync backups of one or more MultiSync remotes onto local NVMe/SSD, USB, or SD
+            storage.
         </div>
     </fieldset>
 
