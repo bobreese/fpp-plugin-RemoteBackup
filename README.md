@@ -371,6 +371,15 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** Mount/Unmount/Push SSH Key sometimes reporting "timed out" even though the
+  operation actually succeeded (confirmed by a Rescan showing the drive mounted right
+  after). The browser's own request timeout defaulted to a flat 20s, but the
+  corresponding server-side operations are allowed up to 25-30s (`mount_usb.sh`) or 25s
+  worst case (`ssh_setup.sh`) - the browser could give up and report failure moments
+  before the server would have returned success. Client-side timeouts for these five
+  actions (mount/unmount, primary and secondary drives, plus Push SSH Key) now all sit
+  comfortably above their server-side counterparts, matching the pattern the Format
+  dialog already used correctly.
 - **Fixed:** "Re-format..." (and, less obviously, formatting an unmounted drive that
   already had a filesystem/partition on it) always failing with "Refusing to format
   ... it is not reported as a USB device (tran=)", even on a genuine USB drive - both
