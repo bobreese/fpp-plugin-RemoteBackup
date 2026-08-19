@@ -80,6 +80,32 @@
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2">
+        <legend>Cloning Backups to a Second Drive</legend>
+        <div class="p-2">
+            Optional, entirely separate from the primary destination, and manual only - there's no
+            Scheduler command for it.
+            <ol>
+                <li>Format/mount a second drive on the Config page, under <b>"Clone Backups to a
+                    Second Drive"</b> - same Format/Mount flow as the primary destination, just fixed
+                    to a different mountpoint (<code>/mnt/BackupsCopy</code>) so it's always a
+                    distinct drive.</li>
+                <li>Click <b>"Start Clone"</b> on the Status page, under the same-named section. Runs
+                    <code>rsync --delete</code> from the whole primary destination to the secondary
+                    drive in one pass - an exact mirror, so a backup you deleted from the primary is
+                    removed from the clone too. Progress shows live the same way a backup run does.</li>
+                <li><b>Stop</b> cancels an in-progress clone like Stop cancels a backup run - whatever
+                    already copied stays; just start it again later to finish catching up.</li>
+            </ol>
+            A clone refuses to run at the same time as a backup run or a primary-drive format (it
+            reads from the same destination those write to) - and the reverse is also true, a backup
+            or a primary-drive format/unmount is blocked while a clone is running. It also refuses
+            outright if the primary and secondary turn out to be the same drive, or one is nested
+            inside the other, since mirroring a directory into itself could corrupt or wipe every
+            backup on the primary.
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2">
         <legend>Delete Handling</legend>
         <div class="p-2">
             "Delete files in the host backup that were removed on the remote" controls whether

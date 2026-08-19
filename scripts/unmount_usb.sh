@@ -1,19 +1,24 @@
 #!/bin/bash
-# Unmount the Remote Backup destination drive from /mnt/Backups and drop
-# its /etc/fstab entry, so it can be safely detached. This only changes
-# the running system's view of the drive - it does NOT touch any data on
-# it, and any backups already on the drive are untouched.
+# Unmount the Remote Backup destination drive from /mnt/Backups (or the
+# secondary clone-target drive at /mnt/BackupsCopy, if given as an arg)
+# and drop its /etc/fstab entry, so it can be safely detached. This only
+# changes the running system's view of the drive - it does NOT touch any
+# data on it, and any backups already on the drive are untouched.
 #
-# Only ever operates on our fixed, plugin-managed mount point - never an
-# arbitrary path - so there is no way for this to unmount the OS's own
-# root/boot filesystem.
+# Only ever operates on one of our fixed, plugin-managed mount points -
+# never an arbitrary caller-supplied path - so there is no way for this
+# to unmount the OS's own root/boot filesystem.
 #
-# Usage: unmount_usb.sh
+# Usage: unmount_usb.sh [mountpoint]
 # Output JSON: {"ok":true,"mountpoint":"/mnt/Backups","device":"/dev/sda","removedFstab":true|false}
 
 . "$(dirname "$0")/lib_common.sh"
 
-MOUNT_POINT="/mnt/Backups"
+MOUNT_POINT="${1:-/mnt/Backups}"
+if [ "$MOUNT_POINT" != "/mnt/Backups" ] && [ "$MOUNT_POINT" != "/mnt/BackupsCopy" ]; then
+    printf '{"ok":false,"error":%s}\n' "$(printf '%s' "Refusing to unmount '$MOUNT_POINT' - not one of this plugin's managed mount points." | jq -Rs .)"
+    exit 0
+fi
 
 json_err() {
     printf '{"ok":false,"error":%s}\n' "$(printf '%s' "$1" | jq -Rs .)"
@@ -37,7 +42,7 @@ rm -f /tmp/rb_umount_err_$$
 
 REMOVED_FSTAB=false
 if [ -f /etc/fstab ] && grep -q "$MOUNT_POINT" /etc/fstab 2>/dev/null; then
-    sudo sed -i.rb-unmount-bak '\#/mnt/Backups#d' /etc/fstab 2>/dev/null || true
+    sudo sed -i.rb-unmount-bak "\\#${MOUNT_POINT}#d" /etc/fstab 2>/dev/null || true
     REMOVED_FSTAB=true
     rb_log "unmount_usb: removed fstab entry for $MOUNT_POINT"
 fi

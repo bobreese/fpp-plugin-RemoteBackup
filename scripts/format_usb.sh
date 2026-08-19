@@ -1,9 +1,12 @@
 #!/bin/bash
-# Format an unmounted USB device and mount it at /mnt/Backups.
+# Format an unmounted USB device and mount it at a fixed mountpoint
+# (/mnt/Backups by default, the primary backup destination; pass a 4th
+# arg to format/mount elsewhere instead - e.g. /mnt/BackupsCopy for the
+# secondary "clone backups to a second drive" drive).
 # THIS ERASES THE DEVICE. Multiple safety checks below are defense in
 # depth on top of whatever confirmation the UI already required.
 #
-# Usage: format_usb.sh <device e.g. /dev/sda> <ext4|exfat> <confirm token>
+# Usage: format_usb.sh <device e.g. /dev/sda> <ext4|exfat> <confirm token> [mountpoint]
 # The confirm token must be exactly I_UNDERSTAND_THIS_ERASES_THE_DRIVE.
 # Output JSON: {"ok":true,"fstype":"ext4","mountpoint":"/mnt/Backups", ...}
 
@@ -12,6 +15,7 @@
 DEVICE="$1"
 FSTYPE="${2:-ext4}"
 CONFIRM="$3"
+MOUNT_POINT="${4:-/mnt/Backups}"
 
 json_err() {
     printf '{"ok":false,"error":%s}\n' "$(printf '%s' "$1" | jq -Rs .)"
@@ -52,17 +56,17 @@ fi
 # checking only the first lsblk line would miss that it's in use.
 CURRENT_MP=$(lsblk -no MOUNTPOINT "$DEVICE" 2>/dev/null | grep -v '^[[:space:]]*$' | head -1 | tr -d ' ')
 if [ -n "$CURRENT_MP" ]; then
-    if [ "$CURRENT_MP" = "/mnt/Backups" ]; then
-        rb_log "format_usb: re-formatting already-mounted $DEVICE, unmounting /mnt/Backups first"
-        sudo umount /mnt/Backups 2>/tmp/rb_umount_err_$$
+    if [ "$CURRENT_MP" = "$MOUNT_POINT" ]; then
+        rb_log "format_usb: re-formatting already-mounted $DEVICE, unmounting $MOUNT_POINT first"
+        sudo umount "$MOUNT_POINT" 2>/tmp/rb_umount_err_$$
         if [ $? -ne 0 ]; then
             ERR=$(cat /tmp/rb_umount_err_$$ 2>/dev/null); rm -f /tmp/rb_umount_err_$$
-            json_err "Could not unmount /mnt/Backups to re-format it: ${ERR:-in use?}"
+            json_err "Could not unmount $MOUNT_POINT to re-format it: ${ERR:-in use?}"
             exit 0
         fi
         rm -f /tmp/rb_umount_err_$$
         if [ -f /etc/fstab ]; then
-            sudo sed -i.rb-reformat-bak '\#/mnt/Backups#d' /etc/fstab 2>/dev/null || true
+            sudo sed -i.rb-reformat-bak "\\#${MOUNT_POINT}#d" /etc/fstab 2>/dev/null || true
         fi
     else
         json_err "$DEVICE is currently mounted at $CURRENT_MP; unmount it first."
@@ -158,18 +162,23 @@ sleep 1
 # Hand off to mount_usb.sh for the mount + fstab step - using the
 # PARTITION path, not the whole disk, so it matches FPP's own naming
 # convention everywhere downstream (mount, fstab, and what FPP's
-# native dropdowns will show).
-MOUNT_RESULT=$(bash "$(dirname "$0")/mount_usb.sh" "$PARTITION")
+# native dropdowns will show). "" preserves the default add-to-fstab
+# behavior (2nd arg is only ever the literal --no-fstab), and
+# $MOUNT_POINT carries through whichever mountpoint THIS format run
+# was for, primary or secondary.
+MOUNT_RESULT=$(bash "$(dirname "$0")/mount_usb.sh" "$PARTITION" "" "$MOUNT_POINT")
 
 # Formatting just wiped every backup that was on this drive. If it's
 # also the currently configured destination storage, every per-remote
 # data/status/*.json entry now points at a folder that no longer
 # exists - clear them all so the Status page's Backup Status table and
 # "Backed Up" dropdown stop showing stale/deleted backups instead of
-# waiting for the next actual run to overwrite them.
+# waiting for the next actual run to overwrite them. Compares against
+# $MOUNT_POINT (not a hardcoded path) so re-formatting the secondary
+# clone drive never touches the primary destination's status entries.
 DEST_MOUNT_NOW=$(rb_setting '.destinationMount')
 CLEARED=false
-if echo "$MOUNT_RESULT" | jq -e '.ok == true' >/dev/null 2>&1 && [ "$DEST_MOUNT_NOW" = "/mnt/Backups" ]; then
+if echo "$MOUNT_RESULT" | jq -e '.ok == true' >/dev/null 2>&1 && [ "$DEST_MOUNT_NOW" = "$MOUNT_POINT" ]; then
     rb_log "format_usb: destination storage was just wiped/reformatted - clearing all backup status entries"
     rm -f "${STATUS_DIR}"/*.json
     CLEARED=true

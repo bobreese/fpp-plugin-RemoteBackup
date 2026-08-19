@@ -100,6 +100,14 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - **Browse and delete backups.** The Status page's "Backed Up" dropdown lists every backup
   on the destination storage with size/file-count/contents, and can delete an individual
   backup (type-to-confirm) if you want to reclaim space.
+- **Clone backups to a second drive.** Optional and manual only (no Scheduler command) -
+  format/mount a second USB drive on the Config page, then click "Start Clone" on the
+  Status page to mirror everything on the primary destination onto it in one pass
+  (`rsync --delete`, so it always exactly matches the primary - a backup you deleted there
+  is removed from the clone too), for an occasional off-site or rotating spare copy.
+  Refuses to run at the same time as a backup run, a primary-drive format, or another
+  clone, and refuses outright if the two drives turn out to be the same device or nested
+  inside one another.
 - **Restoring a backup.** This plugin only handles the pull; it has no restore button of
   its own, by design - use FPP's own built-in **File Copy Backup/Restore** page (Content
   Setup) on whichever system you're restoring to, so recovery goes through FPP's own,
@@ -205,6 +213,40 @@ A few related things:
   Features above): Unmount it here first. FPP's own device pickers never list a drive this
   plugin still has mounted.
 
+## Cloning backups to a second drive
+
+Optional, and entirely separate from the primary destination above - useful for an
+occasional off-site copy, or a second drive you rotate in and out. There's no Scheduler
+command for it; it only ever runs when you click the button.
+
+1. **Format/mount the second drive**, under Config's **"Clone Backups to a Second
+   Drive"** section - the same Rescan/Format/Mount flow as the primary destination
+   (exFAT vs. ext4 works the same way; see "Setting up a USB backup drive" above), just
+   fixed to a second mountpoint (`/mnt/BackupsCopy`) so it's always a distinct drive from
+   your primary destination.
+2. **Click "Start Clone"** on the Status page, under the same-named section. This runs
+   `rsync --delete` from the entire primary destination to the secondary drive in one
+   pass - an exact mirror, not an incremental backup of backups, so anything you deleted
+   from the primary is removed from the clone too. Progress (current file, percent) shows
+   live, the same way a regular backup run does.
+3. **Stop** cancels an in-progress clone the same way Stop cancels a backup run - the
+   clone is left partially mirrored (whatever had already copied stays; nothing already
+   deleted from the clone side comes back). Just start it again later to finish catching
+   up.
+
+A few safety notes:
+
+- A clone refuses to start while a backup run or a primary-drive format is in progress
+  (it reads from the same destination those write to), and the reverse is also true - you
+  can't start a backup, or format/unmount the primary drive, while a clone is running.
+  Formatting or unmounting the *secondary* drive is unaffected by an ongoing backup run,
+  but is blocked while a clone to it is in progress.
+- It also refuses outright if the primary and secondary turn out to be the same drive, or
+  one is nested inside the other's mountpoint - mirroring a directory into itself (or its
+  own parent) with `--delete` could otherwise corrupt or wipe every backup on the primary.
+- The clone log is available from the Status page's Diagnostic Log dropdown
+  (`clone.log (backup clone to second drive)`).
+
 ## Scheduling backups
 
 The plugin registers two FPP Commands (`commands/descriptions.json`) that show up in
@@ -307,6 +349,7 @@ fpp-plugin-RemoteBackup/
     host_info.sh             reports this Host's own hostname/IPs for the "Host" badge
     run_backup.sh            the rsync pull engine (concurrency, delete, snapshots)
     prune_logs.sh            applies logRetentionCount to every remote's logs immediately on save
+    clone_backups.sh         mirrors the primary destination onto a second drive (manual only)
     ssh_setup.sh              pushes the backup SSH key to a remote
   commands/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh
@@ -328,6 +371,17 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** an option to clone the entire current backup set to a second USB drive
+  (`rsync --delete` exact mirror, manual only via a new "Start Clone" button on Status -
+  no Scheduler command). Format/mount the second drive on Config's new "Clone Backups to
+  a Second Drive" section (fixed at `/mnt/BackupsCopy`, always distinct from the primary
+  destination); mutual-exclusion checks refuse a clone while a backup run or primary-drive
+  format is in progress and vice versa, plus a same-drive/nested-mountpoint safety check
+  so mirroring can never run into itself. `mount_usb.sh`/`format_usb.sh`/`unmount_usb.sh`
+  now take an optional mountpoint argument (still defaulting to `/mnt/Backups`) so the
+  same scripts serve both drives; fixed a latent bug found along the way where
+  `unmount_usb.sh`'s `/etc/fstab` cleanup used a hardcoded path instead of the actual
+  mountpoint.
 - **Added** a step-by-step "Setting up a USB backup drive" section to the README, and a
   matching "USB Backup Drive" section to the in-app Help page: formatting with exFAT for
   cross-platform (Windows/Mac/Linux) readability vs. Linux-only ext4, mounting, and
