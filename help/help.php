@@ -43,6 +43,43 @@
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2">
+        <legend>USB Backup Drive</legend>
+        <div class="p-2">
+            All of this is on the Config page, under <b>Backup Destination Storage</b>.
+            <ol>
+                <li><b>Rescan Storage Devices</b> after plugging the drive in. An unformatted or
+                    previously-used-elsewhere drive shows up under "USB drive(s) detected but not
+                    mounted."</li>
+                <li><b>Format &amp; Mount as Backups</b> (skip if it's already formatted the way you
+                    want). Choose a filesystem in the dialog:
+                    <ul>
+                        <li><b>exFAT</b> (selected by default) - readable on Windows, Mac, <i>and</i>
+                            Linux. Pick this if you ever want to plug the drive into a laptop and
+                            browse backups directly.</li>
+                        <li><b>ext4</b> - Linux only. A Windows or Mac machine can't read the drive
+                            at all without extra third-party software.</li>
+                    </ul>
+                    Type the device path shown (e.g. <code>/dev/sda</code>) into the confirm box to
+                    enable the Format button - this erases everything already on the drive, so it's
+                    a deliberate safety check, not a formality.</li>
+                <li><b>Mount as Backups</b> instead of formatting, if the drive already has a
+                    filesystem you want to keep. Either way the drive ends up mounted at
+                    <code>/mnt/Backups</code> and added to <code>/etc/fstab</code> so it survives a
+                    reboot.</li>
+                <li><b>Activate it as the destination.</b> Once mounted, select its radio button in
+                    the storage list, then click <b>"Save Settings"</b> at the bottom of the page -
+                    nothing here takes effect, including which drive backups actually go to, until
+                    you save.</li>
+            </ol>
+            <b>Unmount</b> before physically unplugging the drive (removes it from
+            <code>/etc/fstab</code>, backups untouched) - also do this first if you want to use the
+            drive from FPP's own File Copy Backup/Restore, since FPP's device pickers never list a
+            drive this plugin still has mounted. <b>Re-format...</b> replaces
+            "Format &amp; Mount as Backups" once a drive is already mounted, for starting over.
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2">
         <legend>Delete Handling</legend>
         <div class="p-2">
             "Delete files in the host backup that were removed on the remote" controls whether

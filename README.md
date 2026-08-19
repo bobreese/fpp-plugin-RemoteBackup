@@ -161,6 +161,50 @@ Add via FPP's Plugin Manager using this repository's URL, or `git clone` it into
 `/home/fpp/media/plugins/fpp-plugin-RemoteBackup` and run
 `scripts/fpp_install.sh`.
 
+## Setting up a USB backup drive
+
+If you don't have NVMe/SSD storage, a USB flash/hard drive works fine as the destination.
+All of this happens on the Config page, under **Backup Destination Storage**.
+
+1. **Plug the drive in, then click "Rescan Storage Devices."** A brand-new or
+   previously-used-elsewhere drive shows up under "USB drive(s) detected but not mounted."
+2. **Format it** (skip this if it's already formatted the way you want and you just need
+   to mount it - see step 3):
+   - Click **"Format & Mount as Backups"** next to the drive.
+   - In the dialog, choose a filesystem. **exFAT is selected by default and is the one to
+     pick if you want the drive readable on Windows, Mac, and Linux** (e.g. to pull it off
+     the Pi and browse backups directly from a laptop) - it's labeled "recommended" for
+     exactly that reason. The other option, **ext4, is Linux-only**; a Windows or Mac
+     machine won't be able to read the drive at all without extra third-party software, so
+     only pick it if the drive is never leaving Linux systems.
+   - Type the device path shown in the dialog (e.g. `/dev/sda`) into the confirm box
+     exactly as shown - this is a safety check since formatting **erases everything
+     already on the drive**, and the button stays disabled until it matches.
+   - Click **Format**. This partitions, formats, and mounts the drive in one step - see
+     step 3 below, it's already mounted once this finishes.
+3. **Mount it** (only needed if the drive already has a filesystem you want to keep, so
+   you skipped formatting): click **"Mount as Backups"** next to it. Either path (format or
+   plain mount) mounts the drive at `/mnt/Backups` and adds it to `/etc/fstab` so it's
+   automatically remounted after a reboot.
+4. **Activate it as the destination.** Once mounted, the drive appears in the main
+   storage list above with a radio button (`<label> - mounted at /mnt/Backups - X free`).
+   Select it, then click **"Save Settings"** at the bottom of the page - like every other
+   Config change, nothing takes effect, including which storage is actually used, until
+   you save.
+
+A few related things:
+
+- **Re-formatting** an already-mounted drive uses the same dialog - click **"Re-format..."**
+  next to it in the main storage list instead of "Format & Mount as Backups." If it's your
+  active destination, this also clears every remote's backup status on the Status page,
+  since whatever was there is now gone too.
+- **Unmount** before physically unplugging the drive - click **"Unmount"** next to it.
+  This detaches it and removes the `/etc/fstab` entry; the backups on it are untouched,
+  and you'll need to Mount it again before the next backup run.
+- **Using the drive with FPP's own File Copy Backup/Restore** (e.g. to restore from it, see
+  Features above): Unmount it here first. FPP's own device pickers never list a drive this
+  plugin still has mounted.
+
 ## Scheduling backups
 
 The plugin registers two FPP Commands (`commands/descriptions.json`) that show up in
@@ -284,6 +328,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a step-by-step "Setting up a USB backup drive" section to the README, and a
+  matching "USB Backup Drive" section to the in-app Help page: formatting with exFAT for
+  cross-platform (Windows/Mac/Linux) readability vs. Linux-only ext4, mounting, and
+  activating a drive as the actual backup destination (select its radio button, then Save
+  Settings - it isn't the destination until you do).
 - **Verified and documented** that uninstalling removes "Run Remote Backup" and "Run
   Remote Backup Dry Run" from the Scheduler's "Run Command" dropdown immediately - traced
   through FPP's own uninstall flow (`www/api/controllers/plugin.php` unloads the plugin
