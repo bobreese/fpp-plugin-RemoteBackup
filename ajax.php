@@ -118,6 +118,18 @@ function rb_run_json($scriptPath, $args = [], $timeoutSec = 20) {
     return $data;
 }
 
+// Reads a run_active.json-shaped {"active":true/false,...} file and
+// returns whether it's currently active. Shared by every action that
+// needs to check (or enforce) mutual exclusion between a primary backup
+// run, a primary-drive format/unmount, and a backup-set clone to a
+// second drive - all of which read and/or write the primary
+// destination and must never overlap.
+function rb_is_active($file) {
+    $raw = @file_get_contents($file);
+    $data = $raw ? json_decode($raw, true) : null;
+    return $data && !empty($data['active']);
+}
+
 function rb_default_settings() {
     return [
         'hostModeEnabled' => false,
@@ -223,10 +235,11 @@ switch ($action) {
     case 'unmountUsb': {
         if ($method !== 'POST') rb_fail('POST required');
 
-        $active = @file_get_contents("$DATA_DIR/run_active.json");
-        $activeData = $active ? json_decode($active, true) : null;
-        if ($activeData && !empty($activeData['active'])) {
+        if (rb_is_active("$DATA_DIR/run_active.json")) {
             rb_fail('A backup run is currently in progress. Stop it (or wait for it to finish) before unmounting the destination drive.', 409);
+        }
+        if (rb_is_active("$DATA_DIR/clone_active.json")) {
+            rb_fail('A backup clone to the secondary drive is currently in progress (it reads from this drive). Wait for it to finish before unmounting.', 409);
         }
 
         rb_log_line("UNMOUNT requested");
@@ -250,11 +263,13 @@ switch ($action) {
         // (or about-to-start) backup run, which surfaces as a confusing
         // "rsync mkdir failed" error on every remote at once. Share the
         // same run_active.json lock that 'start' uses so the two can
-        // never overlap.
-        $active = @file_get_contents("$DATA_DIR/run_active.json");
-        $activeData = $active ? json_decode($active, true) : null;
-        if ($activeData && !empty($activeData['active'])) {
+        // never overlap - and also refuse if a clone to the secondary
+        // drive is reading from this destination right now.
+        if (rb_is_active("$DATA_DIR/run_active.json")) {
             rb_fail('A backup run is currently in progress. Stop it (or wait for it to finish) before formatting the destination drive.', 409);
+        }
+        if (rb_is_active("$DATA_DIR/clone_active.json")) {
+            rb_fail('A backup clone to the secondary drive is currently in progress (it reads from this drive). Wait for it to finish before formatting.', 409);
         }
         file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => true, 'action' => 'format']));
 
@@ -264,6 +279,58 @@ switch ($action) {
         if (!$data) $data = ['ok' => false, 'error' => 'No response from format_usb.sh - see data/logs/ajax.log'];
 
         file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => false]));
+        echo json_encode($data);
+        break;
+    }
+
+    case 'mountSecondary': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $body = rb_json_body();
+        $device = isset($body['device']) ? $body['device'] : '';
+        if (!$device || substr($device, 0, 5) !== '/dev/') rb_fail('Invalid device path');
+
+        $out = rb_run("$SCRIPTS_DIR/mount_usb.sh", [$device, '', '/mnt/BackupsCopy'], 25);
+        $data = json_decode((string)$out, true);
+        if (!$data) $data = ['ok' => false, 'error' => 'No response from mount_usb.sh - see data/logs/ajax.log'];
+        echo json_encode($data);
+        break;
+    }
+
+    case 'unmountSecondary': {
+        if ($method !== 'POST') rb_fail('POST required');
+
+        if (rb_is_active("$DATA_DIR/clone_active.json")) {
+            rb_fail('A backup clone to this drive is currently in progress. Stop it (or wait for it to finish) before unmounting.', 409);
+        }
+
+        rb_log_line("UNMOUNT SECONDARY requested");
+        $out = rb_run("$SCRIPTS_DIR/unmount_usb.sh", ['/mnt/BackupsCopy'], 20);
+        $data = json_decode((string)$out, true);
+        if (!$data) $data = ['ok' => false, 'error' => 'No response from unmount_usb.sh - see data/logs/ajax.log'];
+        echo json_encode($data);
+        break;
+    }
+
+    case 'formatSecondary': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $body = rb_json_body();
+        $device = isset($body['device']) ? $body['device'] : '';
+        $fstype = isset($body['fstype']) ? $body['fstype'] : 'ext4';
+        $confirm = isset($body['confirm']) ? $body['confirm'] : '';
+        if (!$device || substr($device, 0, 5) !== '/dev/') rb_fail('Invalid device path');
+        if ($confirm !== 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE') rb_fail('Missing confirmation');
+
+        if (rb_is_active("$DATA_DIR/clone_active.json")) {
+            rb_fail('A backup clone to this drive is currently in progress. Wait for it to finish before formatting.', 409);
+        }
+        file_put_contents("$DATA_DIR/clone_active.json", json_encode(['active' => true, 'action' => 'format-secondary']));
+
+        rb_log_line("FORMAT SECONDARY requested device=$device fstype=$fstype");
+        $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm, '/mnt/BackupsCopy'], 90);
+        $data = json_decode((string)$out, true);
+        if (!$data) $data = ['ok' => false, 'error' => 'No response from format_usb.sh - see data/logs/ajax.log'];
+
+        file_put_contents("$DATA_DIR/clone_active.json", json_encode(['active' => false]));
         echo json_encode($data);
         break;
     }
@@ -407,10 +474,11 @@ switch ($action) {
         $dryRun = isset($body['dryRun']) && $body['dryRun'];
         $ids = isset($body['remotes']) && is_array($body['remotes']) ? $body['remotes'] : [];
 
-        $active = @file_get_contents("$DATA_DIR/run_active.json");
-        $activeData = $active ? json_decode($active, true) : null;
-        if ($activeData && !empty($activeData['active'])) {
+        if (rb_is_active("$DATA_DIR/run_active.json")) {
             rb_fail('A backup run is already in progress', 409);
+        }
+        if (rb_is_active("$DATA_DIR/clone_active.json")) {
+            rb_fail('A backup clone to the secondary drive is currently in progress (it reads from this destination). Wait for it to finish before starting a backup.', 409);
         }
 
         // Pulling media off a device's SD card while fppd is actively
@@ -466,6 +534,70 @@ switch ($action) {
         file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => false]));
         rb_log_line('STOP killed=' . implode(',', $killed));
         echo json_encode(['ok' => true, 'stopped' => $killed]);
+        break;
+    }
+
+    case 'startClone': {
+        if ($method !== 'POST') rb_fail('POST required');
+
+        if (rb_is_active("$DATA_DIR/run_active.json")) {
+            rb_fail('A backup run (or drive format) is currently in progress. Wait for it to finish before cloning backups.', 409);
+        }
+        if (rb_is_active("$DATA_DIR/clone_active.json")) {
+            rb_fail('A backup clone is already in progress', 409);
+        }
+
+        rb_log_line("START CLONE requested");
+        $cmd = escapeshellcmd("$SCRIPTS_DIR/clone_backups.sh") . ' > ' .
+            escapeshellarg("$LOG_DIR/last_clone_start.log") . ' 2>&1 &';
+        shell_exec($cmd);
+
+        echo json_encode(['ok' => true, 'started' => true]);
+        break;
+    }
+
+    case 'stopClone': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $pidFile = "$DATA_DIR/clone.pid";
+        $pid = trim((string)@file_get_contents($pidFile));
+        $killed = false;
+        if ($pid && ctype_digit($pid)) {
+            if (function_exists('posix_kill')) {
+                @posix_kill(intval($pid), 15);
+            } else {
+                shell_exec('kill ' . escapeshellarg($pid) . ' 2>/dev/null');
+            }
+            $killed = true;
+        }
+        @unlink($pidFile);
+        file_put_contents("$DATA_DIR/clone_active.json", json_encode(['active' => false]));
+        rb_log_line('STOP CLONE killed=' . ($killed ? 'yes' : 'no (not running)'));
+        echo json_encode(['ok' => true, 'stopped' => $killed]);
+        break;
+    }
+
+    case 'cloneStatus': {
+        $raw = @file_get_contents("$DATA_DIR/clone_status.json");
+        $clone = $raw ? json_decode($raw, true) : null;
+
+        // Free/used space on the secondary drive, same shape as
+        // 'status''s destStorage, so the Status page can show it whether
+        // or not a clone has ever actually run yet.
+        $secondaryStorage = null;
+        if (is_dir('/mnt/BackupsCopy')) {
+            $dfFree = @disk_free_space('/mnt/BackupsCopy');
+            $dfTotal = @disk_total_space('/mnt/BackupsCopy');
+            if ($dfFree !== false && $dfTotal !== false) {
+                $secondaryStorage = [
+                    'mountpoint' => '/mnt/BackupsCopy',
+                    'totalBytes' => intval($dfTotal),
+                    'freeBytes' => intval($dfFree),
+                    'usedBytes' => intval($dfTotal) - intval($dfFree)
+                ];
+            }
+        }
+
+        echo json_encode(['ok' => true, 'active' => rb_is_active("$DATA_DIR/clone_active.json"), 'clone' => $clone, 'secondaryStorage' => $secondaryStorage]);
         break;
     }
 
@@ -530,6 +662,14 @@ switch ($action) {
             }
         } elseif ($which === 'engine') {
             $file = "$LOG_DIR/engine.log";
+        } elseif ($which === 'clone') {
+            $matches = glob("$LOG_DIR/clone-*.log");
+            if ($matches) {
+                usort($matches, function ($a, $b) { return filemtime($b) - filemtime($a); });
+                $file = $matches[0];
+            } else {
+                $file = "$LOG_DIR/clone-(no log yet).log";
+            }
         } else {
             $file = $AJAX_LOG;
         }

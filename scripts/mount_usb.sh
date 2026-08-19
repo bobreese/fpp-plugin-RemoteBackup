@@ -1,9 +1,12 @@
 #!/bin/bash
-# Mount a detected-but-unmounted USB device at /mnt/Backups and (unless
-# told not to) persist it in /etc/fstab by UUID with nofail, so it comes
+# Mount a detected-but-unmounted USB device at a fixed mountpoint
+# (/mnt/Backups by default, the primary backup destination; pass a 3rd
+# arg to mount elsewhere instead - e.g. /mnt/BackupsCopy for the
+# secondary "clone backups to a second drive" drive) and (unless told
+# not to) persist it in /etc/fstab by UUID with nofail, so it comes
 # back after a reboot without hanging boot if unplugged.
 #
-# Usage: mount_usb.sh <device path e.g. /dev/sda1> [--no-fstab]
+# Usage: mount_usb.sh <device path e.g. /dev/sda1> [--no-fstab] [mountpoint]
 # Output JSON: {"ok":true,"mountpoint":"/mnt/Backups","fstype":"...", "addedFstab":true}
 #
 # Requires root. On stock FPP images the "fpp" user has passwordless
@@ -13,9 +16,9 @@
 . "$(dirname "$0")/lib_common.sh"
 
 DEVICE="$1"
-MOUNT_POINT="/mnt/Backups"
 ADD_FSTAB=1
 [ "$2" = "--no-fstab" ] && ADD_FSTAB=0
+MOUNT_POINT="${3:-/mnt/Backups}"
 
 json_err() {
     printf '{"ok":false,"error":%s}\n' "$(printf '%s' "$1" | jq -Rs .)"

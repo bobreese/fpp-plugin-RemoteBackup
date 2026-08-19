@@ -85,11 +85,33 @@ $rbPlugin = basename(__DIR__);
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2">
+        <legend>Clone Backups to a Second Drive</legend>
+        <div class="p-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-clone-start">Start Clone</button>
+            <button type="button" class="btn btn-danger btn-sm ms-1" id="rb-clone-stop">Stop</button>
+            <span id="rb-clone-msg" class="ms-2"></span>
+            <div class="p-1 text-muted" id="rb-clone-secondary-storage" style="font-size:0.9em;">Secondary drive: (loading...)</div>
+            <div id="rb-clone-progress" style="display:none;">
+                <div style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="rb-clone-current"></div>
+                <div class="progress" style="height:1.2em;max-width:320px;">
+                    <div class="progress-bar" role="progressbar" id="rb-clone-bar" style="width:0%;">0%</div>
+                </div>
+            </div>
+            <div id="rb-clone-result" class="mt-1"></div>
+            <small class="text-muted">Mirrors everything on the primary destination onto the secondary drive
+                mounted at <code>/mnt/BackupsCopy</code> (<code>rsync --delete</code> - an exact copy, so a backup
+                you deleted on the primary is removed from the clone too). Format/mount the secondary drive on the
+                Config page first.</small>
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2">
         <legend>Diagnostic Log</legend>
         <div class="p-2">
             <select id="rb-log-which">
                 <option value="ajax">ajax.log (Config/Status page actions)</option>
                 <option value="engine">engine.log (backup run engine)</option>
+                <option value="clone">clone.log (backup clone to second drive)</option>
             </select>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-refresh">Refresh Log</button>
             <label class="ms-2"><input type="checkbox" id="rb-log-autotail"> Auto-tail</label>
@@ -274,6 +296,79 @@ $rbPlugin = basename(__DIR__);
             pollTimer = setTimeout(poll, POLL_IDLE_MS);
         });
     }
+
+    // Separate polling loop from the primary backup one above - a clone
+    // to the second drive has its own active/status file
+    // (data/clone_active.json, data/clone_status.json) precisely so it
+    // never gets confused with a primary backup run in the main Backup
+    // Status table or the "active" flag the page's title/polling cadence
+    // above reacts to.
+    var clonePollTimer = null;
+
+    function renderCloneStatus(res) {
+        var secEl = document.getElementById('rb-clone-secondary-storage');
+        if (res.secondaryStorage) {
+            var d = res.secondaryStorage;
+            var pct = d.totalBytes ? Math.round((d.usedBytes / d.totalBytes) * 100) : 0;
+            secEl.textContent = 'Secondary drive (' + d.mountpoint + '): ' +
+                humanBytes(d.usedBytes) + ' used / ' + humanBytes(d.freeBytes) + ' free of ' + humanBytes(d.totalBytes) +
+                ' (' + pct + '% used)';
+        } else {
+            secEl.textContent = 'Secondary drive: not mounted - format/mount it on the Config page first.';
+        }
+
+        document.getElementById('rb-clone-start').disabled = !!res.active;
+
+        var c = res.clone;
+        var progress = document.getElementById('rb-clone-progress');
+        var resultEl = document.getElementById('rb-clone-result');
+        if (res.active && c && c.state === 'running') {
+            progress.style.display = '';
+            document.getElementById('rb-clone-current').textContent = c.currentFile || '';
+            var bar = document.getElementById('rb-clone-bar');
+            var pct2 = c.percent || 0;
+            bar.style.width = pct2 + '%';
+            bar.textContent = pct2 + '%';
+            bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+            resultEl.textContent = '';
+        } else {
+            progress.style.display = 'none';
+            if (c && c.state === 'done') {
+                resultEl.innerHTML = '<span class="text-success">Last clone finished ' + (c.finishedAt || '') + ' - ' + humanBytes(c.transferredBytes) + ' transferred.</span>';
+            } else if (c && c.state === 'error') {
+                resultEl.innerHTML = '<span class="text-danger">Last clone failed: ' + (c.errorDetail || 'unknown error') + '</span>';
+            } else {
+                resultEl.textContent = '';
+            }
+        }
+    }
+
+    function pollClone() {
+        api('cloneStatus').then(function (res) {
+            if (res.ok) renderCloneStatus(res);
+            if (clonePollTimer) clearTimeout(clonePollTimer);
+            clonePollTimer = setTimeout(pollClone, (res.ok && res.active) ? POLL_ACTIVE_MS : POLL_IDLE_MS);
+        }).catch(function () {
+            if (clonePollTimer) clearTimeout(clonePollTimer);
+            clonePollTimer = setTimeout(pollClone, POLL_IDLE_MS);
+        });
+    }
+
+    document.getElementById('rb-clone-start').addEventListener('click', function () {
+        api('startClone', { body: {} }).then(function (res) {
+            var msg = document.getElementById('rb-clone-msg');
+            msg.textContent = res.ok ? 'Clone started.' : ('Error: ' + res.error);
+            msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
+            if (res.ok) { pollClone(); } else { $.jGrowl('Failed to start clone: ' + res.error, { themeState: 'danger' }); }
+        });
+    });
+
+    document.getElementById('rb-clone-stop').addEventListener('click', function () {
+        api('stopClone', { body: {} }).then(function () {
+            document.getElementById('rb-clone-msg').textContent = 'Stopped.';
+            pollClone();
+        });
+    });
 
     function getSelectedRemoteIds() {
         return api('loadSettings').then(function (res) {
@@ -539,5 +634,6 @@ $rbPlugin = basename(__DIR__);
     });
 
     poll();
+    pollClone();
 })();
 </script>

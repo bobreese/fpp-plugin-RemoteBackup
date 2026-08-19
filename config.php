@@ -31,6 +31,18 @@ $rbPlugin = basename(__DIR__);
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2">
+        <legend>Clone Backups to a Second Drive</legend>
+        <div class="p-2">
+            <small class="text-muted">Optional - format/mount a second USB drive here, then use "Start Clone" on
+                the Status page to mirror everything on the primary destination above onto it (e.g. for an
+                occasional off-site or rotating spare copy). This is manual only - there's no Scheduler command
+                for it, so it never runs unless you start it.</small><br><br>
+            <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshStorage2">Rescan Storage Devices</button>
+            <div id="rb-storageList2" class="mt-2 fpp-backup-action-loading">Scanning...</div>
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2">
         <legend>Remote Systems to Back Up</legend>
         <div class="p-2">
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshRemotes">Rescan MultiSync Remotes</button>
@@ -321,6 +333,172 @@ $rbPlugin = basename(__DIR__);
                 runFormatFlow(btn, btn.getAttribute('data-device'), btn.getAttribute('data-size'), true, 'Re-format...');
             });
         });
+
+        renderStorage2();
+    }
+
+    // Secondary drive ("Clone Backups to a Second Drive") - a smaller,
+    // self-contained mirror of renderStorage() above, scoped to the
+    // fixed /mnt/BackupsCopy mountpoint and the mountSecondary/
+    // formatSecondary/unmountSecondary actions instead of the primary
+    // ones. Reuses state.storage (already fetched for the primary
+    // section above - same lsblk scan, so this never needs its own
+    // probeStorage call) but shows only the one device actually mounted
+    // there, if any, plus the same "not mounted yet" USB list the
+    // primary section shows (a drive can be claimed for either
+    // mountpoint from whichever section's button you click).
+    function renderStorage2() {
+        var el = document.getElementById('rb-storageList2');
+        el.className = 'mt-2';
+        if (!state.storage) { el.innerHTML = 'No data.'; return; }
+
+        var mounted = null;
+        ['nvme', 'ssd', 'usb', 'sdcard'].forEach(function (g) {
+            (state.storage[g] || []).forEach(function (d) {
+                if (d.mountpoint === '/mnt/BackupsCopy') mounted = d;
+            });
+        });
+
+        var html = '';
+        if (mounted) {
+            html += '<div><label>' + (mounted.deviceLabel || '/mnt/BackupsCopy') + ' &mdash; mounted at /mnt/BackupsCopy &mdash; ' +
+                humanBytes(mounted.availBytes) + ' free</label>' +
+                ' <button type="button" class="btn btn-sm btn-outline-secondary rb-unmount-usb2" data-device="' + (mounted.path || mounted.deviceLabel) + '">Unmount</button>' +
+                ' <button type="button" class="btn btn-sm btn-outline-danger rb-reformat-usb2" data-device="' + (mounted.path || mounted.deviceLabel) + '" data-size="' + humanBytes(mounted.sizeBytes) + '">Re-format...</button>' +
+                '</div>';
+        } else {
+            html += '<em>No drive currently mounted at /mnt/BackupsCopy.</em>';
+        }
+
+        var unmounted = state.storage.usbUnmounted || [];
+        if (unmounted.length) {
+            html += '<div class="mt-2"><b>USB drive(s) detected but not mounted</b></div>';
+            unmounted.forEach(function (d) {
+                var desc = (d.label ? d.label + ' ' : '') + '(' + d.path + ')' +
+                    (d.hasFilesystem ? ', ' + d.fstype : ', no filesystem - needs formatting first') +
+                    ', ' + humanBytes(d.sizeBytes);
+                html += '<div>' + desc + ' ' +
+                    (d.hasFilesystem
+                        ? '<button type="button" class="btn btn-sm btn-outline-primary rb-mount-usb2" data-device="' + d.path + '">Mount as Clone Drive</button>'
+                        : '<button type="button" class="btn btn-sm btn-outline-danger rb-format-usb2" data-device="' + d.path + '" data-size="' + humanBytes(d.sizeBytes) + '">Format &amp; Mount as Clone Drive</button>') +
+                    '</div>';
+            });
+        }
+
+        el.innerHTML = html;
+
+        Array.prototype.forEach.call(document.getElementsByClassName('rb-unmount-usb2'), function (btn) {
+            btn.addEventListener('click', function () {
+                DisplayConfirmationDialog('rb-unmount2-confirm', 'Unmount Clone Drive',
+                    'Unmount the secondary clone drive from <code>/mnt/BackupsCopy</code>?<br><br>' +
+                    'Backups already on it are kept - this just detaches it so it is safe to physically unplug.',
+                    function () {
+                        btn.disabled = true;
+                        btn.textContent = 'Unmounting...';
+                        api('unmountSecondary', { body: {} }).then(function (res) {
+                            if (res.ok) {
+                                $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { themeState: 'success' });
+                                api('probeStorage').then(function (r2) {
+                                    if (r2.ok) { state.storage = r2.data; renderStorage(); }
+                                });
+                            } else {
+                                $.jGrowl('Unmount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                btn.disabled = false;
+                                btn.textContent = 'Unmount';
+                            }
+                        });
+                    });
+            });
+        });
+
+        Array.prototype.forEach.call(document.getElementsByClassName('rb-mount-usb2'), function (btn) {
+            btn.addEventListener('click', function () {
+                var device = btn.getAttribute('data-device');
+                btn.disabled = true;
+                btn.textContent = 'Mounting...';
+                api('mountSecondary', { body: { device: device } }).then(function (res) {
+                    if (res.ok) {
+                        $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { themeState: 'success' });
+                        api('probeStorage').then(function (r2) {
+                            if (r2.ok) { state.storage = r2.data; renderStorage(); }
+                        });
+                    } else {
+                        $.jGrowl('Mount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                        btn.disabled = false;
+                        btn.textContent = 'Mount as Clone Drive';
+                    }
+                });
+            });
+        });
+
+        function runFormatFlow2(btn, device, size, isReformat, resetLabel) {
+            var warnExtra = isReformat ? ' It is currently your clone drive - existing cloned backups on it will be gone too.' : '';
+            var modalId = 'rb-format2-modal';
+            var bodyHtml =
+                '<div class="callout callout-danger mb-2">This will <b>ERASE ALL DATA</b> on ' + device + ' (' + size + ').' + warnExtra + ' This cannot be undone.</div>' +
+                '<table class="table table-sm table-borderless mb-0">' +
+                '<tr><td>Filesystem:</td><td>' +
+                '<select id="rb-format2-fstype" class="form-select form-select-sm d-inline-block w-auto">' +
+                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
+                '<option value="ext4">ext4 (Linux only)</option>' +
+                '</select></td></tr>' +
+                '<tr><td>Type <code>' + device + '</code> to confirm:</td><td>' +
+                '<input type="text" id="rb-format2-confirm" class="form-control form-control-sm d-inline-block w-auto" autocomplete="off"></td></tr>' +
+                '</table>';
+
+            DoModalDialog({
+                id: modalId,
+                title: 'Format ' + device,
+                class: 'modal-m',
+                backdrop: true,
+                body: bodyHtml,
+                buttons: {
+                    Cancel: function () { CloseModalDialog(modalId); },
+                    Format: {
+                        class: 'btn-danger',
+                        click: function () {
+                            var fstype = document.getElementById('rb-format2-fstype').value;
+                            var typed = document.getElementById('rb-format2-confirm').value;
+                            if (typed !== device) {
+                                $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { themeState: 'danger' });
+                                return;
+                            }
+                            CloseModalDialog(modalId);
+
+                            btn.disabled = true;
+                            btn.textContent = 'Formatting...';
+                            api('formatSecondary', {
+                                body: { device: device, fstype: fstype, confirm: 'I_UNDERSTAND_THIS_ERASES_THE_DRIVE' },
+                                timeoutMs: 120000
+                            }).then(function (res) {
+                                if (res.ok) {
+                                    $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : ''), { themeState: 'success' });
+                                    api('probeStorage').then(function (r2) {
+                                        if (r2.ok) { state.storage = r2.data; renderStorage(); }
+                                    });
+                                } else {
+                                    $.jGrowl('Format failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                    btn.disabled = false;
+                                    btn.textContent = resetLabel;
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        Array.prototype.forEach.call(document.getElementsByClassName('rb-format-usb2'), function (btn) {
+            btn.addEventListener('click', function () {
+                runFormatFlow2(btn, btn.getAttribute('data-device'), btn.getAttribute('data-size'), false, 'Format & Mount as Clone Drive');
+            });
+        });
+
+        Array.prototype.forEach.call(document.getElementsByClassName('rb-reformat-usb2'), function (btn) {
+            btn.addEventListener('click', function () {
+                runFormatFlow2(btn, btn.getAttribute('data-device'), btn.getAttribute('data-size'), true, 'Re-format...');
+            });
+        });
     }
 
     function remoteRowId(r) { return 'rb-remote-' + (r.id || r.hostname).replace(/[^A-Za-z0-9]/g, '_'); }
@@ -527,6 +705,18 @@ $rbPlugin = basename(__DIR__);
         api('probeStorage').then(function (res) {
             if (res.ok) { state.storage = res.data; renderStorage(); }
             else { setScanError('rb-storageList', res.error); }
+        });
+    });
+
+    // Same probeStorage data as the primary Rescan button above - a
+    // second button here just so the secondary-drive section can be
+    // refreshed without scrolling up, and both stay in sync either way
+    // since renderStorage() always calls renderStorage2() too.
+    document.getElementById('rb-refreshStorage2').addEventListener('click', function () {
+        setScanning('rb-storageList2');
+        api('probeStorage').then(function (res) {
+            if (res.ok) { state.storage = res.data; renderStorage(); }
+            else { setScanError('rb-storageList2', res.error); }
         });
     });
 
