@@ -170,6 +170,12 @@ Add via FPP's Plugin Manager using this repository's URL, or `git clone` it into
 `/home/fpp/media/plugins/fpp-plugin-RemoteBackup` and run
 `scripts/fpp_install.sh`.
 
+If FPP's Plugin Manager does not list the Remote Backup plugin, you can paste
+`https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/pluginInfo.json` into
+the "Find a Plugin" search bar.
+
+**Be aware this is considered a Beta Test version. Use with care.**
+
 ## Setting up a USB backup drive
 
 If you don't have NVMe/SSD storage, a USB flash/hard drive works fine as the destination.
@@ -381,6 +387,9 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** to Install: a fallback for when FPP's Plugin Manager doesn't list the plugin
+  (paste `pluginInfo.json`'s raw GitHub URL into "Find a Plugin"), and a Beta Test
+  warning to use with care.
 - **Updated** the Features section's FPP Commands bullet to point to the "Scheduling
   backups" section below it, instead of leaving scheduling details only discoverable by
   scrolling further down on your own.
