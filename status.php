@@ -185,6 +185,20 @@ $rbPlugin = basename(__DIR__);
         return mb.toFixed(2) + ' MB';
     }
 
+    // Backend timestamps (finishedAt etc.) are always UTC ("Z" suffix,
+    // e.g. rb_now_iso() in lib_common.sh) - deliberately timezone-neutral
+    // since remotes and the Host can be configured with different system
+    // timezones. Showing that raw string as-is reads as flat-out wrong to
+    // whoever's looking at it locally (e.g. "15:03:27Z" looks nothing
+    // like 10:03:27 AM Central, even though that IS the correct
+    // conversion) - convert to the browser's own local time for display.
+    function formatLocalTime(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleString();
+    }
+
     var STATE_LABEL = {
         queued: 'Queued', running: 'Running', done: 'Done',
         'dry-run-complete': 'Dry Run Complete', error: 'Error'
@@ -213,6 +227,14 @@ $rbPlugin = basename(__DIR__);
         var body = document.getElementById('rb-status-body');
         var remotes = data.remotes || [];
         updateLogOptions(remotes);
+
+        // "Backup started."/"Dry run started."/"Stopped." (set by the
+        // button click handlers below) is only ever meant as immediate
+        // feedback for the moment right after clicking - once a run is no
+        // longer active, that leftover text has nothing to do with the
+        // current state and was otherwise never cleared, so it just sat
+        // there forever, same issue the Clone section had.
+        if (!data.active) document.getElementById('rb-runMsg').textContent = '';
         if (!remotes.length) {
             body.innerHTML = '<tr><td colspan="7">No backup has been run yet.</td></tr>';
         } else {
@@ -340,8 +362,17 @@ $rbPlugin = basename(__DIR__);
             resultEl.textContent = '';
         } else {
             progress.style.display = 'none';
+            // "Clone started."/"Stopped." (set by the button click handlers
+            // below) is only ever meant as immediate feedback for the
+            // moment right after clicking - once a poll comes back with a
+            // real, definitive state to show, that leftover text has
+            // nothing to do with the CURRENT state and was otherwise never
+            // cleared, so it just sat there forever looking like the page
+            // was stuck on "Clone started." even after the clone actually
+            // finished (or failed) and the line below correctly updated.
+            document.getElementById('rb-clone-msg').textContent = '';
             if (c && c.state === 'done') {
-                resultEl.innerHTML = '<span class="text-success">Last clone finished ' + (c.finishedAt || '') + ' - ' + humanBytes(c.transferredBytes) + ' transferred.</span>';
+                resultEl.innerHTML = '<span class="text-success">Last clone finished ' + formatLocalTime(c.finishedAt) + ' - ' + humanBytes(c.transferredBytes) + ' transferred.</span>';
             } else if (c && c.state === 'error') {
                 resultEl.innerHTML = '<span class="text-danger">Last clone failed: ' + (c.errorDetail || 'unknown error') + '</span>';
             } else {
