@@ -7,6 +7,23 @@
     </div>
 
     <fieldset class="border rounded p-2">
+        <legend>Categories</legend>
+        <div class="p-2">
+            <nav class="nav nav-pills flex-wrap gap-1">
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-how-it-works">How Remote Backup Works</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-backup-layout">Backup Layout</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-usb-drive">USB Backup Drive</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-cloning">Cloning Backups to a Second Drive</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-restoring">Restoring a Backup</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-delete-handling">Delete Handling</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-scheduling">Scheduling</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-log-files">Log Files</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-about">About</a>
+            </nav>
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-how-it-works">
         <legend>How Remote Backup Works</legend>
         <div class="p-2">
             <ol>
@@ -35,7 +52,7 @@
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-backup-layout">
         <legend>Backup Layout</legend>
         <div class="p-2">
             Each remote gets its own folder on the destination storage named after its
@@ -49,7 +66,7 @@
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-usb-drive">
         <legend>USB Backup Drive</legend>
         <div class="p-2">
             All of this is on the Config page, under <b>Backup Destination Storage</b>.
@@ -86,7 +103,7 @@
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-cloning">
         <legend>Cloning Backups to a Second Drive</legend>
         <div class="p-2">
             Optional, entirely separate from the primary destination, and manual only - there's no
@@ -112,7 +129,7 @@
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-restoring">
         <legend>Restoring a Backup</legend>
         <div class="p-2">
             This plugin only ever pulls backups down - it has no restore button of its own, by
@@ -171,7 +188,7 @@
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-delete-handling">
         <legend>Delete Handling</legend>
         <div class="p-2">
             "Delete files in the host backup that were removed on the remote" controls whether
@@ -180,7 +197,7 @@
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-scheduling">
         <legend>Scheduling</legend>
         <div class="p-2">
             This plugin adds two Commands - <b>Run Remote Backup</b> and
@@ -201,7 +218,7 @@
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-log-files">
         <legend>Log Files</legend>
         <div class="p-2">
             This plugin keeps its own logs separate from FPP's - they live under
@@ -225,6 +242,25 @@
             </ul>
             Pick one, click "Refresh Log" (or check "Auto-tail" to poll it every few seconds while
             watching a run live), same page for all of them - no SSH or file browser needed.
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-about">
+        <legend>About</legend>
+        <div class="p-2">
+            Pulls rsync backups of one or more MultiSync remotes onto local NVMe/SSD, USB, or SD
+            storage.
+        </div>
+        <div class="p-2">
+            <div id="rb-help-credits">
+                <b>Remote Backup Developed By:</b><br />
+                <br />
+                Bo Reese (bobreese)<br />
+                <br />
+                <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup" target="_blank">Git Repository</a><br>
+                <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/issues" target="_blank">Bug Reporter</a><br>
+                <br />
+            </div>
         </div>
     </fieldset>
 </div>

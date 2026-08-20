@@ -358,11 +358,11 @@ of the plugin today:
 ```
 fpp-plugin-RemoteBackup/
   pluginInfo.json        Plugin metadata for FPP's Plugin Manager
-  menu.inc                Adds Status/Config/Help/About menu entries
+  menu.inc                Adds Status/Config/Help menu entries
   config.php               Host mode, storage + remote selection, options
   status.php                Live status table, Dry Run / Start / Stop
   ajax.php                  JSON backend for the two pages above
-  about.php, help/help.php
+  help/help.php             Categorized how-to sections, ending in About
   scripts/
     fpp_install.sh / fpp_uninstall.sh
     lib_common.sh            shared bash helpers (settings, status files)
@@ -403,6 +403,12 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** the Help page to open with a "Categories" row of clickable links that jump
+  straight to each section below (How Remote Backup Works, Backup Layout, USB Backup
+  Drive, Cloning Backups to a Second Drive, Restoring a Backup, Delete Handling,
+  Scheduling, Log Files, About), and merged the standalone About page into a new "About"
+  section at the very bottom of Help - `about.php` is gone, and `menu.inc` now has a
+  single `help`-type entry instead of two.
 - **Documented** in the README's Uninstall section that this plugin's own log files
   (`data/logs/` - `ajax.log`, `engine.log`, `clone.log`, per-remote rsync logs) are
   removed on uninstall, along with the rest of `data/`. Verified against FPP's own
