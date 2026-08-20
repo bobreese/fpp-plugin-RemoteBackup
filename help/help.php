@@ -1,3 +1,10 @@
+<style>
+    /* FPP's plugin page frame has a sticky top nav bar, so jumping straight
+       to a #rb-help-* anchor otherwise lands with that section's <legend>
+       tucked underneath it - scroll-margin-top leaves headroom above the
+       target so the title actually ends up visible after the jump. */
+    [id^="rb-help-"] { scroll-margin-top: 4rem; }
+</style>
 <div class="mt-2">
     <div class="mb-2">
         <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/README.md"
