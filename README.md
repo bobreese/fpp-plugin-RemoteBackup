@@ -141,6 +141,26 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   - Rolling mode (the default) only ever keeps each remote's most recent backup - restoring
     an older point in time requires Snapshot mode to have been enabled before that backup
     was made.
+  - **Why File Copy Restore shows a `/` before the list of backup folders, and what
+    "System Volume Information" is.** Because this plugin formats the drive with a real
+    GPT partition table and a single partition, the drive is a normal, generic storage
+    device to FPP - so when you point File Copy Restore's device browser at it (or plug it
+    into another Pi), it starts you at the root of that partition's filesystem, shown as
+    `/`, the same way any file browser shows the top of a drive before you descend into it.
+    That's not something this plugin adds; every `<Hostname>-<YYYYMMDD>` folder simply
+    lives directly under that root. If you also see a `System Volume Information` folder
+    listed there, that's Windows, not this plugin - Windows automatically creates that
+    hidden housekeeping folder on any FAT/exFAT/NTFS drive it touches (System Restore,
+    Volume Shadow Copy, indexing) the moment it's plugged into a Windows PC, which is
+    exactly the scenario exFAT's "readable on Windows/Mac/Linux" is for. It's harmless,
+    isn't a restorable backup, and can be ignored or deleted from a Windows machine if it
+    bothers you.
+  - **Do not select `/` itself or `System Volume Information` as what you're restoring.**
+    Neither is a backup - `/` is the whole drive (every remote's backups, plus anything
+    else on it, all at once) and `System Volume Information` is Windows housekeeping with
+    no show content in it at all. Always navigate all the way into a specific remote's own
+    `<Hostname>-<YYYYMMDD>` folder (or `<Hostname>/<YYYYMMDD>` in Snapshot mode) before
+    restoring - that folder, not the drive root, is the actual backup.
   - **Restoring from a specific snapshot.** With Snapshot mode, a remote has several
     `<Hostname>-<YYYYMMDD>` folders side by side at the destination root - one per day a
     backup ran - and File Copy Restore's device browser lists all of them individually, by
@@ -415,6 +435,20 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a short, prominent `callout-warning` box to the Help page's "Restoring a
+  Backup" section (right before the restore steps) with a condensed version of the `/`/
+  `System Volume Information` warning below - the fuller explanation is still there too,
+  this just makes sure it's seen before someone starts restoring, not just read afterward.
+- **Added** a warning (README and Help page) not to select `/` or `System Volume
+  Information` as the restore source in File Copy Restore - neither is a backup, and a
+  specific remote's own `<Hostname>-<YYYYMMDD>` folder is always the actual thing to
+  restore. Also brought the Help page's "Restoring a Backup" section up to date with the
+  `/`-and-System-Volume-Information explanation the README already had.
+- **Documented** why File Copy Restore's device browser shows a `/` before a drive's
+  backup folders (it's just the root of the partition this plugin formats/mounts the
+  drive with, same as any file browser), and why a `System Volume Information` folder can
+  show up alongside them (a Windows-created artifact from plugging an exFAT-formatted
+  drive into a Windows PC, not something this plugin creates).
 - **Added** `icon.png` (256x256) so `pluginInfo.json`'s `iconURL` resolves to a real
   image instead of 404ing - it was declared but had never actually been committed.
   Replaces a wrongly-cased `Icon.png` that had briefly existed at the repo root

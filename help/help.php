@@ -144,6 +144,12 @@
             page (under Content Setup), which already knows how to restore
             sequences/media/playlists/effects safely. There are two ways to get to it, depending on
             where the destination drive physically is at the time:
+            <div class="callout callout-warning mb-2 mt-2">
+                <b>Do not restore <code>/</code> or <code>System Volume Information</code></b> if
+                File Copy Restore's device browser shows them - neither is a backup. Always browse
+                all the way into a specific remote's own
+                <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder first.
+            </div>
             <ol>
                 <li><b>Using the Host, over the network.</b> Leave the destination drive right where
                     it is, still attached to the Host. On whichever system you're restoring to, open
@@ -191,6 +197,22 @@
                 <li>Rolling mode (the default) only ever keeps each remote's most recent backup -
                     restoring an older point in time requires Snapshot mode to have been enabled
                     before that backup was made.</li>
+                <li>Because this plugin formats the drive with a real GPT partition table and a
+                    single partition, File Copy Restore's device browser starts you at the root of
+                    that partition, shown as <code>/</code> - the same way any file browser shows
+                    the top of a drive before you descend into it, not something this plugin adds.
+                    You may also see a <code>System Volume Information</code> folder there - that's
+                    Windows, not this plugin, automatically created the moment the drive is plugged
+                    into a Windows PC (System Restore, Volume Shadow Copy, indexing). It's harmless
+                    and can be ignored.</li>
+                <li><b>Do not select <code>/</code> itself or <code>System Volume Information</code>
+                    as what you're restoring.</b> Neither is a backup - <code>/</code> is the whole
+                    drive (every remote's backups and anything else on it, all at once) and
+                    <code>System Volume Information</code> has no show content in it at all. Always
+                    navigate all the way into a specific remote's own
+                    <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder (or
+                    <code>&lt;Hostname&gt;/&lt;YYYYMMDD&gt;</code> in Snapshot mode) before
+                    restoring - that folder, not the drive root, is the actual backup.</li>
             </ul>
         </div>
     </fieldset>
