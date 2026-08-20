@@ -406,11 +406,20 @@ fpp-plugin-RemoteBackup/
   key names are tried); if your FPP version returns something different, remotes can
   always be added manually on the Config page as a fallback.
 
+## License
+
+[MIT](LICENSE)
+
 ## Changelog
 
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a `LICENSE` file (MIT) and a README "License" section linking to it - the
+  plugin previously had no license file at all.
+- **Documented** the existing boot-device format safety check in the README's Features
+  list (no code change - `format_usb.sh` already refused to format whichever disk FPP is
+  currently running from; this was just never called out).
 - **Fixed:** clicking a Help page "Categories" link scrolled past each section's title,
   landing in the body text with the heading hidden above the viewport - FPP's plugin
   page frame has a sticky top nav bar that was covering the anchor target. Added
