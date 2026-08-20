@@ -394,6 +394,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** the Delete Backup confirmation on the Status page from a "type the backup
+  folder name to confirm" text box to a "Confirm the backup folder being deleted"
+  checkbox. The plugin already auto-fills/knows the exact folder being deleted (shown
+  right above in the dialog), so re-typing a name it had already picked for you wasn't
+  adding a real safety check - just busywork.
 - **Added** a "Full documentation on GitHub (README)" button near the top of the in-app
   Help page, opening this README in a new tab for the complete reference.
 - **Added** an optional volume label to the Format dialogs for both the primary
