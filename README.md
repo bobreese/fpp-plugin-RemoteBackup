@@ -64,6 +64,17 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   remembers your last choice (per browser) instead of always polling. The Status and
   Config pages link to each other, and the Dry Run/Start Backup/Config buttons each have
   a "?" help popover (matching FPP's own System Stats page style) explaining what they do.
+- **Download diagnostic logs.** Next to "Refresh Log," **Download** saves the currently
+  selected log (`ajax.log`, `engine.log`, `clone.log`, or a remote's own rsync log) to your
+  browser as a plain text file. **Download All Logs** zips everything currently under
+  `data/logs/` into one archive server-side and downloads that instead - useful for sharing
+  a full diagnostic snapshot (e.g. when reporting an issue) without opening each log one at
+  a time. Both show live status text while the file/archive is being prepared and
+  downloaded, and report a clear error (e.g. `zip` not installed) rather than a broken
+  download if something goes wrong. This is separate from FPP's own File Manager download
+  button, which can't reach these logs - they deliberately live outside FPP's own log
+  directory (see the in-app Help page's "Log Files" section, or the Uninstall section
+  below, for why).
 - **FPP Commands** ("Run Remote Backup" / "Run Remote Backup Dry Run") so backups can be
   triggered from FPP's built-in Scheduler, Playlists, or Events - see "Scheduling backups"
   below.
@@ -176,8 +187,9 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 
 ## Requirements
 
-- `rsync`, `jq`, an OpenSSH client, and `curl` on the Host (installed automatically if
-  missing by fpp_install.sh via a plain `apt-get install`). These are deliberately NOT
+- `rsync`, `jq`, an OpenSSH client, `curl`, and `zip` (for the Status page's "Download All
+  Logs" button) on the Host (installed automatically if missing by fpp_install.sh via a
+  plain `apt-get install`). These are deliberately NOT
   declared in pluginInfo.json's `dependencies.packages` - FPP ref-counts packages listed
   there per-plugin and apt-removes one once no plugin/user still claims it, which is
   unsafe for foundational tools other things on the system can genuinely depend on
@@ -435,6 +447,15 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** "Download" and "Download All Logs" buttons to the Status page's Diagnostic Log
+  section. Download saves the currently selected log as a plain text file; Download All
+  Logs zips everything under `data/logs/` server-side (new `scripts/zip_logs.sh`, `zip`
+  added to `fpp_install.sh`'s dependency list) and downloads the archive instead. Both show
+  live status text while the file/archive is prepared, and surface real errors (e.g. `zip`
+  missing) instead of a broken download. Investigated moving/copying a zip into FPP's own
+  log directory to reuse its native download button instead, but a self-contained download
+  endpoint keeps everything on this plugin's own Status page in one click, so went with
+  that instead.
 - **Added** a short, prominent `callout-warning` box to the Help page's "Restoring a
   Backup" section (right before the restore steps) with a condensed version of the `/`/
   `System Volume Information` warning below - the fuller explanation is still there too,

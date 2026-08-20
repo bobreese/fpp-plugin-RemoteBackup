@@ -114,7 +114,10 @@ $rbPlugin = basename(__DIR__);
                 <option value="clone">clone.log (backup clone to second drive)</option>
             </select>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-refresh">Refresh Log</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-download">Download</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-download-all">Download All Logs</button>
             <label class="ms-2"><input type="checkbox" id="rb-log-autotail"> Auto-tail</label>
+            <div><small id="rb-log-download-status" class="text-muted"></small></div>
             <div><small id="rb-log-path" class="text-muted"></small></div>
             <pre id="rb-log-content" class="bg-body-secondary border rounded" style="max-height:300px;overflow:auto;padding:6px;margin-top:6px;">(not loaded yet)</pre>
         </div>
@@ -504,6 +507,62 @@ $rbPlugin = basename(__DIR__);
     }
 
     document.getElementById('rb-log-refresh').addEventListener('click', function () { loadLog(false); });
+
+    // Shared by both Download buttons below - the endpoint streams a raw
+    // file (text/plain or application/zip) on success, but still reports
+    // failures (missing log, zip not installed, etc.) as a normal JSON
+    // error body, same as every other action on this page. Checking the
+    // response's own Content-Type is how this tells the two apart, since
+    // both come back as an HTTP 200/4xx/5xx from the same fetch() either
+    // way. Live status text in #rb-log-download-status covers the gap
+    // between "clicked" and "browser actually has the file," which for
+    // Download All in particular isn't always instant - it has to zip
+    // data/logs/ server-side first.
+    function downloadLogFile(url, btn, preparingText) {
+        var statusEl = document.getElementById('rb-log-download-status');
+        var resetLabel = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = preparingText;
+        statusEl.textContent = preparingText;
+        fetch(url).then(function (r) {
+            var ct = r.headers.get('Content-Type') || '';
+            if (ct.indexOf('application/json') !== -1) {
+                return r.json().then(function (data) {
+                    throw new Error(data.error || 'Download failed');
+                });
+            }
+            var cd = r.headers.get('Content-Disposition') || '';
+            var m = /filename="([^"]+)"/.exec(cd);
+            var filename = m ? m[1] : 'RemoteBackup-download';
+            return r.blob().then(function (blob) { return { blob: blob, filename: filename }; });
+        }).then(function (res) {
+            var objUrl = URL.createObjectURL(res.blob);
+            var a = document.createElement('a');
+            a.href = objUrl;
+            a.download = res.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(objUrl);
+            statusEl.textContent = 'Downloaded ' + res.filename + ' (' + humanBytes(res.blob.size) + ').';
+            btn.disabled = false;
+            btn.textContent = resetLabel;
+        }).catch(function (err) {
+            statusEl.textContent = 'Download failed: ' + err.message;
+            $.jGrowl('Download failed: ' + err.message, { themeState: 'danger' });
+            btn.disabled = false;
+            btn.textContent = resetLabel;
+        });
+    }
+
+    document.getElementById('rb-log-download').addEventListener('click', function () {
+        var which = document.getElementById('rb-log-which').value;
+        downloadLogFile(AJAX + 'downloadLog&which=' + encodeURIComponent(which), this, 'Preparing download...');
+    });
+
+    document.getElementById('rb-log-download-all').addEventListener('click', function () {
+        downloadLogFile(AJAX + 'downloadAllLogs', this, 'Preparing archive...');
+    });
     document.getElementById('rb-log-which').addEventListener('change', function () { loadLog(false); scheduleLogTail(); });
     document.getElementById('rb-log-autotail').addEventListener('change', function (e) {
         saveAutotailPref(e.target.checked);

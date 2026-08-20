@@ -120,7 +120,7 @@ echo ""
 # plugin/user still claims it - had nothing to act on. exfatprogs was
 # never declared anywhere and is included here for the same reason.
 echo "System packages (checked just now, not just asserted):"
-for pkg in rsync jq openssh-client sshpass curl exfatprogs; do
+for pkg in rsync jq openssh-client sshpass curl parted zip exfatprogs; do
     if dpkg -s "$pkg" >/dev/null 2>&1; then
         echo "  $pkg: still installed - untouched by this uninstall"
     else

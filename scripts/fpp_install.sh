@@ -42,7 +42,7 @@ echo "=================================================================="
 # access to the Host. Installing them here instead (install-if-missing,
 # never auto-removed by FPP) avoids that entirely - do not move this list
 # into pluginInfo.json's dependencies.packages.
-for pkg in rsync jq openssh-client sshpass curl parted; do
+for pkg in rsync jq openssh-client sshpass curl parted zip; do
     if ! dpkg -s "$pkg" >/dev/null 2>&1; then
         echo "Installing dependency: $pkg"
         apt-get install -y "$pkg" || echo "WARNING: could not auto-install $pkg, please install manually"

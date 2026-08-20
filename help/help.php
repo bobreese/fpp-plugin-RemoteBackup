@@ -271,6 +271,14 @@
             </ul>
             Pick one, click "Refresh Log" (or check "Auto-tail" to poll it every few seconds while
             watching a run live), same page for all of them - no SSH or file browser needed.
+            <br><br>
+            <b>Download</b> saves the selected log to your browser as a plain text file;
+            <b>Download All Logs</b> zips everything currently under <code>data/logs/</code>
+            into one archive instead - handy for grabbing a full diagnostic snapshot in one go,
+            e.g. when reporting an issue. Both show live status text while the file/archive is
+            being prepared. This is separate from FPP's own File Manager download button, which
+            can't reach these logs since they deliberately live outside FPP's own log directory
+            (see above).
         </div>
     </fieldset>
 
