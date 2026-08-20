@@ -315,6 +315,15 @@ plugin's own directory. That script:
 - Removes the `/etc/fstab` entry it added for a USB backup drive (the drive
   itself stays mounted until you unmount it or reboot - files untouched).
 
+The plugin's own directory removal that follows (confirmed against FPP's own
+`scripts/uninstall_plugin`: it runs the plugin's `fpp_uninstall.sh`, then
+`rm -rf`'s the whole plugin folder) takes the entire `data/` folder with it -
+including `data/logs/` (every log this plugin ever wrote: `ajax.log`,
+`engine.log`, `clone.log`, and per-remote rsync logs - see the Help page's
+"Log Files" section), `data/settings.json`, and `data/status/`. None of that
+is left behind; only your actual backed-up files on the destination storage
+survive an uninstall, per the "deliberately leaves alone" list below.
+
 It deliberately leaves alone:
 
 - **Your backed-up files** on the destination storage. Uninstalling a backup
@@ -394,6 +403,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** in the README's Uninstall section that this plugin's own log files
+  (`data/logs/` - `ajax.log`, `engine.log`, `clone.log`, per-remote rsync logs) are
+  removed on uninstall, along with the rest of `data/`. Verified against FPP's own
+  `scripts/uninstall_plugin`, which runs `fpp_uninstall.sh` and then `rm -rf`'s the
+  whole plugin directory - no code change was needed, this was already true.
 - **Changed** the Delete Backup confirmation on the Status page from a "type the backup
   folder name to confirm" text box to a "Confirm the backup folder being deleted"
   checkbox. The plugin already auto-fills/knows the exact folder being deleted (shown
