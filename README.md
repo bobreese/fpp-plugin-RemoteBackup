@@ -403,6 +403,10 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** clicking a Help page "Categories" link scrolled past each section's title,
+  landing in the body text with the heading hidden above the viewport - FPP's plugin
+  page frame has a sticky top nav bar that was covering the anchor target. Added
+  `scroll-margin-top` to each section so the jump now leaves the title visible.
 - **Changed** the Help page to open with a "Categories" row of clickable links that jump
   straight to each section below (How Remote Backup Works, Backup Layout, USB Backup
   Drive, Cloning Backups to a Second Drive, Restoring a Backup, Delete Handling,
