@@ -19,12 +19,6 @@ $menuEntries = Array(
 		'type' => 'help',
 		'page' => 'help/help.php',
 		'wrap' => 1
-	),
-	Array(
-		'text' => 'Remote Backup - About',
-		'type' => 'help',
-		'page' => 'about.php',
-		'wrap' => 1
 	)
 );
 
