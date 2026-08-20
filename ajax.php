@@ -171,6 +171,33 @@ function rb_volume_label($mountpoint) {
     return $label !== '' ? $label : null;
 }
 
+// Resolves a Diagnostic Log dropdown value ("ajax", "engine", "clone",
+// "remote:<id>") to the actual log file path on disk - shared by getLog
+// (view) and downloadLog (download) so the two can never disagree about
+// which file a given selection means.
+function rb_resolve_log_file($which) {
+    global $LOG_DIR, $AJAX_LOG;
+    if (strpos($which, 'remote:') === 0) {
+        $rid = rb_slugify(substr($which, 7));
+        $matches = glob("$LOG_DIR/{$rid}-*.log");
+        if ($matches) {
+            usort($matches, function ($a, $b) { return filemtime($b) - filemtime($a); });
+            return $matches[0];
+        }
+        return "$LOG_DIR/{$rid}-(no log yet).log";
+    } elseif ($which === 'engine') {
+        return "$LOG_DIR/engine.log";
+    } elseif ($which === 'clone') {
+        $matches = glob("$LOG_DIR/clone-*.log");
+        if ($matches) {
+            usort($matches, function ($a, $b) { return filemtime($b) - filemtime($a); });
+            return $matches[0];
+        }
+        return "$LOG_DIR/clone-(no log yet).log";
+    }
+    return $AJAX_LOG;
+}
+
 function rb_default_settings() {
     return [
         'hostModeEnabled' => false,
@@ -720,28 +747,7 @@ switch ($action) {
 
     case 'getLog': {
         $which = isset($_GET['which']) ? $_GET['which'] : 'ajax';
-        if (strpos($which, 'remote:') === 0) {
-            $rid = rb_slugify(substr($which, 7));
-            $matches = glob("$LOG_DIR/{$rid}-*.log");
-            if ($matches) {
-                usort($matches, function ($a, $b) { return filemtime($b) - filemtime($a); });
-                $file = $matches[0];
-            } else {
-                $file = "$LOG_DIR/{$rid}-(no log yet).log";
-            }
-        } elseif ($which === 'engine') {
-            $file = "$LOG_DIR/engine.log";
-        } elseif ($which === 'clone') {
-            $matches = glob("$LOG_DIR/clone-*.log");
-            if ($matches) {
-                usort($matches, function ($a, $b) { return filemtime($b) - filemtime($a); });
-                $file = $matches[0];
-            } else {
-                $file = "$LOG_DIR/clone-(no log yet).log";
-            }
-        } else {
-            $file = $AJAX_LOG;
-        }
+        $file = rb_resolve_log_file($which);
         // 200 lines was nowhere near enough for a real rsync run log: -v
         // (one line per file) plus --info=progress2 (a fresh line per
         // progress update, since there's no TTY to redraw over) routinely
@@ -771,6 +777,44 @@ switch ($action) {
         }
         echo json_encode(['ok' => true, 'file' => $file, 'content' => $content, 'truncated' => $truncated, 'totalLines' => $totalLines, 'shownLines' => $lines]);
         break;
+    }
+
+    case 'downloadLog': {
+        $which = isset($_GET['which']) ? $_GET['which'] : 'ajax';
+        $file = rb_resolve_log_file($which);
+        if (!file_exists($file)) rb_fail('Log file does not exist yet: ' . $file, 404);
+
+        rb_log_line("DOWNLOAD LOG which=$which file=$file");
+        // Same JSON-by-default header set at the top of this file has to be
+        // overridden here - PHP allows replacing a header value as long as
+        // nothing's been sent yet, which ob_start() above guarantees.
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+        $downloadName = 'RemoteBackup-' . preg_replace('/[^A-Za-z0-9_.-]/', '_', $which) . '-' . basename($file);
+        header('Content-Type: text/plain');
+        header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+        header('Content-Length: ' . filesize($file));
+        readfile($file);
+        exit;
+    }
+
+    case 'downloadAllLogs': {
+        rb_log_line('DOWNLOAD ALL LOGS requested');
+        $out = rb_run("$SCRIPTS_DIR/zip_logs.sh", [], 30);
+        $data = json_decode((string)$out, true);
+        if (!$data || empty($data['ok'])) {
+            $err = ($data && isset($data['error'])) ? $data['error'] : 'No response from zip_logs.sh - see data/logs/ajax.log';
+            rb_fail($err, 500);
+        }
+        $path = $data['path'];
+        if (!file_exists($path)) rb_fail('Archive was reported but not found on disk', 500);
+
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="RemoteBackup-logs-' . date('Ymd-His') . '.zip"');
+        header('Content-Length: ' . filesize($path));
+        readfile($path);
+        @unlink($path); // was a temp file built solely for this response - clean it up now that it's sent
+        exit;
     }
 
     default:
