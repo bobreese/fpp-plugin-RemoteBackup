@@ -82,6 +82,14 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   an older version of this plugin (filesystem directly on the raw disk, no partition table)
   need to be re-formatted to pick this up; existing backups on them are unaffected until
   you do.
+- **Safety checks.** Both the primary and secondary/clone drive Format flows refuse to
+  touch the disk FPP itself is currently running from - resolved by asking the system for
+  the actual device backing the root filesystem (whatever it is: SD card, NVMe, or USB),
+  not by guessing from a device name pattern, so it works the same way no matter which
+  media FPP booted from. This also blocks any other partition on that same physical disk
+  (e.g. a boot partition sitting alongside the root partition), not just the exact root
+  partition itself. It's on top of, not a replacement for, the existing "type the device
+  path to confirm" step already required before either Format dialog's button unlocks.
 - **Logs and system config.** Each remote's own `logDirectory` setting is queried live
   (over its FPP API) and pulled if it has been moved off the media tree (a common tweak
   to spare SD card wear) - so logs are captured even when they are not sitting under
