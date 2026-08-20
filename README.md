@@ -155,6 +155,12 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
     exactly the scenario exFAT's "readable on Windows/Mac/Linux" is for. It's harmless,
     isn't a restorable backup, and can be ignored or deleted from a Windows machine if it
     bothers you.
+  - **Do not select `/` itself or `System Volume Information` as what you're restoring.**
+    Neither is a backup - `/` is the whole drive (every remote's backups, plus anything
+    else on it, all at once) and `System Volume Information` is Windows housekeeping with
+    no show content in it at all. Always navigate all the way into a specific remote's own
+    `<Hostname>-<YYYYMMDD>` folder (or `<Hostname>/<YYYYMMDD>` in Snapshot mode) before
+    restoring - that folder, not the drive root, is the actual backup.
   - **Restoring from a specific snapshot.** With Snapshot mode, a remote has several
     `<Hostname>-<YYYYMMDD>` folders side by side at the destination root - one per day a
     backup ran - and File Copy Restore's device browser lists all of them individually, by
@@ -429,6 +435,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a warning (README and Help page) not to select `/` or `System Volume
+  Information` as the restore source in File Copy Restore - neither is a backup, and a
+  specific remote's own `<Hostname>-<YYYYMMDD>` folder is always the actual thing to
+  restore. Also brought the Help page's "Restoring a Backup" section up to date with the
+  `/`-and-System-Volume-Information explanation the README already had.
 - **Documented** why File Copy Restore's device browser shows a `/` before a drive's
   backup folders (it's just the root of the partition this plugin formats/mounts the
   drive with, same as any file browser), and why a `System Volume Information` folder can
