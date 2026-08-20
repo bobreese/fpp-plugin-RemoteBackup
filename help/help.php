@@ -144,6 +144,12 @@
             page (under Content Setup), which already knows how to restore
             sequences/media/playlists/effects safely. There are two ways to get to it, depending on
             where the destination drive physically is at the time:
+            <div class="callout callout-warning mb-2 mt-2">
+                <b>Do not restore <code>/</code> or <code>System Volume Information</code></b> if
+                File Copy Restore's device browser shows them - neither is a backup. Always browse
+                all the way into a specific remote's own
+                <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder first.
+            </div>
             <ol>
                 <li><b>Using the Host, over the network.</b> Leave the destination drive right where
                     it is, still attached to the Host. On whichever system you're restoring to, open

@@ -435,6 +435,10 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a short, prominent `callout-warning` box to the Help page's "Restoring a
+  Backup" section (right before the restore steps) with a condensed version of the `/`/
+  `System Volume Information` warning below - the fuller explanation is still there too,
+  this just makes sure it's seen before someone starts restoring, not just read afterward.
 - **Added** a warning (README and Help page) not to select `/` or `System Volume
   Information` as the restore source in File Copy Restore - neither is a backup, and a
   specific remote's own `<Hostname>-<YYYYMMDD>` folder is always the actual thing to
