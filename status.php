@@ -567,19 +567,20 @@ $rbPlugin = basename(__DIR__);
             panel.innerHTML = html;
 
             document.getElementById('rb-delete-backup').addEventListener('click', function () {
-                var name = path.split('/').filter(Boolean).pop();
                 var modalId = 'rb-delete-backup-modal';
-                // Pre-fill the confirmation field with the backup's own name so
-                // there's nothing to manually retype - reviewing what's shown and
-                // clicking Delete is the verification step. Editing/clearing it
-                // still requires an exact match below, so it's not just a
-                // rubber-stamp click.
+                // The plugin already auto-fills/knows the exact folder being
+                // deleted (shown right above), so typing it back is just
+                // busywork, not a real extra safety check - a checkbox that
+                // requires reading the folder name shown above and
+                // deliberately ticking it before Delete accepts serves the
+                // same purpose without that.
                 var bodyHtml =
                     '<div class="callout callout-danger mb-2">Delete this backup? This cannot be undone.<br>' +
                     '<code>' + path.replace(/</g, '&lt;') + '</code><br>' + humanBytes(data.sizeBytes) + '</div>' +
-                    '<div class="mb-1">Type the backup folder name to confirm:</div>' +
-                    '<input type="text" id="rb-delete-confirm" class="form-control form-control-sm" value="' +
-                    name.replace(/"/g, '&quot;') + '" autocomplete="off">';
+                    '<div class="form-check">' +
+                    '<input type="checkbox" id="rb-delete-confirm" class="form-check-input">' +
+                    '<label class="form-check-label" for="rb-delete-confirm">Confirm the backup folder being deleted</label>' +
+                    '</div>';
 
                 DoModalDialog({
                     id: modalId,
@@ -587,15 +588,13 @@ $rbPlugin = basename(__DIR__);
                     class: 'modal-m',
                     backdrop: true,
                     body: bodyHtml,
-                    focus: 'rb-delete-confirm',
                     buttons: {
                         Cancel: function () { CloseModalDialog(modalId); },
                         Delete: {
                             class: 'btn-danger',
                             click: function () {
-                                var typed = document.getElementById('rb-delete-confirm').value;
-                                if (typed !== name) {
-                                    $.jGrowl('Confirmation text did not match "' + name + '" - aborted, nothing was deleted.', { themeState: 'danger' });
+                                if (!document.getElementById('rb-delete-confirm').checked) {
+                                    $.jGrowl('Confirm the backup folder being deleted first - aborted, nothing was deleted.', { themeState: 'danger' });
                                     return;
                                 }
                                 CloseModalDialog(modalId);
