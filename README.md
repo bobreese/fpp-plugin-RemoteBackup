@@ -415,6 +415,11 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** `icon.png` (256x256) so `pluginInfo.json`'s `iconURL` resolves to a real
+  image instead of 404ing - it was declared but had never actually been committed.
+  Replaces a wrongly-cased `Icon.png` that had briefly existed at the repo root
+  (GitHub's raw file URLs are case-sensitive, so it never matched `iconURL`'s lowercase
+  `icon.png` either).
 - **Added** a `LICENSE` file (MIT) and a README "License" section linking to it - the
   plugin previously had no license file at all.
 - **Documented** the existing boot-device format safety check in the README's Features
