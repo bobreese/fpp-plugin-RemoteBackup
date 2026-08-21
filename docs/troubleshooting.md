@@ -91,3 +91,38 @@ these permissions (`700`/`600`) itself as part of a push through this plugin, so
 only really a risk if the key was ever copied to that remote by some other means (a
 manual `scp`, a different tool). Fix: click **Push SSH Key** again to re-push through
 this plugin, which corrects the permissions along with the key itself.
+
+## Backup Destination Missing
+
+If a configured destination drive (USB/NVMe/SSD, anything other than the SD Card/System
+Storage fallback) stops being found mounted, a popup titled **"Backup Destination
+Missing"** appears on whichever of the Status or Config page happens to be open at the
+time - each page checks independently, so it doesn't matter which one you have up. It
+offers two choices:
+
+- **Halt Backups** - refuses any backup run, manual or scheduled, with a clear reason
+  (`data/logs/engine.log`, and FPP's own Scheduler command output for a scheduled run) for
+  as long as the situation is unresolved. Use this if you want to investigate (is the
+  drive unplugged? did it fail?) before deciding where backups should go next.
+- **Use Failover** - immediately switches the destination to SD Card / System Storage
+  (the same fallback option always shown in the Config page's storage list) - always
+  available since it's just the filesystem root, no drive to plug in or format. Backups
+  resume on the next scheduled or manual run, written into a dedicated
+  `/home/fpp/media/backups` folder, same as if you'd selected that option yourself. Both
+  choices take effect immediately - neither needs a separate "Save Settings" click.
+
+**The popup only appears once per "episode."** It won't re-appear on every poll while the
+drive is still missing and you haven't picked yet, and it stays quiet once you've picked
+Halt (repeating it would be pure noise - the situation is already handled). It resets and
+can appear again the next time the same, or a different, destination goes missing.
+
+**A halt clears itself automatically** - no separate "resume" step needed - the moment
+either of these happens:
+
+- The missing drive is seen mounted again (plugged back in, powered back on).
+- A different destination is saved on the Config page (picking a new one is itself
+  the fix).
+
+Choosing **Use Failover** clears it too, immediately, as part of switching the
+destination to "/" - which can never itself be reported as "missing," since the root
+filesystem always exists.

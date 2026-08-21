@@ -166,6 +166,65 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // "Backup destination missing" popup - the 'status' poll below (and
+    // config.php's own copy of this, since either page might be the one
+    // open when a mounted drive vanishes) surfaces destinationMissing once
+    // a configured destination other than "/" stops being found mounted.
+    // Shown once per "episode": resets the moment the drive is no longer
+    // reported missing, and stays quiet on every subsequent poll once
+    // haltedReason shows the user (or a prior page load) already picked
+    // Halt for this same episode.
+    var rbDestMissingPopupShown = false;
+
+    function rbHandleDestinationStatus(res) {
+        if (!res || !res.ok) return;
+        if (!res.destinationMissing) { rbDestMissingPopupShown = false; return; }
+        if (res.haltedReason) { rbDestMissingPopupShown = true; return; }
+        if (rbDestMissingPopupShown) return;
+        rbDestMissingPopupShown = true;
+        rbShowDestinationMissingModal(res.destinationMount);
+    }
+
+    function rbShowDestinationMissingModal(mountpoint) {
+        var modalId = 'rb-dest-missing-modal';
+        var mp = mountpoint || 'the configured destination';
+        var bodyHtml =
+            '<div class="callout callout-danger mb-2">The backup destination drive (<code>' + mp + '</code>) ' +
+            'is not currently mounted - it may have been unplugged, powered off, or failed.</div>' +
+            'Manual and scheduled backups will fail until this is resolved. Choose how to proceed:<br><br>' +
+            '<b>Halt Backups</b> - refuses any backup run (manual or scheduled) with a clear reason in the log, ' +
+            'until the drive reappears or a new destination is saved.<br>' +
+            '<b>Use Failover</b> - immediately switches the destination to SD Card / System Storage (always ' +
+            'available, no drive required) so scheduled backups keep running.';
+        DoModalDialog({
+            id: modalId,
+            title: 'Backup Destination Missing',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                'Halt Backups': {
+                    class: 'btn-danger',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('haltBackups', { body: { reason: 'destination drive (' + mp + ') not found' } }).then(function (r) {
+                            $.jGrowl(r.ok ? 'Backups halted until the destination is resolved.' : ('Could not halt backups: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'info' : 'danger' });
+                        });
+                    }
+                },
+                'Use Failover': {
+                    class: 'btn-primary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('useFailover', { body: {} }).then(function (r) {
+                            $.jGrowl(r.ok ? 'Failover activated - destination switched to SD Card / System Storage.' : ('Could not activate failover: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'success' : 'danger' });
+                        });
+                    }
+                }
+            }
+        });
+    }
+
     function humanBytes(n) {
         n = parseInt(n || 0, 10);
         if (!n) return '0 B';
@@ -354,6 +413,7 @@ $rbPlugin = basename(__DIR__);
     function poll() {
         api('status').then(function (res) {
             if (res.ok) renderStatus(res);
+            if (res.ok) rbHandleDestinationStatus(res);
             if (res.ok && lastActiveSeen && !res.active) {
                 // A run just finished - refresh the Backed Up list so new/updated folders show up.
                 if (typeof loadBackedUpList === 'function') loadBackedUpList(true);

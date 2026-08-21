@@ -68,6 +68,21 @@ if [ ! -f "$SETTINGS_FILE" ]; then
     exit 1
 fi
 
+# --- Refuse to start while backups are halted -----------------------------
+# Set by the UI (config.php/status.php) when a previously-active destination
+# drive is detected missing and the user picks "Halt backups" from the
+# resulting popup, rather than switching to the SD Card/System Storage
+# failover. haltedReason is cleared automatically the moment the 'status'
+# poll (ajax.php) sees the configured destination mounted again, or the
+# instant a new destinationMount is saved/activated - so this only ever
+# blocks a run while the situation it was raised for is still unresolved.
+HALTED_REASON=$(rb_setting '.haltedReason')
+if [ -n "$HALTED_REASON" ]; then
+    rb_log "ABORT: refusing to start - backups are halted: $HALTED_REASON"
+    echo "A Remote Backup run was refused: backups are halted - $HALTED_REASON. Resolve it on the Config or Status page (pick a destination, or use the failover) before the next run." >&2
+    exit 1
+fi
+
 DEST_MOUNT=$(rb_setting '.destinationMount')
 if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     echo "Destination storage is not configured or not mounted: '$DEST_MOUNT'" >&2

@@ -261,7 +261,13 @@ function rb_default_settings() {
         // this default is only consulted for a *new* settings.json.
         'excludes' => ['tmp/*', 'upload/*', 'cache/*', '*.tmp'],
         'includeSystemConfig' => true,
-        'remotes' => []
+        'remotes' => [],
+        // Non-empty when the user picked "Halt Backups" from the "backup
+        // destination missing" popup (config.php/status.php) - checked by
+        // run_backup.sh, which refuses to start while it's set. Cleared
+        // automatically once the configured destination is seen mounted
+        // again, or a different destinationMount is saved/activated.
+        'haltedReason' => null
     ];
 }
 
@@ -508,6 +514,7 @@ switch ($action) {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();
         $settings = rb_load_settings($SETTINGS_FILE);
+        $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
 
         foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
@@ -558,6 +565,15 @@ switch ($action) {
             $settings['remotes'] = $clean;
         }
 
+        // Picking (and saving) a different destination is itself the fix for
+        // whatever "backups are halted" was raised over, so it clears the
+        // flag - same auto-recovery idea as the 'status' poll below noticing
+        // the original destination is mounted again, just for the "I picked
+        // a new one instead" path.
+        if (!empty($settings['haltedReason']) && isset($settings['destinationMount']) && $settings['destinationMount'] !== $prevDestinationMount) {
+            unset($settings['haltedReason']);
+        }
+
         if (!rb_save_settings($SETTINGS_FILE, $settings)) {
             rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
         }
@@ -569,6 +585,44 @@ switch ($action) {
         // the settings save itself.
         rb_run("$SCRIPTS_DIR/prune_logs.sh", [], 15);
 
+        echo json_encode(['ok' => true, 'data' => $settings]);
+        break;
+    }
+
+    // haltBackups / useFailover: the two choices offered by the Status/Config
+    // page's "destination drive is missing" popup (see the 'status' case
+    // below, which is what actually notices the drive is gone in the first
+    // place). Neither requires the usual "Save Settings" step - both are
+    // meant to take effect the instant the user picks one, since the whole
+    // point is resolving an active problem rather than queuing up a change.
+    case 'haltBackups': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $body = rb_json_body();
+        $reason = (isset($body['reason']) && $body['reason'] !== '') ? (string)$body['reason'] : 'destination drive not found';
+        $settings = rb_load_settings($SETTINGS_FILE);
+        $settings['haltedReason'] = $reason;
+        if (!rb_save_settings($SETTINGS_FILE, $settings)) {
+            rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
+        }
+        rb_log_line("HALT requested: $reason");
+        echo json_encode(['ok' => true, 'data' => $settings]);
+        break;
+    }
+
+    case 'useFailover': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $settings = rb_load_settings($SETTINGS_FILE);
+        // "/" (SD Card/System Storage) is always available - it's the
+        // filesystem root, so there's nothing to mount/format/detect first,
+        // unlike a USB/NVMe/SSD destination. Backups land in a dedicated
+        // /home/fpp/media/backups subfolder, never in "/" itself - see
+        // rb_dest_root() in lib_common.sh.
+        $settings['destinationMount'] = '/';
+        unset($settings['haltedReason']);
+        if (!rb_save_settings($SETTINGS_FILE, $settings)) {
+            rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
+        }
+        rb_log_line("FAILOVER activated: destinationMount switched to '/' (SD Card/System Storage)");
         echo json_encode(['ok' => true, 'data' => $settings]);
         break;
     }
@@ -814,7 +868,32 @@ switch ($action) {
             ];
         }
 
-        echo json_encode(['ok' => true, 'active' => !empty($activeData['active']), 'remotes' => $remotes, 'dryRunSummary' => $summary, 'destStorage' => $destStorage]);
+        // Missing-destination detection: a configured destination other than
+        // "/" (SD Card/System Storage is always available by definition, so
+        // it can never be "missing") that $destStorage above just failed to
+        // find mounted. Surfaced so the Status/Config page - whichever is
+        // open - can offer the "drive is missing: Halt backups or Use
+        // failover" popup rather than a run just failing later with no
+        // warning beforehand.
+        $destinationMissing = !empty($settings['destinationMount']) && $settings['destinationMount'] !== '/' && $destStorage === null;
+
+        // Auto-recovery: the destination that was missing is back (present
+        // in $destStorage again) - clear a halt raised over it without
+        // requiring the user to do anything else. Saving a *different*
+        // destination clears it too, but that path is handled directly in
+        // 'saveSettings' above, not here.
+        if ($destStorage !== null && !empty($settings['haltedReason'])) {
+            unset($settings['haltedReason']);
+            rb_save_settings($SETTINGS_FILE, $settings);
+        }
+
+        echo json_encode([
+            'ok' => true, 'active' => !empty($activeData['active']), 'remotes' => $remotes,
+            'dryRunSummary' => $summary, 'destStorage' => $destStorage,
+            'destinationMount' => isset($settings['destinationMount']) ? $settings['destinationMount'] : null,
+            'destinationMissing' => $destinationMissing,
+            'haltedReason' => isset($settings['haltedReason']) ? $settings['haltedReason'] : null
+        ]);
         break;
     }
 
