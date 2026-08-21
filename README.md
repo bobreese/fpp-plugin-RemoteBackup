@@ -17,6 +17,15 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   A dual-stack remote (announced with both an IPv4 and an IPv6 address) is recognized as
   one device and its real IPv4 address is preferred; if it's only ever seen over IPv6,
   mDNS (`<hostname>.local`) is tried as a fallback before settling for the IPv6 address.
+  Renaming a remote's System Name in FPP (same device, same address, new name) is
+  recognized as a rename on the next Rescan, not a new remote - the existing entry is
+  updated in place (selected state and Push SSH Key status kept), instead of leaving a
+  stale duplicate under the old name alongside a fresh one under the new name. A jGrowl
+  notice calls out any rename detected this way. Every remote row also has a **Remove**
+  button (not just the select checkbox) to drop it from the list entirely - useful for
+  clearing out a remote that's gone for good, or any duplicate left over from before this
+  fix. Like everything else on the Config page, removal doesn't take effect until you
+  click "Save Settings."
 - **The Host backs itself up locally, not over SSH.** MultiSync's own system list (or a
   manual add) can include the Host running this plugin - selecting it is marked with a
   "Host" badge on the Config page, and it's backed up as a plain local file copy instead
@@ -450,6 +459,20 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** renaming a remote's System Name in FPP (same device, same address) produced
+  a stale duplicate entry on Rescan - the old name stayed in the list untouched while a
+  second entry was added for the new name, both pointing at the same address.
+  `mergeRemoteLists()` matched purely by hostname, so a rename computed a different id
+  than the existing entry and was treated as "a new remote appeared" rather than "an
+  existing one's name changed." Now matches by address as a fallback and updates the
+  existing entry in place (keeping its selected state and Push SSH Key status) when the
+  hostname at a known address changes, with a jGrowl notice when it happens. Also added a
+  **Remove** button per remote row, since there was previously no way to delete a stale
+  entry (like any duplicate from before this fix) from the list at all. Verified with a
+  standalone test reproducing the exact reported scenario plus edge cases (an unrelated
+  new remote at a different address still gets added normally; repeated no-op rescans
+  don't spuriously fire a rename; a manually-added remote's `source` survives a rename
+  same as a MultiSync-discovered one's).
 - **Changed** the Diagnostic Log's "Auto-tail" checkbox label to "Tail Follow." Behavior,
   the underlying element id, and the saved per-browser preference are all unchanged - this
   is a label-only rename.
