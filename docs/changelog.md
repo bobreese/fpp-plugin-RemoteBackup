@@ -5,6 +5,17 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** "Download All Logs" (and "Download," for a single log) could keep serving a
+  stale, previously-downloaded archive/file on every click after the first, instead of
+  the current contents of `data/logs/`. Both are plain GET requests to a URL that never
+  varies, and `ajax.php` never started a PHP session (the usual source of an automatic
+  `Cache-Control: no-store`) or set one explicitly, so a browser was free to cache the
+  response and keep replaying it indefinitely - confirmed against a real report where the
+  downloaded zip's `ajax.log`/`engine.log` were both far smaller than the actual files on
+  disk, and running `scripts/zip_logs.sh` directly over SSH correctly reported every log
+  file (`fileCount`) while the web UI kept returning the same old 2-file archive. Added an
+  explicit `Cache-Control: no-store, no-cache, must-revalidate` header to both download
+  responses, plus `{cache: 'no-store'}` on the client `fetch()` call as defense-in-depth.
 - **Added** missing-destination detection with a Halt/Failover popup. If a configured
   destination drive stops being found mounted while the Status or Config page happens to
   be open, a "Backup Destination Missing" popup now offers **Halt Backups** (refuses any

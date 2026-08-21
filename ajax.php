@@ -945,6 +945,12 @@ switch ($action) {
         header('Content-Type: text/plain');
         header('Content-Disposition: attachment; filename="' . $downloadName . '"');
         header('Content-Length: ' . filesize($file));
+        // Every request should re-run this and reflect whatever's on disk right
+        // now - this endpoint never starts a PHP session (the usual source of
+        // an automatic no-store header), so without an explicit one here a
+        // browser is free to cache this GET response and keep silently
+        // replaying an old snapshot on later requests to the exact same URL.
+        header('Cache-Control: no-store, no-cache, must-revalidate');
         readfile($file);
         exit;
     }
@@ -964,6 +970,10 @@ switch ($action) {
         header('Content-Type: application/zip');
         header('Content-Disposition: attachment; filename="RemoteBackup-logs-' . date('Ymd-His') . '.zip"');
         header('Content-Length: ' . filesize($path));
+        // See the matching comment on downloadLog above - without this, a
+        // browser can cache this GET response and keep replaying the same
+        // stale archive on every later click instead of rebuilding it fresh.
+        header('Cache-Control: no-store, no-cache, must-revalidate');
         readfile($path);
         @unlink($path); // was a temp file built solely for this response - clean it up now that it's sent
         exit;

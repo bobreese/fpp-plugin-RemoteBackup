@@ -637,7 +637,11 @@ $rbPlugin = basename(__DIR__);
         btn.disabled = true;
         btn.textContent = preparingText;
         statusEl.textContent = preparingText;
-        fetch(url).then(function (r) {
+        // no-store: this URL never varies (no cache-busting query param), so
+        // without this a browser can serve a cached response from an earlier
+        // click instead of hitting the server again - belt-and-suspenders
+        // alongside ajax.php's own Cache-Control: no-store on these responses.
+        fetch(url, { cache: 'no-store' }).then(function (r) {
             var ct = r.headers.get('Content-Type') || '';
             if (ct.indexOf('application/json') !== -1) {
                 return r.json().then(function (data) {
