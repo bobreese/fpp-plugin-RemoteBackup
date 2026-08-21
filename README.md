@@ -464,6 +464,21 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** a Host-local run (the Host backing itself up, not over SSH) with "Include
+  system config" enabled left a `data/tmp_extras_<id>_*` scratch directory behind after
+  every run, full of `rm: ... Permission denied` errors in `last_start.log` for files
+  under `system-config/network/`, `system-config/wpa_supplicant/`, `system-config/fpp/`,
+  etc. Cause: `SYSTEM_CONFIG_PATHS` (`/etc/network`, `/etc/wpa_supplicant`, `/etc/fpp`,
+  ...) is pulled locally via `sudo rsync` for the Host's own backup - `rsync -a` run as
+  root preserves the source files' real root:root ownership, so the scratch directory
+  ended up containing root-owned entries that the plain (non-sudo) cleanup `rm -rf`
+  afterward couldn't remove, since this script otherwise runs as the plain `fpp` user.
+  Changed that cleanup to `sudo rm -rf` (passwordless local sudo for `fpp` is already
+  relied on elsewhere in this script and plugin). Also added a one-time sweep at the
+  start of every run for any `tmp_extras_*` directory left behind by an earlier run
+  (before this fix, or from any other interruption) - verified against a real directory
+  tree that it removes exactly the leftover `tmp_extras_*` entries and nothing else
+  (`settings.json`, `logs/`, `status/` untouched).
 - **Changed** `pluginInfo.json`'s `versions` array from one open-ended entry
   (`minFPPVersion: "9.0"`) to two explicit entries - one for FPP 10.0+ and one for FPP
   9.0+, both tracking `master` at the latest commit (`sha: ""`). Functionally identical

@@ -52,6 +52,17 @@ if ! flock -n 9; then
     exit 1
 fi
 
+# One-time sweep of any tmp_extras_<id>_* scratch directory left behind
+# by an earlier run - this run hasn't created one yet (that happens
+# per-remote, further below), so anything matching here is leftover debris.
+# Normally these are removed at the end of each remote's own run; before
+# the fix that made that cleanup use sudo, a Host-local run with "Include
+# system config" enabled could leave root-owned entries behind that a
+# plain rm couldn't remove. sudo here cleans those up too, not just
+# ordinary leftovers from some other interruption (a kill -9, a power
+# loss mid-run, etc).
+find "$DATA_DIR" -maxdepth 1 -type d -name 'tmp_extras_*' -exec sudo rm -rf {} + 2>/dev/null
+
 if [ ! -f "$SETTINGS_FILE" ]; then
     echo "No settings.json found; configure the plugin first." >&2
     exit 1
@@ -528,7 +539,22 @@ backup_one() {
             fi
         fi
 
-        rm -rf "$scratch_root"
+        # sudo, not a plain rm: when this remote is the Host itself
+        # (is_host=1, above), SYSTEM_CONFIG_PATHS is pulled via a *local*
+        # `sudo rsync` - rsync -a run as root preserves the source files'
+        # real ownership (root:root for /etc/network, /etc/wpa_supplicant,
+        # etc.), so scratch_root ends up containing root-owned entries.
+        # This script itself runs as the plain fpp user, so a plain rm -rf
+        # here failed with "Permission denied" on every one of them,
+        # leaving tmp_extras_<id>_* directories behind under data/ after
+        # every Host-local run with "Include system config" enabled. Only
+        # matters for the local is_host path - the SSH+sudo path
+        # (system_config_srcs above) has its own local (non-root) rsync
+        # receiving the transfer, so it was never root-owned locally to
+        # begin with - but sudo rm here is harmless either way (passwordless
+        # local sudo for fpp is already relied on elsewhere in this script
+        # and plugin).
+        sudo rm -rf "$scratch_root"
     fi
 
     local total_size xfer_size num_files num_files_total total_files_line state
