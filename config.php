@@ -590,11 +590,37 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // Multisync-sourced entries only - manually-added ones never get a
+    // lastSeenAt at all (they're expected to be absent from a MultiSync
+    // scan by design, that's the whole reason they were added manually),
+    // so they're never flagged. 24h threshold: since a rescan only ever
+    // happens when someone has the Config page open (there's no scheduled
+    // background scan), this reflects "more than 24h has passed since the
+    // last scan that saw it," not "continuously absent for 24h" - a long
+    // gap between Config visits can make this fire on the very next
+    // rescan even for a remote that was online the whole time. Flags
+    // only - never auto-removes, so a flagged remote's selection/backups
+    // are never silently affected; Remove (below) is the actual cleanup
+    // action, left entirely to the user.
+    function staleRemoteBadge(r) {
+        if (r.source !== 'multisync' || !r.lastSeenAt) return '';
+        var seenMs = new Date(r.lastSeenAt).getTime();
+        if (isNaN(seenMs)) return '';
+        var ageMs = Date.now() - seenMs;
+        if (ageMs < 24 * 60 * 60 * 1000) return '';
+        var days = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+        var label = days >= 1 ? (days + (days === 1 ? ' day' : ' days')) : 'over 24 hours';
+        return ' <span class="badge text-bg-warning" title="Has not appeared in a MultiSync scan since ' +
+            new Date(r.lastSeenAt).toLocaleString() +
+            ' - could be offline, decommissioned, or just not announcing right now. Remove it below if it\'s gone for good.">' +
+            'Not seen in ' + label + '</span>';
+    }
+
     function renderRemotes() {
         var el = document.getElementById('rb-remoteList');
         el.className = 'mt-2';
         if (!state.remotes.length) { el.innerHTML = '<em>No remotes found yet. Rescan, or add one manually below.</em>'; return; }
-        var html = '<table class="table table-sm"><tr><th></th><th>Hostname</th><th>Address</th><th>Source</th><th></th></tr>';
+        var html = '<table class="table table-sm"><tr><th></th><th>Hostname</th><th>Address</th><th>Source</th><th></th><th></th></tr>';
         state.remotes.forEach(function (r) {
             var isHost = isHostRemote(r);
             var hostTag = isHost ?
@@ -605,10 +631,12 @@ $rbPlugin = basename(__DIR__);
                 '<small id="' + keyStatusId(r.id) + '" class="text-muted"></small>';
             html += '<tr>' +
                 '<td><input type="checkbox" class="rb-remote-check" data-id="' + r.id + '" data-addr="' + r.address + '" ' + (r.selected ? 'checked' : '') + '></td>' +
-                '<td>' + r.hostname + hostTag + '</td>' +
+                '<td>' + r.hostname + hostTag + staleRemoteBadge(r) + '</td>' +
                 '<td>' + r.address + '</td>' +
                 '<td>' + (r.source || 'multisync') + '</td>' +
                 '<td>' + actionCell + '</td>' +
+                '<td><button type="button" class="btn btn-outline-danger btn-sm rb-remote-remove" data-id="' + r.id + '" ' +
+                'title="Removes it from this list (e.g. a stale duplicate left over from before a System Name change was renamed in place - or any remote you no longer want tracked). A rescan will re-discover it if it\'s still on the network. Doesn\'t take effect until Save Settings.">Remove</button></td>' +
                 '</tr>';
         });
         html += '</table>';
@@ -644,20 +672,63 @@ $rbPlugin = basename(__DIR__);
                 }
             });
         });
+
+        Array.prototype.forEach.call(document.getElementsByClassName('rb-remote-remove'), function (btn) {
+            btn.addEventListener('click', function () {
+                var id = btn.getAttribute('data-id');
+                state.remotes = state.remotes.filter(function (r) { return r.id !== id; });
+                renderRemotes();
+            });
+        });
     }
 
-    function mergeRemoteLists(fromScan, existing) {
+    // fromScan entries are keyed by hostname first (id = sanitized
+    // hostname), falling back to address only when a matching hostname
+    // isn't already known - but a device renamed in FPP (same IP, new
+    // System Name) computes a different id than its old entry, so a naive
+    // hostname-only match saw that as a brand-new remote and left the old,
+    // now-stale entry behind untouched: same physical device duplicated
+    // under both names forever, each independently selectable and each
+    // getting its own destination folder if both were ever selected.
+    // Matching by address as a second pass (only when the hostname isn't
+    // an exact match already) catches that case and renames the existing
+    // entry in place instead - keeping its selected/source state, no
+    // duplicate row. onRename(oldHostname, newHostname, address), if
+    // given, fires once per rename detected this way. Also stamps
+    // lastSeenAt on every multisync-sourced entry actually seen in this
+    // scan (renderRemotes() uses it to flag one that hasn't shown up in
+    // a while) - manually-added entries never get one, since they're
+    // expected to not appear in a MultiSync scan by design.
+    function mergeRemoteLists(fromScan, existing, onRename) {
         var byId = {};
-        (existing || []).forEach(function (r) { byId[r.id] = r; });
+        var byAddress = {};
+        var nowIso = new Date().toISOString();
+        (existing || []).forEach(function (r) {
+            byId[r.id] = r;
+            if (r.address) byAddress[r.address] = r;
+        });
         var merged = (existing || []).slice();
         fromScan.forEach(function (r) {
             var id = (r.hostname || r.address).replace(/[^A-Za-z0-9._-]+/g, '_');
-            if (!byId[id]) {
-                var nr = { id: id, hostname: r.hostname, address: r.address, selected: false, source: 'multisync' };
+            var byAddr = r.address ? byAddress[r.address] : null;
+            if (byId[id]) {
+                byId[id].address = r.address;
+                byId[id].lastSeenAt = nowIso;
+            } else if (byAddr && byAddr.hostname !== r.hostname) {
+                var oldId = byAddr.id;
+                var oldHostname = byAddr.hostname;
+                byAddr.hostname = r.hostname;
+                byAddr.id = id;
+                byAddr.lastSeenAt = nowIso;
+                delete byId[oldId];
+                byId[id] = byAddr;
+                byAddress[r.address] = byAddr;
+                if (onRename) onRename(oldHostname, r.hostname, r.address);
+            } else {
+                var nr = { id: id, hostname: r.hostname, address: r.address, selected: false, source: 'multisync', lastSeenAt: nowIso };
                 merged.push(nr);
                 byId[id] = nr;
-            } else {
-                byId[id].address = r.address;
+                if (r.address) byAddress[r.address] = nr;
             }
         });
         return merged;
@@ -748,8 +819,20 @@ $rbPlugin = basename(__DIR__);
     document.getElementById('rb-refreshRemotes').addEventListener('click', function () {
         setScanning('rb-remoteList');
         api('probeRemotes').then(function (res) {
-            if (res.ok) { state.remotes = mergeRemoteLists(res.data.remotes || [], state.remotes); renderRemotes(); }
-            else { setScanError('rb-remoteList', res.error); }
+            if (res.ok) {
+                var renamed = [];
+                state.remotes = mergeRemoteLists(res.data.remotes || [], state.remotes, function (oldName, newName) {
+                    renamed.push(oldName + ' → ' + newName);
+                });
+                renderRemotes();
+                if (renamed.length) {
+                    $.jGrowl('Detected a System Name change on the same address: ' + renamed.join(', ') +
+                        '. Updated in place (selection kept) instead of adding a duplicate - click "Save Settings" to keep it.',
+                        { themeState: 'info' });
+                }
+            } else {
+                setScanError('rb-remoteList', res.error);
+            }
         });
     });
 
@@ -772,7 +855,7 @@ $rbPlugin = basename(__DIR__);
         var selectedIds = {};
         Array.prototype.forEach.call(checks, function (c) { selectedIds[c.getAttribute('data-id')] = c.checked; });
         var remotesOut = state.remotes.map(function (r) {
-            return { id: r.id, hostname: r.hostname, address: r.address, selected: !!selectedIds[r.id], source: r.source };
+            return { id: r.id, hostname: r.hostname, address: r.address, selected: !!selectedIds[r.id], source: r.source, lastSeenAt: r.lastSeenAt || null };
         });
 
         var body = {

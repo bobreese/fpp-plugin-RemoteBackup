@@ -17,6 +17,20 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   A dual-stack remote (announced with both an IPv4 and an IPv6 address) is recognized as
   one device and its real IPv4 address is preferred; if it's only ever seen over IPv6,
   mDNS (`<hostname>.local`) is tried as a fallback before settling for the IPv6 address.
+  Renaming a remote's System Name in FPP (same device, same address, new name) is
+  recognized as a rename on the next Rescan, not a new remote - the existing entry is
+  updated in place (selected state and Push SSH Key status kept), instead of leaving a
+  stale duplicate under the old name alongside a fresh one under the new name. A jGrowl
+  notice calls out any rename detected this way. Every remote row also has a **Remove**
+  button (not just the select checkbox) to drop it from the list entirely - useful for
+  clearing out a remote that's gone for good, or any duplicate left over from before this
+  fix. Like everything else on the Config page, removal doesn't take effect until you
+  click "Save Settings." A MultiSync-discovered remote absent from a scan for over 24
+  hours gets a "Not seen in N days" badge - flagged, never auto-removed, so a remote
+  that's just temporarily offline (or simply hasn't had a rescan happen recently, since
+  scans only run when the Config page is open) never silently drops out of your backup
+  selection. The badge clears itself the next time that remote shows up in a scan; manually
+  added remotes are never flagged, since they're expected not to appear in a MultiSync scan.
 - **The Host backs itself up locally, not over SSH.** MultiSync's own system list (or a
   manual add) can include the Host running this plugin - selecting it is marked with a
   "Host" badge on the Config page, and it's backed up as a plain local file copy instead
@@ -450,6 +464,42 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** `pluginInfo.json`'s `versions` array from one open-ended entry
+  (`minFPPVersion: "9.0"`) to two explicit entries - one for FPP 10.0+ and one for FPP
+  9.0+, both tracking `master` at the latest commit (`sha: ""`). Functionally identical
+  to the single entry it replaces (FPP picks the first matching entry, and 10.x already
+  matched the old 9.0+ range), but makes FPP 10 compatibility explicit rather than
+  implicit in an open-ended upper bound - modeled on a two-entry pattern from another
+  FPP plugin's `pluginInfo.json` (`fpp-plugin-AdvancedStats`), minus that plugin's
+  pinned-sha-for-older-FPP entry, since this plugin has no FPP9-vs-FPP10 code
+  divergence to pin against.
+- **Added** a "Not seen in N days" badge for a MultiSync-discovered remote that hasn't
+  appeared in a scan for over 24 hours - `mergeRemoteLists()` now stamps `lastSeenAt` on
+  every multisync-sourced entry each time it's actually seen (persisted in
+  `settings.json`), and `renderRemotes()` flags anything past that threshold. Flags only,
+  never auto-removes: since rescans only ever happen when the Config page is open (no
+  scheduled background scan), auto-removing on a timer would risk silently dropping a
+  remote that's simply been offline briefly, or just hasn't had a rescan happen in a
+  while, out of the active backup selection with no notice - the same failure mode ruled
+  out for a full-rebuild-on-rescan approach. Never applies to manually-added remotes
+  (`source: 'manual'`), which are expected to not appear in a MultiSync scan by design.
+  Verified with a standalone test: a remote scanned 23h ago stays unflagged, one at 25h
+  gets flagged (while still keeping its selected state, never removed), and the flag
+  clears the moment it reappears in a scan.
+- **Fixed:** renaming a remote's System Name in FPP (same device, same address) produced
+  a stale duplicate entry on Rescan - the old name stayed in the list untouched while a
+  second entry was added for the new name, both pointing at the same address.
+  `mergeRemoteLists()` matched purely by hostname, so a rename computed a different id
+  than the existing entry and was treated as "a new remote appeared" rather than "an
+  existing one's name changed." Now matches by address as a fallback and updates the
+  existing entry in place (keeping its selected state and Push SSH Key status) when the
+  hostname at a known address changes, with a jGrowl notice when it happens. Also added a
+  **Remove** button per remote row, since there was previously no way to delete a stale
+  entry (like any duplicate from before this fix) from the list at all. Verified with a
+  standalone test reproducing the exact reported scenario plus edge cases (an unrelated
+  new remote at a different address still gets added normally; repeated no-op rescans
+  don't spuriously fire a rename; a manually-added remote's `source` survives a rename
+  same as a MultiSync-discovered one's).
 - **Changed** the Diagnostic Log's "Auto-tail" checkbox label to "Tail Follow." Behavior,
   the underlying element id, and the saved per-browser preference are all unchanged - this
   is a label-only rename.
