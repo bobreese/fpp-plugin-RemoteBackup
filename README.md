@@ -464,6 +464,17 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a click confirmation to Dry Run, Start Backup, and Start Clone: each button
+  turns green the instant it's clicked and reverts to its normal color once the run it
+  started actually finishes - purely a "yes, that registered" signal, distinct from the
+  existing state label/progress bar. Dry Run and Start Backup share one underlying active
+  flag, so which of the two to revert is tracked separately from the flag itself (clicking
+  one never turns the other green). A 60s safety timer reverts a button on its own in case
+  the normal active-to-inactive detection is ever missed (e.g. a run finishing faster than
+  the poll interval), so a button can't get stuck green indefinitely. Verified with a
+  standalone test: click-to-green, revert on the run finishing, the two shared-flag buttons
+  staying independent of each other, the clone button being fully independent of both, and
+  the safety timeout firing correctly when nothing else clears it.
 - **Fixed:** a Host-local run (the Host backing itself up, not over SSH) with "Include
   system config" enabled left a `data/tmp_extras_<id>_*` scratch directory behind after
   every run, full of `rm: ... Permission denied` errors in `last_start.log` for files

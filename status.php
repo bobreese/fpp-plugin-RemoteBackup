@@ -296,6 +296,52 @@ $rbPlugin = basename(__DIR__);
         }
     }
 
+    // Turns Dry Run/Start Backup/Start Clone green the instant they're
+    // clicked and back to their normal color once the run they started
+    // actually finishes - purely a "yes, that click registered" signal,
+    // not a state indicator (the label/progress bar/State column already
+    // cover that). Exact original classNames hardcoded here rather than
+    // computed from the DOM at click time, since these three buttons'
+    // classes are otherwise static (nothing else in this file rewrites
+    // their className - only .disabled, a different property, is ever
+    // toggled on rb-clone-start).
+    var BTN_STATE = {
+        'rb-dryrun': { normal: 'btn btn-outline-secondary btn-sm', active: 'btn btn-success btn-sm' },
+        'rb-start': { normal: 'btn btn-primary btn-sm ms-1', active: 'btn btn-success btn-sm ms-1' },
+        'rb-clone-start': { normal: 'btn btn-outline-secondary btn-sm', active: 'btn btn-success btn-sm' }
+    };
+    var BTN_GREEN_TIMEOUT_MS = 60000; // safety net - see markButtonActive
+    var btnGreenTimers = {};
+
+    function markButtonActive(id) {
+        var btn = document.getElementById(id);
+        var s = BTN_STATE[id];
+        if (!btn || !s) return;
+        btn.className = s.active;
+        // Safety net: if the run this click started finishes so fast the
+        // polling loop's active->inactive transition is missed entirely
+        // (e.g. a dry run against one small/unreachable remote, faster
+        // than the 2s active-poll interval), or the poll loop's own
+        // detection logic has a bug, this guarantees the button doesn't
+        // stay green forever - clearButtonActive() below cancels this
+        // timer on the normal path, so it never fires in the common case.
+        if (btnGreenTimers[id]) clearTimeout(btnGreenTimers[id]);
+        btnGreenTimers[id] = setTimeout(function () { clearButtonActive(id); }, BTN_GREEN_TIMEOUT_MS);
+    }
+
+    function clearButtonActive(id) {
+        var btn = id && document.getElementById(id);
+        var s = id && BTN_STATE[id];
+        if (!btn || !s) return;
+        btn.className = s.normal;
+        if (btnGreenTimers[id]) { clearTimeout(btnGreenTimers[id]); delete btnGreenTimers[id]; }
+    }
+
+    // Dry Run and Start Backup share the one primary run/active flag
+    // (status.php's poll() below), so which button to revert once that
+    // run finishes has to be tracked separately from the flag itself.
+    var pendingRunButtonId = null;
+
     var lastActiveSeen = false;
     var POLL_ACTIVE_MS = 2000;   // fast refresh while a backup is actually running
     var POLL_IDLE_MS = 7000;     // slower background refresh otherwise, so the page
@@ -311,6 +357,8 @@ $rbPlugin = basename(__DIR__);
             if (res.ok && lastActiveSeen && !res.active) {
                 // A run just finished - refresh the Backed Up list so new/updated folders show up.
                 if (typeof loadBackedUpList === 'function') loadBackedUpList(true);
+                clearButtonActive(pendingRunButtonId);
+                pendingRunButtonId = null;
             }
             if (res.ok) lastActiveSeen = !!res.active;
             if (pollTimer) clearTimeout(pollTimer);
@@ -329,6 +377,7 @@ $rbPlugin = basename(__DIR__);
     // Status table or the "active" flag the page's title/polling cadence
     // above reacts to.
     var clonePollTimer = null;
+    var lastCloneActiveSeen = false;
 
     function renderCloneStatus(res) {
         var secEl = document.getElementById('rb-clone-secondary-storage');
@@ -387,6 +436,10 @@ $rbPlugin = basename(__DIR__);
     function pollClone() {
         api('cloneStatus').then(function (res) {
             if (res.ok) renderCloneStatus(res);
+            if (res.ok && lastCloneActiveSeen && !res.active) {
+                clearButtonActive('rb-clone-start');
+            }
+            if (res.ok) lastCloneActiveSeen = !!res.active;
             if (clonePollTimer) clearTimeout(clonePollTimer);
             clonePollTimer = setTimeout(pollClone, (res.ok && res.active) ? POLL_ACTIVE_MS : POLL_IDLE_MS);
         }).catch(function () {
@@ -400,7 +453,7 @@ $rbPlugin = basename(__DIR__);
             var msg = document.getElementById('rb-clone-msg');
             msg.textContent = res.ok ? 'Clone started.' : ('Error: ' + res.error);
             msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-            if (res.ok) { pollClone(); } else { $.jGrowl('Failed to start clone: ' + res.error, { themeState: 'danger' }); }
+            if (res.ok) { markButtonActive('rb-clone-start'); pollClone(); } else { $.jGrowl('Failed to start clone: ' + res.error, { themeState: 'danger' }); }
         });
     });
 
@@ -424,7 +477,7 @@ $rbPlugin = basename(__DIR__);
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
                 msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-                if (res.ok) { poll(); } else { $.jGrowl('Failed to start backup: ' + res.error, { themeState: 'danger' }); }
+                if (res.ok) { pendingRunButtonId = 'rb-start'; markButtonActive('rb-start'); poll(); } else { $.jGrowl('Failed to start backup: ' + res.error, { themeState: 'danger' }); }
             });
         });
     });
@@ -436,7 +489,7 @@ $rbPlugin = basename(__DIR__);
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Dry run started.' : ('Error: ' + res.error);
                 msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-                if (res.ok) { poll(); } else { $.jGrowl('Failed to start dry run: ' + res.error, { themeState: 'danger' }); }
+                if (res.ok) { pendingRunButtonId = 'rb-dryrun'; markButtonActive('rb-dryrun'); poll(); } else { $.jGrowl('Failed to start dry run: ' + res.error, { themeState: 'danger' }); }
             });
         });
     });
