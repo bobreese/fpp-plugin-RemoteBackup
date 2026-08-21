@@ -413,12 +413,15 @@ fpp-plugin-RemoteBackup/
     run_backup.sh            the rsync pull engine (concurrency, delete, snapshots)
     prune_logs.sh            applies logRetentionCount to every remote's logs immediately on save
     clone_backups.sh         mirrors the primary destination onto a second drive (manual only)
+    zip_logs.sh               zips data/logs/ for the Status page's "Download All Logs" button
     ssh_setup.sh              pushes the backup SSH key to a remote
   commands/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh
   data/                      created on install
     settings.json            Config page's saved settings
     status/<id>.json         each remote's live status, polled by the Status page
+    label_cache.json          volume labels, cached ~30s to avoid re-shelling out to
+                               findmnt on every status/cloneStatus poll
     run_active.json, clone_active.json, *.lock, pids/    run/clone overlap guards
     logs/
       engine.log             run_backup.sh's own log (start/finish, refusals, errors)
@@ -447,6 +450,21 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed/Changed**, prompted by a user question about `status`/`cloneStatus` polling
+  showing up constantly in `ajax.log`:
+  - `ajax.log`'s per-request `REQUEST action=...` line no longer logs routine
+    `status`/`cloneStatus`/`getLog` polls (fired every 2-7s for as long as the Status page
+    is open) - it was drowning out everything actually worth reading in there. Every other
+    action (saves, formats, mounts, starts, deletes, downloads, ...) is still logged.
+  - That same line's `user=` field was always the Host's own hostname
+    (`php_uname('n')`), identical on every request regardless of caller - looked like
+    caller identity, never was. Replaced with `client=$_SERVER['REMOTE_ADDR']`, the
+    actual requesting IP.
+  - `rb_volume_label()` (used by `status`/`cloneStatus` to show a drive's volume label)
+    was shelling out to `findmnt` on every single poll - real, if small, recurring
+    fork/exec overhead for a value that only ever changes on a reformat. Added a ~30s
+    cache (`data/label_cache.json`), directly re-seeded with the known-fresh label right
+    after a successful format rather than waiting on the next poll to re-discover it.
 - **Added** "Download" and "Download All Logs" buttons to the Status page's Diagnostic Log
   section. Download saves the currently selected log as a plain text file; Download All
   Logs zips everything under `data/logs/` server-side (new `scripts/zip_logs.sh`, `zip`
