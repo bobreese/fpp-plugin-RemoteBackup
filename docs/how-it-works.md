@@ -18,7 +18,8 @@
    common case. If that silent push fails, the remote's row shows "key push failed" -
    click the "Push SSH Key" button next to it to retry with a password you enter
    yourself, or copy `~fpp/.ssh/id_rsa_remotebackup.pub` to the remote's
-   `~fpp/.ssh/authorized_keys` manually.
+   `~fpp/.ssh/authorized_keys` manually. See [Troubleshooting](troubleshooting.md) for
+   what specific failures look like and how to fix each one.
 5. **Dry run first.** Use *Remote Backup - Status* → "Dry Run" to see the estimated
    transfer size for all selected remotes compared against free space on the Host's
    destination storage, with no files copied.

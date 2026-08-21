@@ -13,6 +13,7 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - [Scheduling backups](docs/scheduling.md)
 - [Restoring a Backup](docs/restoring-a-backup.md)
 - [Log Files](docs/log-files.md)
+- [Troubleshooting](docs/troubleshooting.md)
 - [Directory layout](docs/directory-layout.md)
 - [Changelog](docs/changelog.md)
 - [Pre-submission checklist / Plugin Guidelines compliance](docs/plugin-guidelines-compliance.md)

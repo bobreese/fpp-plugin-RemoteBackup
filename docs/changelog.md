@@ -5,6 +5,22 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a "Troubleshooting" section to the documentation (`docs/troubleshooting.md`),
+  covering what SSH key push failures actually look like (the Config page's "key push
+  failed" status, each `ssh_setup.sh` error message, and the raw `ssh`/`sshpass` text
+  bucketed under the generic "Key push failed (rc=N)" case) and how to fix each one -
+  including the password-mismatch case that's by far the most common, the reimaged-remote
+  ("new SD/boot device") host-key case that's already handled automatically and shouldn't
+  normally be seen, and the rarer "push reports success but backups still fail with
+  Permission denied (publickey)" case caused by wrong `~/.ssh` permissions on the remote.
+  Linked from the "Authenticate" step in [How Remote Backup Works](how-it-works.md).
+- **Fixed:** the "Authenticate" step in the in-app Help page and
+  [How Remote Backup Works](how-it-works.md) read as if pushing the SSH key were a manual
+  action required after checking a remote. In reality `config.php` already pushes the key
+  automatically (silently, using the stored/default password) the instant a remote's
+  checkbox is checked or a remote is manually added; the "Push SSH Key" button is only
+  needed as the retry path when that automatic push fails. Reworded both copies of the
+  step to describe the actual behavior.
 - **Changed** the README from one long document into a short landing page (title,
   description, and a linked table of contents) plus a set of focused files under
   `docs/` - Features, Requirements/Install/Uninstall, USB drive setup + cloning,
