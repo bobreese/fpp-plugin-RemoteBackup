@@ -161,14 +161,56 @@ function rb_sanitize_label($label) {
     return $label !== '' ? $label : 'Backups';
 }
 
+// status/cloneStatus (and therefore rb_volume_label below) get polled
+// every 2-7s for as long as the Status page is left open - a volume label
+// never changes on its own between polls (only a reformat changes it, and
+// that already re-seeds this cache directly via rb_cache_volume_label
+// below), so re-shelling out to findmnt that often was pure wasted
+// fork/exec overhead. This file is the cache: {mountpoint: {label,
+// checkedAt}}.
+$RB_LABEL_CACHE_FILE = "$DATA_DIR/label_cache.json";
+$RB_LABEL_CACHE_TTL = 30; // seconds
+
+function rb_label_cache_read() {
+    global $RB_LABEL_CACHE_FILE;
+    if (!file_exists($RB_LABEL_CACHE_FILE)) return [];
+    $raw = @file_get_contents($RB_LABEL_CACHE_FILE);
+    $decoded = $raw ? json_decode($raw, true) : null;
+    return is_array($decoded) ? $decoded : [];
+}
+
+function rb_label_cache_write($cache) {
+    global $RB_LABEL_CACHE_FILE;
+    @file_put_contents($RB_LABEL_CACHE_FILE, json_encode($cache), LOCK_EX);
+}
+
+// Directly seeds the cache with an already-known-fresh label (e.g. right
+// after formatUsb/formatSecondary applies one) - cheaper and more
+// immediately accurate than just invalidating and waiting for the next
+// poll to re-shell out.
+function rb_cache_volume_label($mountpoint, $label) {
+    $cache = rb_label_cache_read();
+    $cache[$mountpoint] = ['label' => ($label !== '' ? $label : null), 'checkedAt' => time()];
+    rb_label_cache_write($cache);
+}
+
 // Looks up a mounted filesystem's volume label by mountpoint, or null
 // if it doesn't have one (or isn't mounted) - findmnt's LABEL column
 // pulls this from blkid without needing to separately resolve the
-// underlying device first.
+// underlying device first. Cached per mountpoint (see above) so repeated
+// polling doesn't re-shell out every single time.
 function rb_volume_label($mountpoint) {
+    global $RB_LABEL_CACHE_TTL;
+    $cache = rb_label_cache_read();
+    if (isset($cache[$mountpoint]) && (time() - $cache[$mountpoint]['checkedAt']) < $RB_LABEL_CACHE_TTL) {
+        return $cache[$mountpoint]['label'];
+    }
     $out = @shell_exec('findmnt -no LABEL ' . escapeshellarg($mountpoint) . ' 2>/dev/null');
     $label = trim((string)$out);
-    return $label !== '' ? $label : null;
+    $label = $label !== '' ? $label : null;
+    $cache[$mountpoint] = ['label' => $label, 'checkedAt' => time()];
+    rb_label_cache_write($cache);
+    return $label;
 }
 
 // Resolves a Diagnostic Log dropdown value ("ajax", "engine", "clone",
@@ -262,7 +304,21 @@ function rb_slugify($s) {
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 $method = $_SERVER['REQUEST_METHOD'];
-rb_log_line("REQUEST action=$action method=$method user=" . php_uname('n'));
+// status/cloneStatus/getLog are routine polls (every 2-7s while the Status
+// page is open, indefinitely, for as long as it's left open) - logging
+// every single one here drowned out everything actually worth reading in
+// ajax.log with pure heartbeat noise. Everything else (saves, formats,
+// mounts, starts, deletes, downloads, ...) still gets logged, since those
+// are the events actually worth an audit trail.
+$QUIET_ACTIONS = ['status', 'cloneStatus', 'getLog'];
+if (!in_array($action, $QUIET_ACTIONS, true)) {
+    // The client's actual IP, not the Host's own hostname - php_uname('n')
+    // here previously returned the SAME value (this Host's own hostname)
+    // on every single request regardless of who/what called it, which
+    // looked like caller identity but never actually was any.
+    $client = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    rb_log_line("REQUEST action=$action method=$method client=$client");
+}
 
 switch ($action) {
 
@@ -346,6 +402,9 @@ switch ($action) {
         $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm, '/mnt/Backups', $label], 90);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'error' => 'No response from format_usb.sh - see data/logs/ajax.log'];
+        if (!empty($data['ok']) && isset($data['label'])) {
+            rb_cache_volume_label('/mnt/Backups', $data['label']);
+        }
 
         file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => false]));
         echo json_encode($data);
@@ -399,6 +458,9 @@ switch ($action) {
         $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm, '/mnt/BackupsCopy', $label], 90);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'error' => 'No response from format_usb.sh - see data/logs/ajax.log'];
+        if (!empty($data['ok']) && isset($data['label'])) {
+            rb_cache_volume_label('/mnt/BackupsCopy', $data['label']);
+        }
 
         file_put_contents("$DATA_DIR/clone_active.json", json_encode(['active' => false]));
         echo json_encode($data);
