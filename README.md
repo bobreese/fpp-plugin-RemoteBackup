@@ -11,6 +11,7 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - [Requirements, Install, and Uninstall (incl. Known minor gaps)](docs/requirements-install-uninstall.md)
 - [Setting up a USB backup drive / Cloning backups to a second drive](docs/usb-drive-setup.md)
 - [Scheduling backups](docs/scheduling.md)
+- [Estimated Backup Times](docs/estimated-backup-times.md)
 - [Restoring a Backup](docs/restoring-a-backup.md)
 - [Log Files](docs/log-files.md)
 - [Troubleshooting](docs/troubleshooting.md)
