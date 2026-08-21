@@ -739,9 +739,17 @@ switch ($action) {
             if ($dfFree !== false && $dfTotal !== false) {
                 $secondaryStorage = [
                     'mountpoint' => '/mnt/BackupsCopy',
-                    'totalBytes' => intval($dfTotal),
-                    'freeBytes' => intval($dfFree),
-                    'usedBytes' => intval($dfTotal) - intval($dfFree),
+                    // Deliberately NOT intval()'d - disk_free_space()/disk_total_space()
+                    // return float specifically so a drive's real size survives on a
+                    // 32-bit PHP build (native int there tops out around 2.1GB); intval()
+                    // truncated/overflowed that for any real backup drive, producing
+                    // garbage (even negative) free-space figures on 32-bit systems like a
+                    // stock Pi3 image. json_encode()/JS handle these floats natively -
+                    // safe well past any real drive size (doubles are exact up to 2^53
+                    // bytes, ~9000 TB).
+                    'totalBytes' => $dfTotal,
+                    'freeBytes' => $dfFree,
+                    'usedBytes' => $dfTotal - $dfFree,
                     'label' => rb_volume_label('/mnt/BackupsCopy')
                 ];
             }
@@ -780,9 +788,11 @@ switch ($action) {
             if ($dfFree !== false && $dfTotal !== false) {
                 $destStorage = [
                     'mountpoint' => $settings['destinationMount'],
-                    'totalBytes' => intval($dfTotal),
-                    'freeBytes' => intval($dfFree),
-                    'usedBytes' => intval($dfTotal) - intval($dfFree),
+                    // See the matching comment on secondaryStorage above - not intval()'d
+                    // on purpose, to avoid 32-bit int overflow on a >~2GB drive.
+                    'totalBytes' => $dfTotal,
+                    'freeBytes' => $dfFree,
+                    'usedBytes' => $dfTotal - $dfFree,
                     'label' => rb_volume_label($settings['destinationMount'])
                 ];
             }

@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Status page's dry-run summary showing a garbage (sometimes negative)
+  "Available on destination" figure and wrongly reporting "NOT enough free space on
+  destination" on 32-bit systems (e.g. a stock 32-bit Raspberry Pi OS image on a Pi3),
+  even with plenty of real free space on a correctly-mounted drive. `ajax.php` computed
+  the destination's free/total space via PHP's `disk_free_space()`/`disk_total_space()` -
+  which deliberately return `float`, precisely so a real drive's size survives on a
+  32-bit PHP build, where native `int` tops out around 2.1GB - and then immediately
+  cast that through `intval()`, truncating/overflowing back down to a 32-bit int for
+  any drive larger than ~2GB. Removed the `intval()` casts on both the primary
+  destination and the secondary clone drive's free/total/used space, keeping them as
+  the floats PHP already returns; `json_encode()` and JS handle those natively with no
+  precision loss for any realistic drive size (doubles are exact up to 2^53 bytes,
+  around 9000 TB). Purely a display bug - the actual backup/dry-run itself was never
+  blocked by this, since `run_backup.sh` does its own free-space math independently in
+  bash, unaffected by PHP's int size.
 - **Added** a "Troubleshooting" section to the documentation (`docs/troubleshooting.md`),
   covering what SSH key push failures actually look like (the Config page's "key push
   failed" status, each `ssh_setup.sh` error message, and the raw `ssh`/`sshpass` text
