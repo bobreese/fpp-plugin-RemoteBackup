@@ -97,8 +97,11 @@ this plugin, which corrects the permissions along with the key itself.
 If a configured destination drive (USB/NVMe/SSD, anything other than the SD Card/System
 Storage fallback) stops being found mounted, a popup titled **"Backup Destination
 Missing"** appears on whichever of the Status or Config page happens to be open at the
-time - each page checks independently, so it doesn't matter which one you have up. It
-offers two choices:
+time - each page checks independently, so it doesn't matter which one you have up:
+
+<img src="../help/Backup_Missing.png" alt="Backup Destination Missing popup, showing the missing drive's mountpoint and the Halt Backups / Use Failover buttons" width="480">
+
+It offers two choices:
 
 - **Halt Backups** - refuses any backup run, manual or scheduled, with a clear reason
   (`data/logs/engine.log`, and FPP's own Scheduler command output for a scheduled run) for
