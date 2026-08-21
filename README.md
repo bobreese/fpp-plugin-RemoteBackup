@@ -464,6 +464,15 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** `pluginInfo.json`'s `versions` array from one open-ended entry
+  (`minFPPVersion: "9.0"`) to two explicit entries - one for FPP 10.0+ and one for FPP
+  9.0+, both tracking `master` at the latest commit (`sha: ""`). Functionally identical
+  to the single entry it replaces (FPP picks the first matching entry, and 10.x already
+  matched the old 9.0+ range), but makes FPP 10 compatibility explicit rather than
+  implicit in an open-ended upper bound - modeled on a two-entry pattern from another
+  FPP plugin's `pluginInfo.json` (`fpp-plugin-AdvancedStats`), minus that plugin's
+  pinned-sha-for-older-FPP entry, since this plugin has no FPP9-vs-FPP10 code
+  divergence to pin against.
 - **Added** a "Not seen in N days" badge for a MultiSync-discovered remote that hasn't
   appeared in a scan for over 24 hours - `mergeRemoteLists()` now stamps `lastSeenAt` on
   every multisync-sourced entry each time it's actually seen (persisted in
