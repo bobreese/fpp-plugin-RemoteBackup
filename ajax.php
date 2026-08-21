@@ -551,7 +551,8 @@ switch ($action) {
                     'hostname' => $r['hostname'],
                     'address' => $r['address'],
                     'selected' => isset($r['selected']) ? (bool)$r['selected'] : false,
-                    'source' => isset($r['source']) ? $r['source'] : 'manual'
+                    'source' => isset($r['source']) ? $r['source'] : 'manual',
+                    'lastSeenAt' => isset($r['lastSeenAt']) ? $r['lastSeenAt'] : null
                 ];
             }
             $settings['remotes'] = $clean;

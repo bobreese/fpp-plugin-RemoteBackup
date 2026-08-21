@@ -25,7 +25,12 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   button (not just the select checkbox) to drop it from the list entirely - useful for
   clearing out a remote that's gone for good, or any duplicate left over from before this
   fix. Like everything else on the Config page, removal doesn't take effect until you
-  click "Save Settings."
+  click "Save Settings." A MultiSync-discovered remote absent from a scan for over 24
+  hours gets a "Not seen in N days" badge - flagged, never auto-removed, so a remote
+  that's just temporarily offline (or simply hasn't had a rescan happen recently, since
+  scans only run when the Config page is open) never silently drops out of your backup
+  selection. The badge clears itself the next time that remote shows up in a scan; manually
+  added remotes are never flagged, since they're expected not to appear in a MultiSync scan.
 - **The Host backs itself up locally, not over SSH.** MultiSync's own system list (or a
   manual add) can include the Host running this plugin - selecting it is marked with a
   "Host" badge on the Config page, and it's backed up as a plain local file copy instead
@@ -459,6 +464,19 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a "Not seen in N days" badge for a MultiSync-discovered remote that hasn't
+  appeared in a scan for over 24 hours - `mergeRemoteLists()` now stamps `lastSeenAt` on
+  every multisync-sourced entry each time it's actually seen (persisted in
+  `settings.json`), and `renderRemotes()` flags anything past that threshold. Flags only,
+  never auto-removes: since rescans only ever happen when the Config page is open (no
+  scheduled background scan), auto-removing on a timer would risk silently dropping a
+  remote that's simply been offline briefly, or just hasn't had a rescan happen in a
+  while, out of the active backup selection with no notice - the same failure mode ruled
+  out for a full-rebuild-on-rescan approach. Never applies to manually-added remotes
+  (`source: 'manual'`), which are expected to not appear in a MultiSync scan by design.
+  Verified with a standalone test: a remote scanned 23h ago stays unflagged, one at 25h
+  gets flagged (while still keeping its selected state, never removed), and the flag
+  clears the moment it reappears in a scan.
 - **Fixed:** renaming a remote's System Name in FPP (same device, same address) produced
   a stale duplicate entry on Rescan - the old name stayed in the list untouched while a
   second entry was added for the new name, both pointing at the same address.
