@@ -119,10 +119,34 @@ can appear again the next time the same, or a different, destination goes missin
 **A halt clears itself automatically** - no separate "resume" step needed - the moment
 either of these happens:
 
-- The missing drive is seen mounted again (plugged back in, powered back on).
+- The missing drive is seen mounted again at its usual mountpoint (see "Plugging the
+  drive back in" below - this takes a couple of manual steps, not just reconnecting it).
 - A different destination is saved on the Config page (picking a new one is itself
   the fix).
 
 Choosing **Use Failover** clears it too, immediately, as part of switching the
 destination to "/" - which can never itself be reported as "missing," since the root
 filesystem always exists.
+
+### Plugging the drive back in doesn't automatically resolve this
+
+Physically reconnecting the same USB drive (or powering it back on) does **not** get it
+automatically remounted, and the popup/halt won't clear on its own just because the
+drive is physically present again. This plugin's `/etc/fstab` entry only remounts a
+drive at *boot time* - there's no hot-plug automount set up (no udev rule, no systemd
+automount unit), which is deliberate: the same "type the device path to confirm" safety
+model used for Format applies here too, so a drive never gets silently claimed as the
+destination again without a step you can see happening.
+
+To actually bring it back:
+
+1. Open the Config page (if it isn't already the one you have up).
+2. Click **"Rescan Storage Devices"** - the drive won't show up in the mounted list
+   until this runs; simply having reconnected it isn't enough for the plugin to notice.
+3. It reappears under **"USB drive(s) detected but not mounted."** Click **"Mount as
+   Backups"** next to it (see [Setting up a USB backup drive](usb-drive-setup.md)) -
+   Mount now also pre-selects it as the destination automatically, so this one click is
+   generally all that's needed on the Config side.
+4. Once mounted, the next `status` poll (Status or Config page, whichever is open) sees
+   the destination present again and clears the halt automatically - no separate
+   "resume" button to find.
