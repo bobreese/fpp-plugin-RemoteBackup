@@ -48,7 +48,8 @@ $rbPlugin = basename(__DIR__);
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshRemotes">Rescan MultiSync Remotes</button>
             <div id="rb-remoteList" class="mt-2 fpp-backup-action-loading">Scanning...</div>
             <hr>
-            <b>Manually add a remote</b> (use this if it wasn't found by MultiSync scan):<br>
+            <b>Manually add a remote</b> (use this if it wasn't found by MultiSync scan): click in the
+            Hostname box on the left, type a name and IP address, then click Add.<br>
             <input id="rb-manualHost" placeholder="Hostname, e.g. Pi5" style="width:180px">
             <input id="rb-manualAddr" placeholder="IP Address" style="width:150px">
             <button type="button" class="btn btn-sm btn-secondary" id="rb-addManual">Add</button>

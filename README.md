@@ -464,6 +464,10 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a usage hint to the Config page's "Remote Systems to Back Up" section,
+  pointing out that manually adding a remote starts with clicking in the Hostname box on
+  the left. (The per-row **Remove** button, to drop a remote from the list entirely, was
+  already added in an earlier change alongside the MultiSync rename fix.)
 - **Added** a click confirmation to Dry Run, Start Backup, and Start Clone: each button
   turns green the instant it's clicked and reverts to its normal color once the run it
   started actually finishes - purely a "yes, that registered" signal, distinct from the
