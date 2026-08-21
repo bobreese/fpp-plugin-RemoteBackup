@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** an "Estimated Backup Times" section to the documentation
+  (`docs/estimated-backup-times.md`), linked from README right after "Scheduling
+  backups." Since this plugin's transfers are `rsync` over SSH, the dominant factors are
+  network link speed and destination write speed rather than raw Pi CPU power (all of
+  Pi3/Pi4/Pi5 have hardware-accelerated AES): a Pi3 anywhere in the chain caps
+  everything at its 100 Mbps Fast Ethernet regardless of destination storage, while on
+  Pi4/Pi5 over Gigabit the destination drive (USB stick vs SSD/NVMe) usually becomes the
+  limiting factor instead. Also covers how the default 2-concurrent-remote queue shares
+  whatever the actual bottleneck is. These are reasoned estimates from each Pi
+  generation's known hardware limits, not measured benchmarks from this plugin.
 - **Fixed:** the Status page's dry-run summary showing a garbage (sometimes negative)
   "Available on destination" figure and wrongly reporting "NOT enough free space on
   destination" on 32-bit systems (e.g. a stock 32-bit Raspberry Pi OS image on a Pi3),
