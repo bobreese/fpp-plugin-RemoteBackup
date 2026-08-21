@@ -141,6 +141,74 @@ $rbPlugin = basename(__DIR__);
         return n.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
     }
 
+    // "Backup destination missing" popup - a self-contained mirror of the
+    // same functions in status.php, since either page might be the one
+    // open when a previously-mounted destination drive vanishes. Config
+    // doesn't otherwise poll 'status' at all (it has no live run to show),
+    // so a lightweight background poll is set up below just for this.
+    var rbDestMissingPopupShown = false;
+
+    function rbHandleDestinationStatus(res) {
+        if (!res || !res.ok) return;
+        if (!res.destinationMissing) { rbDestMissingPopupShown = false; return; }
+        if (res.haltedReason) { rbDestMissingPopupShown = true; return; }
+        if (rbDestMissingPopupShown) return;
+        rbDestMissingPopupShown = true;
+        rbShowDestinationMissingModal(res.destinationMount);
+    }
+
+    function rbShowDestinationMissingModal(mountpoint) {
+        var modalId = 'rb-dest-missing-modal';
+        var mp = mountpoint || 'the configured destination';
+        var bodyHtml =
+            '<div class="callout callout-danger mb-2">The backup destination drive (<code>' + mp + '</code>) ' +
+            'is not currently mounted - it may have been unplugged, powered off, or failed.</div>' +
+            'Manual and scheduled backups will fail until this is resolved. Choose how to proceed:<br><br>' +
+            '<b>Halt Backups</b> - refuses any backup run (manual or scheduled) with a clear reason in the log, ' +
+            'until the drive reappears or a new destination is saved.<br>' +
+            '<b>Use Failover</b> - immediately switches the destination to SD Card / System Storage (always ' +
+            'available, no drive required) so scheduled backups keep running.';
+        DoModalDialog({
+            id: modalId,
+            title: 'Backup Destination Missing',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                'Halt Backups': {
+                    class: 'btn-danger',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('haltBackups', { body: { reason: 'destination drive (' + mp + ') not found' } }).then(function (r) {
+                            $.jGrowl(r.ok ? 'Backups halted until the destination is resolved.' : ('Could not halt backups: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'info' : 'danger' });
+                        });
+                    }
+                },
+                'Use Failover': {
+                    class: 'btn-primary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('useFailover', { body: {} }).then(function (r) {
+                            if (r.ok) { state.settings = r.data; renderStorage(); }
+                            $.jGrowl(r.ok ? 'Failover activated - destination switched to SD Card / System Storage.' : ('Could not activate failover: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'success' : 'danger' });
+                        });
+                    }
+                }
+            }
+        });
+    }
+
+    // Slow background poll, just to catch a destination disappearing while
+    // this page happens to be the one open - no live run state to show here,
+    // so there's no reason to poll anywhere near status.php's active-run rate.
+    var RB_DEST_POLL_MS = 15000;
+    function rbPollDestination() {
+        api('status').then(function (res) {
+            rbHandleDestinationStatus(res);
+            setTimeout(rbPollDestination, RB_DEST_POLL_MS);
+        });
+    }
+
     var state = { settings: null, storage: null, remotes: [], hostInfo: null };
 
     // isHostRemote: true if the given remote entry (from state.remotes) is
@@ -177,10 +245,25 @@ $rbPlugin = basename(__DIR__);
             html += '<div><b>' + g[1] + '</b></div>';
             list.forEach(function (d) {
                 var mp = d.mountpoint;
+                var labelHtml = (d.deviceLabel || mp) + (d.label ? ' &mdash; volume label "' + d.label + '"' : '') + ' &mdash; mounted at ' + mp + ' &mdash; ' + humanBytes(d.availBytes) + ' free';
+                // The "SD Card / System Storage" group is bucketed by
+                // physical disk (probe_storage.sh's is_rootdisk), not just
+                // by mountpoint "/" - on a typical Pi image the boot
+                // partition (e.g. /boot or /boot/firmware, labeled "bootfs")
+                // lives as its own mounted partition on that SAME disk, so
+                // it lands in this same group right alongside the real
+                // fallback. Only "/" is ever an actual valid destination
+                // (backups go into a dedicated subfolder under it - see
+                // below); the boot partition is shown for visibility only,
+                // with no activation control, since selecting it would mean
+                // writing backups onto FPP's own tiny FAT32 boot partition.
+                if (g[0] === 'sdcard' && mp !== '/') {
+                    html += '<div>' + labelHtml + ' <small class="text-muted">(system boot partition - not a valid backup destination)</small></div>';
+                    return;
+                }
                 var checked = state.settings && state.settings.destinationMount === mp ? 'checked' : '';
                 var id = 'rb-storage-' + mp.replace(/[^A-Za-z0-9]/g, '_');
-                html += '<div><label><input type="radio" name="rb-storage-choice" value="' + mp + '" ' + checked + ' id="' + id + '"> ' +
-                    (d.deviceLabel || mp) + (d.label ? ' &mdash; volume label "' + d.label + '"' : '') + ' &mdash; mounted at ' + mp + ' &mdash; ' + humanBytes(d.availBytes) + ' free</label>';
+                html += '<div><label><input type="radio" name="rb-storage-choice" value="' + mp + '" ' + checked + ' id="' + id + '"> ' + labelHtml + '</label>';
                 // The SD-card/system-storage fallback reports the true
                 // filesystem root ("/") as its mountpoint - free space is
                 // measured there, but backups themselves are written into
@@ -258,6 +341,10 @@ $rbPlugin = basename(__DIR__);
                 api('mountUsb', { body: { device: device }, timeoutMs: 35000 }).then(function (res) {
                     if (res.ok) {
                         $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { themeState: 'success' });
+                        // Pre-select this drive as the destination - just fills in the
+                        // radio button so it's ready to go, doesn't save anything on its
+                        // own; "Save Settings" is still required, same as always.
+                        if (state.settings) state.settings.destinationMount = res.mountpoint || '/mnt/Backups';
                         api('probeStorage').then(function (r2) {
                             if (r2.ok) { state.storage = r2.data; renderStorage(); }
                         });
@@ -318,6 +405,9 @@ $rbPlugin = basename(__DIR__);
                             }).then(function (res) {
                                 if (res.ok) {
                                     $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : '') + (res.clearedAllStatus ? '. All previous backup status on the Status page was cleared since this was your active destination drive.' : ''), { themeState: 'success' });
+                                    // Same pre-select as the plain Mount flow above - a
+                                    // no-op for Re-format (already the active destination).
+                                    if (state.settings) state.settings.destinationMount = res.mountpoint || '/mnt/Backups';
                                     api('probeStorage').then(function (r2) {
                                         if (r2.ok) { state.storage = r2.data; renderStorage(); }
                                     });
@@ -879,6 +969,10 @@ $rbPlugin = basename(__DIR__);
             if (res.ok) {
                 state.settings = res.data;
                 state.remotes = res.data.remotes;
+                // A saved destination is a fresh episode as far as the missing-drive
+                // popup is concerned - reset so a still-bad pick gets its own popup
+                // on the next poll instead of staying suppressed by an earlier one.
+                rbDestMissingPopupShown = false;
                 msg.textContent = 'Saved.';
                 msg.className = 'ms-2 text-success';
                 $.jGrowl('Remote Backup settings saved.', { themeState: 'success' });
@@ -892,5 +986,6 @@ $rbPlugin = basename(__DIR__);
     });
 
     loadAll();
+    rbPollDestination();
 })();
 </script>

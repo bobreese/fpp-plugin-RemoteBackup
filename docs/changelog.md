@@ -5,6 +5,36 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** missing-destination detection with a Halt/Failover popup. If a configured
+  destination drive stops being found mounted while the Status or Config page happens to
+  be open, a "Backup Destination Missing" popup now offers **Halt Backups** (refuses any
+  manual or scheduled run with a clear reason, logged to `engine.log`, until resolved) or
+  **Use Failover** (immediately switches the destination to SD Card / System Storage,
+  always available since it's the filesystem root). New `haltBackups`/`useFailover` ajax
+  actions and a `haltedReason` setting that `run_backup.sh` checks and refuses on, same
+  guard pattern as the existing "already running"/"remote playing" refusals. The halt
+  clears itself automatically once the missing destination reappears mounted (checked
+  every `status` poll) or a different destination is saved - no separate "resume" step.
+  Each page detects independently (status.php's existing poll; config.php gained its own
+  lightweight 15s background poll purely for this, since it otherwise has no live-run
+  polling of its own). See [Troubleshooting](troubleshooting.md#backup-destination-missing)
+  and [Features](features.md).
+- **Changed** the Config page's Mount/Format & Mount flow to pre-select the drive it just
+  mounted as the destination (the storage list's radio button is now checked
+  automatically), so activating a freshly mounted drive is one click ("Save Settings")
+  instead of two. Applies to both the plain "Mount as Backups" flow and "Format & Mount
+  as Backups"/"Re-format..." (the latter is a no-op there, since a re-formatted drive was
+  already the active destination). Nothing is saved automatically - "Save Settings" is
+  still required, same as every other Config change.
+- **Fixed:** the "SD Card / System Storage" group in the Config page's storage list could
+  show a second, spurious entry with a full activation radio button for the system's boot
+  partition (e.g. `/boot` or `/boot/firmware`, labeled `bootfs` on a typical Pi image) -
+  `probe_storage.sh` buckets that group by physical disk, not by mountpoint "/", so a boot
+  partition mounted on the same disk as root landed in the same group as the real SD
+  Card/System Storage fallback. Only "/" was ever a valid destination; selecting the boot
+  partition would have meant trying to write backups onto FPP's own tiny FAT32 boot
+  partition. The boot partition is still shown (same label/format as before, for
+  visibility) but with no activation control - a small note explains why.
 - **Added** an "Estimated Backup Times" section to the documentation
   (`docs/estimated-backup-times.md`), linked from README right after "Scheduling
   backups." Since this plugin's transfers are `rsync` over SSH, the dominant factors are

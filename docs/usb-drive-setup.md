@@ -36,9 +36,12 @@ All of this happens on the Config page, under **Backup Destination Storage**.
    here) only shows a volume label if one was already set on it elsewhere.
 4. **Activate it as the destination.** Once mounted, the drive appears in the main
    storage list above with a radio button (`<label> - mounted at /mnt/Backups - X free`,
-   plus `- volume label "<label>"` when the drive has one). Select it, then click
-   **"Save Settings"** at the bottom of the page - like every other Config change, nothing
-   takes effect, including which storage is actually used, until you save.
+   plus `- volume label "<label>"` when the drive has one) - **already selected**, since a
+   successful Mount or Format & Mount pre-selects the drive it just mounted for you. Click
+   **"Save Settings"** at the bottom of the page to make it official - like every other
+   Config change, nothing takes effect, including which storage is actually used, until you
+   save. (You can still pick a different drive first if you'd rather not use the one you
+   just mounted.)
 
 A few related things:
 

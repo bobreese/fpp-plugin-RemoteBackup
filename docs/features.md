@@ -103,6 +103,15 @@
   an older version of this plugin (filesystem directly on the raw disk, no partition table)
   need to be re-formatted to pick this up; existing backups on them are unaffected until
   you do.
+- **Missing-destination detection and failover.** If a configured USB/NVMe/SSD
+  destination stops being found mounted (unplugged, powered off, failed) while the Status
+  or Config page happens to be open, a popup offers two ways to respond: **Halt Backups**
+  refuses any manual or scheduled run with a clear reason until the drive reappears or a
+  new destination is saved, and **Use Failover** immediately switches the destination to
+  SD Card / System Storage (always available, no drive required) so scheduled backups keep
+  running. A halt clears itself automatically the moment the missing drive is seen mounted
+  again, or a different destination is saved. See
+  [Troubleshooting](troubleshooting.md#backup-destination-missing) for the full walkthrough.
 - **Safety checks.** Both the primary and secondary/clone drive Format flows refuse to
   touch the disk FPP itself is currently running from - resolved by asking the system for
   the actual device backing the root filesystem (whatever it is: SD card, NVMe, or USB),
