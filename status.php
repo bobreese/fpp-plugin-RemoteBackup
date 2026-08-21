@@ -116,7 +116,7 @@ $rbPlugin = basename(__DIR__);
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-refresh">Refresh Log</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-download">Download</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-download-all">Download All Logs</button>
-            <label class="ms-2"><input type="checkbox" id="rb-log-autotail"> Auto-tail</label>
+            <label class="ms-2"><input type="checkbox" id="rb-log-autotail"> Tail Follow</label>
             <div><small id="rb-log-download-status" class="text-muted"></small></div>
             <div><small id="rb-log-path" class="text-muted"></small></div>
             <pre id="rb-log-content" class="bg-body-secondary border rounded" style="max-height:300px;overflow:auto;padding:6px;margin-top:6px;">(not loaded yet)</pre>
@@ -450,7 +450,7 @@ $rbPlugin = basename(__DIR__);
     var logTailTimer = null;
     var AUTOTAIL_STORAGE_KEY = 'rb-log-autotail';
 
-    // Auto-tail used to always be checked on page load, polling the log
+    // Tail Follow used to always be checked on page load, polling the log
     // every 3s whether or not anyone was watching it. Persist the user's
     // choice instead (localStorage, may be unavailable in some contexts -
     // fails silently and just falls back to "off" every load) so leaving

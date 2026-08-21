@@ -60,7 +60,7 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
   truncate) is kept for its most recent runs (15 by default, configurable in Config >
   Backup Options); older ones are pruned automatically at the end of each backup run, and
   immediately - across every remote, not just ones that happen to run again - whenever you
-  change that number. The Diagnostic Log's Auto-tail checkbox is off by default and
+  change that number. The Diagnostic Log's Tail Follow checkbox is off by default and
   remembers your last choice (per browser) instead of always polling. The Status and
   Config pages link to each other, and the Dry Run/Start Backup/Config buttons each have
   a "?" help popover (matching FPP's own System Stats page style) explaining what they do.
@@ -450,6 +450,9 @@ fpp-plugin-RemoteBackup/
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** the Diagnostic Log's "Auto-tail" checkbox label to "Tail Follow." Behavior,
+  the underlying element id, and the saved per-browser preference are all unchanged - this
+  is a label-only rename.
 - **Fixed/Changed**, prompted by a user question about `status`/`cloneStatus` polling
   showing up constantly in `ajax.log`:
   - `ajax.log`'s per-request `REQUEST action=...` line no longer logs routine

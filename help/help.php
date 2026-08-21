@@ -269,7 +269,7 @@
                     most recent full <code>rsync</code> run log</li>
                 <li><code>clone.log</code> - the most recent "Clone Backups to a Second Drive" run</li>
             </ul>
-            Pick one, click "Refresh Log" (or check "Auto-tail" to poll it every few seconds while
+            Pick one, click "Refresh Log" (or check "Tail Follow" to poll it every few seconds while
             watching a run live), same page for all of them - no SSH or file browser needed.
             <br><br>
             <b>Download</b> saves the selected log to your browser as a plain text file;
