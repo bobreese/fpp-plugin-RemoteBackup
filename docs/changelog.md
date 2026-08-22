@@ -5,6 +5,10 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** an abbreviated version of "After a fresh SD card (a from-scratch
+  rebuild)" (added to [Restoring a Backup](restoring-a-backup.md) previously) in the
+  in-app Help popover's own Restoring a Backup section (`help/help.php`), with a link out
+  to the full version. No behavior changed.
 - **Fixed:** "Current File" could show text that was never a real filename - confirmed
   from a real report and a real remote's log: `Falcon Player OS Image v2026-08` (that
   remote's own sshd login banner/MOTD, printed even for this plugin's non-interactive
