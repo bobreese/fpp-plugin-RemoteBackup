@@ -24,14 +24,20 @@ $rbPlugin = basename(__DIR__);
                     <div class="fpp-help-content">
                         <p class="mb-0">Simulates a backup for the selected remotes without changing anything - no
                             files are copied and no backup folder is created. Shows the estimated transfer size and
-                            whether the destination has enough free space, so you can check before running for real.</p>
+                            whether the destination has enough free space, so you can check before running for real.
+                            Allow a few seconds after clicking before the Backup Status table shows anything - the
+                            pre-flight space check runs sequentially, one remote at a time, before any remote shows
+                            as queued/running, so the wait scales with how many remotes are selected.</p>
                     </div>
                 </div>
                 <div id="rb-help-start" class="d-none">
                     <div class="fpp-help-content">
                         <p class="mb-0">Runs a real backup: pulls files via rsync from every remote selected on the
                             Config page onto this Host's destination storage. Files are actually copied (and
-                            mirrored/deleted if that option is enabled) - this is not a simulation.</p>
+                            mirrored/deleted if that option is enabled) - this is not a simulation.
+                            Allow a few seconds after clicking before the Backup Status table shows anything - the
+                            pre-flight space check runs sequentially, one remote at a time, before any remote shows
+                            as queued/running, so the wait scales with how many remotes are selected.</p>
                     </div>
                 </div>
                 <div id="rb-help-config" class="d-none">
@@ -101,7 +107,8 @@ $rbPlugin = basename(__DIR__);
             <small class="text-muted">Mirrors everything on the primary destination onto the secondary drive
                 mounted at <code>/mnt/BackupsCopy</code> (<code>rsync --delete</code> - an exact copy, so a backup
                 you deleted on the primary is removed from the clone too). Format/mount the secondary drive on the
-                Config page first.</small>
+                Config page first. Allow a few seconds after clicking Start Clone before this section updates -
+                it's a real background process, not instant.</small>
         </div>
     </fieldset>
 

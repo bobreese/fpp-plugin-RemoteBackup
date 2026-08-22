@@ -5,6 +5,14 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** that a real, expected delay - scaling with how many remotes are selected -
+  happens between clicking Dry Run/Start Backup and the Backup Status table showing
+  anything, since the pre-flight space check runs sequentially, one remote at a time,
+  before any remote is marked queued/running. Added to the existing "Runs as a real
+  background process" bullet in [Features](features.md) and to the Dry Run/Start Backup
+  "?" help popovers on the Status page (`status.php`); also noted a shorter, non-scaling
+  version of the same "it's not instant" point on Start Clone's own explanatory text,
+  since that one's a single mirror operation, not per-remote. No behavior changed.
 - **Fixed:** the concurrency-limited launcher in `run_backup.sh` could actually run more
   remotes at once than `maxConcurrent` allowed - a real follow-up report, on a run whose
   own log confirmed (via the `maxConcurrent=N` value added to the "run start" line in the
