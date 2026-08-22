@@ -243,17 +243,32 @@ Nothing about a normal Save Settings, a halt/failover, or any of this plugin's o
 can produce that outcome (they're all atomic write-then-rename), so if it happens it's worth
 suspecting whatever else changed on the system around the same time.
 
-As of this fix, `data/settings.json.bak` is kept alongside the live file - a plain mirror
-updated on every successful settings write, whether that write came from the Config page or
-from a script (e.g. auto-failover switching the destination). If the live file is ever found
-empty or unreadable, it's restored automatically from that backup the next time anything
-touches it - a page load, an ajax request, or even just a script sourcing
-`scripts/lib_common.sh` - so this should now self-heal within moments rather than silently
-running on empty defaults indefinitely (which is what happened before this fix existed: the
-live file stayed broken forever, since nothing ever checked or repaired it, and every single
-request just kept re-reading defaults with no way back short of noticing and re-entering
-every setting by hand). `data/logs/engine.log` and `data/logs/ajax.log` log a `RECOVERED
-settings.json from settings.json.bak` line when this happens. If both the live file and the
-backup are found broken at the same time (much less likely, but possible if the same event
-hit both), it falls back to plain defaults and persists those instead, rather than
-continuing to fail on every request.
+**Two backups are kept, in two different places, specifically because one alone wasn't
+enough.** The first version of this fix kept a single `data/settings.json.bak` right next
+to the live file, refreshed on every successful settings write. That helped, but a real
+follow-up incident proved it wasn't independent protection: whatever is doing this wipes
+(or replaces) the whole `data/` directory, not just the one file inside it, so a backup
+living in that same directory goes down with it. A second copy is now kept entirely outside
+`data/` - and outside this plugin's own directory altogether - at
+`/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak`, the same persistent FPP media root
+this plugin already trusts elsewhere (e.g. the SD Card/System Storage fallback backups
+folder), specifically so a wipe of the plugin's own directory can't reach it.
+
+If the live file is ever found empty or unreadable, it's checked and restored automatically
+the next time anything touches it - a page load, an ajax request, or even just a script
+sourcing `scripts/lib_common.sh` - trying the in-`data/`-dir backup first, then the external
+one if that's also broken. `data/logs/engine.log` and `data/logs/ajax.log` log a `RECOVERED
+settings.json from ...` line naming which of the two it recovered from. Only if *both*
+backups are found broken at the same time does it fall back to plain defaults and persist
+those, rather than continuing to fail (and re-log the same warning) on every single request.
+
+**If this keeps happening, the backups are a safety net, not a cure.** Two occurrences
+inside about an hour have been observed on one real system, each with the exact same
+signature: a multi-minute total gap in `ajax.log` (no requests logged at all, not a
+slowdown), then the very next request finding `settings.json` already broken. That pattern
+- especially recurring within the same session rather than a one-off - points at something
+scheduled on the system itself (a cron job, an unattended-upgrade, some other maintenance
+task) repeatedly touching this plugin's `data/` directory, not a rare fluke. This plugin has
+no visibility into what that is; if it keeps happening, it's worth checking `syslog`/
+`journalctl` (or whatever your FPP build uses) for anything scheduled around the times it
+occurs.
