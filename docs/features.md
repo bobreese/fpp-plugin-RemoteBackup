@@ -75,7 +75,11 @@
   (`data/status/*.json`, `data/run_active.json`) rather than in the page itself, so coming
   back later - even from a different browser - just resumes showing the current live state.
   The only way to stop one mid-run is the explicit **Stop**/**Stop Clone** button; there's no
-  timeout tied to the page being open.
+  timeout tied to the page being open. Expect a real delay between clicking and the Backup
+  Status table showing anything, scaling with how many remotes are selected - Dry Run and
+  Start Backup both run the pre-flight space check (see below) sequentially, one remote at a
+  time, before any of them show as queued/running, so the more remotes selected, the longer
+  that initial wait. This is expected, not a hang.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
