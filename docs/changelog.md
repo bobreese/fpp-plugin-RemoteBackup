@@ -5,6 +5,13 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** that a Dry Run/Start Backup/Start Clone runs as a real background process
+  on the FPP system, independent of the browser - navigating away, closing the tab, or a
+  phone locking doesn't pause or cancel it, since progress lives on disk
+  (`data/status/*.json`, `data/run_active.json`), not in the page. No behavior changed;
+  this was already true (`ajax.php`'s `start`/`startClone` actions have always launched
+  their scripts detached and returned immediately), just not spelled out anywhere before.
+  See [Features](features.md).
 - **Fixed:** `data/settings.json` going empty/corrupt (observed once from something outside
   this plugin entirely - an OS/FPP update restarting the web server mid-write, no
   `saveSettings` request anywhere near the moment it happened) left every setting silently
