@@ -70,15 +70,15 @@ $rbPlugin = basename(__DIR__);
                 If a <em>scheduled</em> run's destination doesn't have enough free space, switch automatically to SD Card / System Storage instead of refusing the run
                 &mdash; off by default, so a scheduled backup refuses (with a reason logged, and a popup here/on Status) rather than silently landing somewhere unexpected. A manual Start Backup always shows the popup either way, regardless of this setting.</label><br>
             <br>
-            If a selected remote is playing a sequence when a backup starts:<br>
+            <strong>If a selected remote is playing a sequence when a backup starts:</strong><br>
             <label class="ms-3"><input type="radio" name="rb-playPolicy-choice" id="rb-playPolicy-stop" value="stop">
                 Stop the whole backup (default) - nothing runs until the show is over or you deselect that remote.</label><br>
             <label class="ms-3"><input type="radio" name="rb-playPolicy-choice" id="rb-playPolicy-skip" value="skip">
-                Skip that remote and back up the others instead.
-                <strong>Warning:</strong> the busy remote's own SD card is never read either way, but the
+                Skip that remote and back up the others instead.</label><br>
+            <div class="ms-3"><strong>Warning:</strong> the busy remote's own SD card is never read either way, but the
                 <em>other</em> remotes' rsync transfers still run on the same network while its show is live, which
                 can itself add contention/timing risk for a synced show even though nothing reads from that
-                device directly.</label><br>
+                device directly.</div><br>
             <small>A scheduled run applies whichever of these is selected with nobody to ask; a manual Start
                 Backup shows an immediate notice either way (a toast under Skip, an error under Stop).</small><br>
             <br>
