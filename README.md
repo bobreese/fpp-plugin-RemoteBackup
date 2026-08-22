@@ -19,3 +19,4 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - [Changelog](docs/changelog.md)
 - [Pre-submission checklist / Plugin Guidelines compliance](docs/plugin-guidelines-compliance.md)
 - [Replacing FPP's Native Backup: A Readiness Assessment](docs/backup-replacement-assessment.md)
+- [Show Schedule Conflict Check](docs/schedule-conflict-check.md)

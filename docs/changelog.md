@@ -5,6 +5,28 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a "Show Schedule Conflict Check" panel to Config - reads the configured
+  schedule straight off a designated show-master system's own `/api/schedule` API and lays
+  it out as a Sunday-through-Saturday table (green "Clear" cells vs. what's actually
+  scheduled), plus a quick day/time conflict checker, so a backup time can be picked to
+  avoid a live show up front instead of only reacting to one already in progress (the
+  existing "won't start while a show is running" check). New `scheduleMasterAddress`
+  setting (a plain address, not tied to the existing remotes list, since the show master
+  isn't necessarily one of the systems this plugin backs up) and a new
+  `scripts/check_master_schedule.sh` / `checkMasterSchedule` ajax action that fetches and
+  classifies the schedule server-side: drops disabled and already-expired (`endDate` in the
+  past) entries, maps FPP's day-of-week codes (`0`-`6` Sun-Sat, `7` every day, `8` weekdays,
+  `9` weekends - any unrecognized code fails safe as "every day" rather than being silently
+  dropped), and flags `SunSet`/`SunRise`-anchored entries as approximate rather than
+  resolving them to an exact clock time (which shifts by season and would need the master's
+  configured location plus real sunrise/sunset math to do honestly). Read-only and purely
+  advisory - never consulted by any actual run guard, only by this one Config panel on
+  demand - with an explicit Note in the panel itself recommending a real test run before
+  trusting it against a live show. Verified the full pipeline (curl + jq classification,
+  including the day/expiry/sun-relative/unparsed-time edge cases, plus the client-side
+  time-checker) against two real `/api/schedule` payloads pulled from live devices during
+  development. See [Show Schedule Conflict Check](schedule-conflict-check.md) and
+  [Features](features.md).
 - **Documented** that a Dry Run/Start Backup/Start Clone runs as a real background process
   on the FPP system, independent of the browser - navigating away, closing the tab, or a
   phone locking doesn't pause or cancel it, since progress lives on disk
