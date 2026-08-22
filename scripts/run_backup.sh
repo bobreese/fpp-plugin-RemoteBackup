@@ -2,7 +2,21 @@
 # Core Remote Backup engine.
 #
 # Usage:
-#   run_backup.sh [--dry-run] [--remotes host1,host2,...] [--foreground]
+#   run_backup.sh [--dry-run] [--remotes host1,host2,...] [--foreground] [--skip-space-check] [--scheduled]
+#
+# --skip-space-check bypasses the pre-flight free-space estimate a real run
+# otherwise always does first (see the "Pre-flight space check" block below) -
+# used when the caller has already seen that same warning and explicitly
+# chose to proceed anyway.
+#
+# --scheduled marks this invocation as coming from an FPP Command
+# (Scheduler/Playlist/Event - see commands/run_remote_backup*.sh), i.e. an
+# unattended run nobody is watching live. Passed by those two command
+# scripts only, never by ajax.php's 'start' action (manual runs) or a bare
+# CLI/cron invocation. It has no effect on how the backup itself runs - it
+# only gates whether the "remote(s) playing" guard below records a
+# lastScheduledPlayOutcome for the Status/Config page's one-time
+# "here's what a scheduled run just did" popup.
 #
 # With no --remotes, every remote marked "selected": true in
 # data/settings.json is backed up. Up to `maxConcurrent` (default 2)
@@ -17,6 +31,8 @@
 DRYRUN=0
 REMOTE_FILTER=""
 FOREGROUND=0
+SKIP_SPACE_CHECK=0
+SCHEDULED=0
 RUN_ID=$(date '+%Y%m%d-%H%M%S')
 
 while [ $# -gt 0 ]; do
@@ -24,6 +40,8 @@ while [ $# -gt 0 ]; do
         --dry-run) DRYRUN=1 ;;
         --remotes) shift; REMOTE_FILTER="$1" ;;
         --foreground) FOREGROUND=1 ;;
+        --skip-space-check) SKIP_SPACE_CHECK=1 ;;
+        --scheduled) SCHEDULED=1 ;;
     esac
     shift
 done
@@ -202,21 +220,55 @@ if [ "$COUNT" -eq 0 ]; then
     exit 1
 fi
 
-# --- Refuse to start if any selected remote is actively playing a show --
+# record_scheduled_play_outcome <policy> <refused 0|1>: persists a
+# one-time notice to settings.json's lastScheduledPlayOutcome, but only
+# for a --scheduled run (see the flag's own comment above) - a manual run
+# already has someone watching the Status page live (and, under 'skip'
+# policy, gets its own immediate toast from ajax.php's 'start' action), so
+# there's no "you weren't here to see this" gap to fill for it. Reads
+# PLAYING_JSON from the caller's scope rather than taking it as an
+# argument, since it's only ever called from within the play-check block
+# right below that builds it. Overwrites any still-unacknowledged earlier
+# notice - the newer event is what's actually relevant now - and is the
+# only thing that clears the popup other than the user explicitly
+# dismissing it (see acknowledgePlayOutcome in ajax.php): unlike the
+# missing-destination/low-space popups, this one reports a past event, not
+# an ongoing condition, so it deliberately does NOT auto-clear just
+# because a later run happened to go smoothly.
+record_scheduled_play_outcome() {
+    local policy="$1" refused="$2"
+    [ "$SCHEDULED" = "1" ] || return 0
+    local refused_bool names_json record
+    refused_bool=$([ "$refused" = "1" ] && echo true || echo false)
+    names_json=$(echo "$PLAYING_JSON" | jq '[.[].hostname]')
+    record=$(jq -n --arg policy "$policy" --argjson refused "$refused_bool" \
+        --argjson remotes "$names_json" --arg t "$(rb_now_iso)" \
+        '{policy:$policy, refused:$refused, remotes:$remotes, timestamp:$t, acknowledged:false}')
+    rb_set_setting_json '.lastScheduledPlayOutcome' "$record"
+}
+
+# --- Remote-playing check before starting a real run ---------------------
 # Pulling media off a device's SD card while its own fppd is actively
 # reading those same files for playback risks stutters/dropped frames
 # during a live show - so before touching anything, ask every selected
-# remote's own FPP API whether it's currently playing, and abort the
-# WHOLE run (not just the busy remote) if any of them are. This is the
-# authoritative guard - ajax.php's 'start' action does the same check
-# itself first purely for immediate UI feedback, but every other way to
-# reach this script (a Scheduler entry, a manual/cron run) only ever goes
-# through here. Queried in parallel, same reasoning as
-# check_remotes_playing.sh: bounded by one curl timeout, not N of them.
-# A remote that can't be reached is NOT treated as "playing" - that's the
-# same "can't reach it" case backup_one() already handles per-remote
-# further down, and refusing the whole run over an unrelated remote being
-# offline would be worse than just letting its own transfer fail normally.
+# remote's own FPP API whether it's currently playing. remotePlayingPolicy
+# controls what happens next: 'stop' (default) aborts the WHOLE run, same
+# as this plugin has always done; 'skip' instead drops just the busy
+# remote(s) from THIS run and backs up everything else - the busy
+# remote's own SD card is never touched either way, but the OTHER
+# remotes' rsync traffic still runs on the same network while a show
+# elsewhere is live, which is its own possible source of contention even
+# though nothing reads from the playing device itself (see Config's help
+# text for this setting). This is the authoritative guard - ajax.php's
+# 'start' action does the same check itself first purely for immediate UI
+# feedback on a manual click, but every other way to reach this script (a
+# Scheduler entry, a manual/cron run) only ever goes through here.
+# Queried in parallel, same reasoning as check_remotes_playing.sh: bounded
+# by one curl timeout, not N of them. A remote that can't be reached is
+# NOT treated as "playing" - that's the same "can't reach it" case
+# backup_one() already handles per-remote further down, and
+# refusing/skipping over an unrelated remote being offline would be worse
+# than just letting its own transfer fail normally.
 PLAYCHECK_DIR=$(mktemp -d "${DATA_DIR}/tmp_playcheck_XXXXXX")
 PLAYCHECK_LIST=$(mktemp "${DATA_DIR}/tmp_playcheck_list_XXXXXX")
 echo "$REMOTES_JSON" | jq -c '.[]' > "$PLAYCHECK_LIST"
@@ -224,8 +276,8 @@ echo "$REMOTES_JSON" | jq -c '.[]' > "$PLAYCHECK_LIST"
 # loop in a subshell (every stage of a pipeline does, without `shopt -s
 # lastpipe`), so a `wait` afterwards - in the calling shell - would not
 # actually be waiting for jobs that subshell backgrounded; some could
-# still be mid-request when PLAYING_REMOTES gets read below. `< file`
-# keeps the loop (and everything it backgrounds) in this same shell.
+# still be mid-request when PLAYING_JSON gets read below. `< file` keeps
+# the loop (and everything it backgrounds) in this same shell.
 while IFS= read -r r; do
     (
         pc_id=$(echo "$r" | jq -r '.id')
@@ -233,19 +285,160 @@ while IFS= read -r r; do
         pc_address=$(echo "$r" | jq -r '.address')
         pc_status=$(rb_remote_status_name "$pc_address")
         if [ "$pc_status" = "playing" ]; then
-            echo "$pc_hostname ($pc_address)" > "${PLAYCHECK_DIR}/${pc_id}"
+            jq -n --arg id "$pc_id" --arg h "$pc_hostname" --arg a "$pc_address" \
+                '{id:$id, hostname:$h, address:$a}' > "${PLAYCHECK_DIR}/${pc_id}"
         fi
     ) &
 done < "$PLAYCHECK_LIST"
 wait
-PLAYING_REMOTES=$(cat "${PLAYCHECK_DIR}"/* 2>/dev/null)
+PLAYING_JSON=$(cat "${PLAYCHECK_DIR}"/* 2>/dev/null | jq -s '.')
+PLAYING_COUNT=$(echo "$PLAYING_JSON" | jq 'length')
 rm -rf "$PLAYCHECK_DIR"
 rm -f "$PLAYCHECK_LIST"
-if [ -n "$PLAYING_REMOTES" ]; then
-    reason="refusing to start - currently playing a sequence: $(echo "$PLAYING_REMOTES" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')"
-    rb_log "ABORT: $reason"
-    echo "A Remote Backup run was refused: $reason" >&2
-    exit 1
+
+if [ "$PLAYING_COUNT" -gt 0 ]; then
+    PLAYING_NAMES=$(echo "$PLAYING_JSON" | jq -r '[.[] | "\(.hostname) (\(.address))"] | join(", ")')
+    PLAY_POLICY=$(rb_setting '.remotePlayingPolicy' 'stop')
+
+    if [ "$PLAY_POLICY" = "skip" ]; then
+        PLAYING_IDS_JSON=$(echo "$PLAYING_JSON" | jq '[.[].id]')
+        REMOTES_JSON=$(echo "$REMOTES_JSON" | jq -c --argjson skip "$PLAYING_IDS_JSON" \
+            '[.[] | select(.id as $i | ($skip | index($i)) | not)]')
+        COUNT=$(echo "$REMOTES_JSON" | jq 'length')
+
+        # Written as a real per-remote status entry (not just a log line)
+        # so the live Status table shows each busy remote as a deliberate
+        # skip, rather than it just silently never appearing in the table.
+        echo "$PLAYING_JSON" | jq -c '.[]' | while read -r pr; do
+            pr_id=$(echo "$pr" | jq -r '.id')
+            pr_hostname=$(echo "$pr" | jq -r '.hostname')
+            pr_address=$(echo "$pr" | jq -r '.address')
+            rb_write_status "$pr_id" "$(jq -n --arg id "$pr_id" --arg hostname "$pr_hostname" --arg address "$pr_address" \
+                --arg run "$RUN_ID" --arg t "$(rb_now_iso)" \
+                '{id:$id, hostname:$hostname, address:$address, state:"skipped", runId:$run, finishedAt:$t, errorDetail:"Skipped - was playing a sequence when this run started."}')"
+        done
+
+        if [ "$COUNT" -eq 0 ]; then
+            reason="every selected remote is currently playing a sequence: $PLAYING_NAMES"
+            rb_log "ABORT: refusing to start - $reason"
+            record_scheduled_play_outcome "skip" "1"
+            echo "A Remote Backup run was refused: $reason" >&2
+            exit 1
+        fi
+
+        rb_log "WARN: skipping busy remote(s) and continuing (remotePlayingPolicy=skip): $PLAYING_NAMES"
+        record_scheduled_play_outcome "skip" "0"
+    else
+        reason="refusing to start - currently playing a sequence: $PLAYING_NAMES"
+        rb_log "ABORT: $reason"
+        record_scheduled_play_outcome "stop" "1"
+        echo "A Remote Backup run was refused: $reason" >&2
+        exit 1
+    fi
+fi
+
+# estimate_one <remote_json>: prints one remote's estimated transfer size in
+# bytes to stdout. Mirrors backup_one() below's own target/snapshot/
+# existing-backup resolution (kept as a deliberate small duplication rather
+# than a shared helper, so this read-only estimate pass can never risk
+# touching backup_one()'s real-run behavior) so the estimate correctly
+# credits already-existing files via --link-dest instead of a cruder guess -
+# the same rsync --dry-run + --stats pass a real Dry Run does. Writes no
+# status.json entry and no data/logs/ file of its own; its rsync output goes
+# to a throwaway scratch file, since it exists purely to produce one number,
+# not to be inspected like a real per-remote run.
+estimate_one() {
+    local remote_json="$1"
+    local id address today target existing prev is_host src rsync_host
+    local extra=() scratch_out bytes ssh_cmd
+
+    id=$(echo "$remote_json" | jq -r '.id')
+    address=$(echo "$remote_json" | jq -r '.address')
+    today=$(date '+%Y%m%d')
+    ssh_cmd="ssh -i ${SSH_KEY} -p ${SSH_PORT} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o BatchMode=yes"
+
+    is_host=0
+    rb_is_host_address "$address" && is_host=1
+    if [ "$is_host" = "1" ]; then
+        src="/home/fpp/media/"
+    else
+        rsync_host="$address"
+        case "$address" in *:*) rsync_host="[${address}]" ;; esac
+        src="${SSH_USER}@${rsync_host}:/home/fpp/media/"
+    fi
+
+    if [ "$SNAPSHOT_MODE" = "true" ]; then
+        target="${DEST_ROOT}/${id}-${today}"
+        prev=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "$(basename "$target")" 2>/dev/null | sort | tail -1)
+        [ -n "$prev" ] && extra+=(--link-dest="$prev")
+    else
+        existing=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "${id}-${today}" 2>/dev/null | sort | tail -1)
+        target="${existing:-${DEST_ROOT}/${id}-${today}}"
+    fi
+
+    scratch_out=$(mktemp "${DATA_DIR}/tmp_estimate_XXXXXX")
+    if [ "$is_host" = "1" ]; then
+        rsync -a -n --stats --copy-links "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
+    else
+        rsync -a -n --stats --copy-links -e "$ssh_cmd" "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
+    fi
+    bytes=$(rb_parse_rsync_bytes "$(grep -m1 '^Total transferred file size:' "$scratch_out" | grep -oE '[0-9][0-9,]*(\.[0-9]+)?[KMGT]?' | head -1)")
+    rm -f "$scratch_out"
+    echo "${bytes:-0}"
+}
+
+# --- Pre-flight space check (real runs only) ------------------------------
+# Estimates total transfer size across every selected remote and compares it
+# to the destination's current free space, before committing to a real run.
+# This is the one place BOTH a manual Start Backup click and a
+# Scheduler-triggered run always go through (same reasoning as the "remotes
+# playing" guard above), so it's the only guard that can actually cover the
+# unattended case - which has nobody to ask, so it refuses outright by
+# default. autoFailoverOnLowSpace (off by default) switches the destination
+# to SD Card/System Storage automatically instead of refusing, for those who
+# want a scheduled run to always complete somewhere rather than being
+# skipped. Skipped entirely for an actual dry run (nothing to protect - it
+# never writes anything) and for --skip-space-check (the UI's "Start Anyway"
+# override, once a human has already seen this same warning). Placed here,
+# before run_active.json is ever set true (same reasoning as the "remotes
+# playing" guard above it) - a refusal below exits before that write, so it
+# can never leave the UI showing a stuck "active" run that already exited.
+if [ "$DRYRUN" != "1" ] && [ "$SKIP_SPACE_CHECK" != "1" ]; then
+    ESTIMATE_TOTAL=0
+    ESTIMATE_LIST=$(mktemp "${DATA_DIR}/tmp_estimate_list_XXXXXX")
+    echo "$REMOTES_JSON" | jq -c '.[]' > "$ESTIMATE_LIST"
+    while IFS= read -r remote_json; do
+        one_bytes=$(estimate_one "$remote_json")
+        ESTIMATE_TOTAL=$((ESTIMATE_TOTAL + one_bytes))
+    done < "$ESTIMATE_LIST"
+    rm -f "$ESTIMATE_LIST"
+
+    AVAILABLE_NOW=$(df -B1 --output=avail "$DEST_MOUNT" 2>/dev/null | tail -1 | tr -d ' ')
+    [ -z "$AVAILABLE_NOW" ] && AVAILABLE_NOW=0
+
+    if [ "$ESTIMATE_TOTAL" -gt "$AVAILABLE_NOW" ]; then
+        AUTO_FAILOVER=$(rb_setting '.autoFailoverOnLowSpace' 'false')
+        if [ "$AUTO_FAILOVER" = "true" ] && [ "$DEST_MOUNT" != "/" ]; then
+            rb_log "LOW SPACE: estimated $(rb_human_bytes "$ESTIMATE_TOTAL") needed, $(rb_human_bytes "$AVAILABLE_NOW") available on '$DEST_MOUNT' - autoFailoverOnLowSpace is on, switching destination to SD Card / System Storage ('/') and continuing"
+            rb_set_setting '.destinationMount' '/'
+            DEST_MOUNT="/"
+            DEST_ROOT="$(rb_dest_root "$DEST_MOUNT")"
+            mkdir -p "$DEST_ROOT"
+        else
+            reason="estimated transfer (~$(rb_human_bytes "$ESTIMATE_TOTAL")) exceeds free space on '$DEST_MOUNT' (~$(rb_human_bytes "$AVAILABLE_NOW") available)"
+            rb_log "ABORT: refusing to start - $reason"
+            rb_set_setting '.lowSpaceReason' "$reason"
+            jq --argjson e "$ESTIMATE_TOTAL" --argjson a "$AVAILABLE_NOW" '.lowSpaceEstimatedBytes = $e | .lowSpaceAvailableBytes = $a' \
+                "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp_lowspace" 2>/dev/null && mv "${SETTINGS_FILE}.tmp_lowspace" "$SETTINGS_FILE"
+            echo "A Remote Backup run was refused: $reason" >&2
+            exit 1
+        fi
+    elif [ -n "$(rb_setting '.lowSpaceReason')" ]; then
+        # This attempt has enough room - clear a stale refusal from an
+        # earlier attempt so the UI's popup doesn't keep reappearing for a
+        # situation that's already resolved.
+        rb_set_setting '.lowSpaceReason' ""
+    fi
 fi
 
 rb_log "=== run start (dryRun=$DRYRUN runId=$RUN_ID remotes=$COUNT) ==="

@@ -153,3 +153,82 @@ To actually bring it back:
 4. Once mounted, the next `status` poll (Status or Config page, whichever is open) sees
    the destination present again and clears the halt automatically - no separate
    "resume" button to find.
+
+## Backup Space Insufficient
+
+Every real backup run (manual or scheduled) starts with a pre-flight check: an estimate
+of the total transfer size across every selected remote, compared against the
+destination's free space right at that moment - the same `rsync --dry-run` pass a
+regular Dry Run does, so it correctly credits files that already exist on the
+destination instead of assuming a full re-copy every time. If the estimate exceeds
+what's actually free, the run is refused before anything is copied, and a **"Backup
+Space Insufficient"** popup appears on whichever of the Status or Config page happens to
+be open:
+
+- **Start Anyway** - proceeds despite the warning. Useful if the estimate looks stale
+  (e.g. you just freed up space) - the transfer may still only partially complete if it
+  genuinely doesn't fit, same as before this check existed.
+- **Replace Destination** - pick any other currently-mounted drive with enough room for
+  the estimated transfer, right from the popup.
+- **Use Failover** - switch to SD Card / System Storage (always available, no drive
+  required).
+- **Cancel** - leave it refused. Nothing runs again until you come back and pick one of
+  the above, or fix the space situation yourself and try again.
+
+Picking Start Anyway, Replace Destination, or Use Failover automatically retries the
+backup right away, using whatever's currently selected on the Config page - you don't
+need to click Start Backup again yourself.
+
+**Why this only shows up after a run was attempted, not before you click Start.**
+Unlike a missing drive (a fact that's true or false at any moment, checked continuously),
+"will this fit" requires actually estimating the transfer size, which takes real time -
+there's no cheap way to know in advance. So the check happens as part of every real run
+itself, and the popup reflects a run that was just refused, not a warning shown before
+you've clicked anything.
+
+**A scheduled run has nobody to answer that popup**, so it applies a fixed policy
+instead: refuse and log a clear reason (same as a manual run, just with no popup for
+anyone to see until they next open the Status or Config page), unless **"If a scheduled
+run's destination doesn't have enough free space, switch automatically to SD Card /
+System Storage"** is turned on in Config's Backup Options - off by default, so a
+scheduled backup never lands somewhere unexpected without you having explicitly opted
+into that.
+
+**The pre-flight check adds real time to every real run** - it's doing a full
+Dry-Run-equivalent pass before the actual transfer starts, not a cheap instant check.
+For a large or many-remote backup, expect the run to take noticeably longer overall than
+it did before this existed. There's no setting to skip it entirely; `--skip-space-check`
+(used internally by "Start Anyway") is the only way past it, and it only applies to that
+one retry.
+
+## Remote Playing a Sequence
+
+Before a real run touches anything, every selected remote's own FPP API is checked for
+whether it's currently playing a sequence - pulling media off a device's SD card while its
+own fppd is actively reading those same files risks stutters or dropped frames during a
+live show. Config's Backup Options has a setting for what happens next:
+
+- **Stop the whole backup (default)** - refuses the *entire* run, not just the busy
+  remote, with a clear reason logged (`data/logs/engine.log`, and FPP's own command output
+  for a scheduled run). A manual Start Backup/Dry Run click shows this as an immediate
+  error toast instead of even starting.
+- **Skip that remote and back up the others instead** - leaves just the busy remote(s) out
+  of this run and proceeds with everything else selected. The busy remote's own SD card is
+  never read either way, but its own status entry on the Status page shows as **Skipped
+  (playing)** rather than silently not appearing, and a manual click gets an immediate
+  toast naming who's being skipped. **Worth knowing:** the *other* remotes' rsync transfers
+  still run on the same network while the busy one's show is live - that's its own possible
+  source of contention/timing risk for a synced show, even though nothing reads from the
+  playing device directly. If every selected remote turns out to be playing at once,
+  skipping down to nothing is treated the same as Stop - the whole run is refused rather
+  than "completing" having backed up nothing.
+
+**A scheduled run has nobody to answer for itself**, so whichever policy is selected just
+applies outright, same as a manual run's outcome minus the live toast. Since nobody's
+watching it happen, the next time the Status or Config page is opened after a scheduled run
+actually hit this (refused entirely, or skipped at least one remote), a one-time popup
+titled **"Scheduled Backup - Remote(s) Playing"** reports what happened and, under Skip,
+which device(s) were left out. Unlike Backup Destination Missing/Space Insufficient above,
+this popup reports something that already finished, not an ongoing condition - it doesn't
+come back on a page reload, only clicking its OK button (or a *later* scheduled run hitting
+this same situation again) clears it.

@@ -34,6 +34,41 @@ rb_setting() {
     fi
 }
 
+# rb_set_setting <jq path> <string value>: updates a single key in
+# settings.json in place (read, modify, write as one atomic mv). Used
+# sparingly, only where a script needs to persist a state change on its own
+# authority (e.g. auto-failover switching the destination) rather than
+# through the UI's saveSettings - e.g. rb_set_setting '.destinationMount' '/'.
+# Value is always written as a JSON string; not meant for numbers/bools/null.
+rb_set_setting() {
+    local path="$1" value="$2" tmp
+    [ -f "$SETTINGS_FILE" ] || return 1
+    tmp=$(mktemp "${SETTINGS_FILE}.tmp_XXXXXX")
+    if jq --arg v "$value" "${path} = \$v" "$SETTINGS_FILE" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$SETTINGS_FILE"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
+# rb_set_setting_json <jq path> <raw JSON value>: like rb_set_setting above,
+# but for a JSON value (object/array/bool/number) instead of a plain
+# string - e.g. rb_set_setting_json '.lastScheduledPlayOutcome'
+# '{"policy":"skip","refused":false,...}'. The caller is responsible for
+# producing valid JSON (e.g. via jq -n); this does not quote or escape it.
+rb_set_setting_json() {
+    local path="$1" value="$2" tmp
+    [ -f "$SETTINGS_FILE" ] || return 1
+    tmp=$(mktemp "${SETTINGS_FILE}.tmp_XXXXXX")
+    if jq --argjson v "$value" "${path} = \$v" "$SETTINGS_FILE" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$SETTINGS_FILE"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
 # Atomically write JSON to a status file for one remote.
 # Usage: rb_write_status <remoteId> <json string>
 rb_write_status() {
