@@ -217,6 +217,18 @@
                     <code>&lt;Hostname&gt;/&lt;YYYYMMDD&gt;</code> in Snapshot mode) before
                     restoring - that folder, not the drive root, is the actual backup.</li>
             </ul>
+            <div class="callout callout-info mb-0">
+                <b>Rebuilding onto a fresh SD card?</b> Flash the <b>latest nightly build</b>,
+                not an older release image, to minimize how many updates FPP needs afterward -
+                restoring your backup brings content/config back, but never FPP's own software
+                version, which is a property of the image you flashed, not something any
+                backup/restore touches. Update FPP itself first, then check the Plugin Manager
+                separately (an installed plugin's own update state isn't covered by FPP's home
+                page warning) - before restoring, so there's only one variable to troubleshoot
+                if anything looks off. See
+                <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/restoring-a-backup.md#after-a-fresh-sd-card-a-from-scratch-rebuild" target="_blank" rel="noopener">Restoring a Backup</a>
+                for the full version.
+            </div>
         </div>
     </fieldset>
 

@@ -441,7 +441,7 @@ if [ "$DRYRUN" != "1" ] && [ "$SKIP_SPACE_CHECK" != "1" ]; then
     fi
 fi
 
-rb_log "=== run start (dryRun=$DRYRUN runId=$RUN_ID remotes=$COUNT) ==="
+rb_log "=== run start (dryRun=$DRYRUN runId=$RUN_ID remotes=$COUNT maxConcurrent=$MAX_CONCURRENT) ==="
 
 # Pre-write "queued" status for every remote so the UI shows the full
 # list immediately, even for ones waiting on the concurrency limit.
@@ -630,8 +630,26 @@ backup_one() {
     echo "$rsync_pid" > "${PIDS_DIR}/${id}.pid"
 
     while kill -0 "$rsync_pid" 2>/dev/null; do
-        local lastfile lastpct
-        lastfile=$(grep -vE '%|to-chk=|sending incremental|^$' "$logfile" 2>/dev/null | tail -1)
+        local lastfile lastpct xfer_start_line
+        # Anchor past rsync's own "receiving/sending incremental file
+        # list" marker line before looking for a "current file" candidate
+        # - real per-file transfer output never starts before it, but
+        # anything logged before it (a "Warning: Permanently added ... to
+        # the list of known hosts" message on first connection, or - a
+        # real case seen in the wild - a remote's own sshd printing its
+        # login banner/MOTD even for this plugin's non-interactive rsync
+        # transport session) is not a filename and would otherwise get
+        # picked up as one for as long as the transfer stays slow to get
+        # going, which is exactly when a wrong "Current File" is most
+        # misleading. Before this marker line has appeared at all, there's
+        # genuinely nothing real to show yet, so lastfile is left blank
+        # rather than showing pre-transfer noise as if it were progress.
+        xfer_start_line=$(grep -n -m1 -E '^(receiving|sending) incremental file list$' "$logfile" 2>/dev/null | cut -d: -f1)
+        if [ -n "$xfer_start_line" ]; then
+            lastfile=$(tail -n "+$((xfer_start_line + 1))" "$logfile" 2>/dev/null | grep -vE '%|to-chk=|^$' | tail -1)
+        else
+            lastfile=""
+        fi
         lastpct=$(grep -oE '[0-9]{1,3}%' "$logfile" 2>/dev/null | tail -1 | tr -d '%')
         [ -z "$lastpct" ] && lastpct=0
         rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
