@@ -66,3 +66,27 @@ A few things that apply either way:
   Always navigate all the way into a specific remote's own `<Hostname>-<YYYYMMDD>`
   folder (or `<Hostname>/<YYYYMMDD>` in Snapshot mode) before restoring - that folder,
   not the drive root, is the actual backup.
+
+## After a fresh SD card (a from-scratch rebuild)
+
+Restoring your content/config backup onto a brand new SD image brings your show and
+network settings back, but it can't bring FPP's own software version along - that's a
+property of the image you flashed, not something any backup/restore tool (this plugin's
+or FPP's own File Copy Restore) touches. A couple of things worth doing around that,
+specifically because you're starting from a fresh image rather than upgrading in place:
+
+- **Flash the latest FPP nightly build**, not an older release image you happen to have
+  sitting around. Whatever image you flash ships with whichever FPP version was current
+  when that image was built, and FPP only catches itself up from there via its own
+  updater - the older the image, the more individual updates stand between it and
+  current. Starting from the latest nightly minimizes that gap. This applies to any FPP
+  system being rebuilt from an image, whether or not you use this plugin at all.
+- **Update FPP itself first, then check for plugin updates separately** - FPP's home page
+  shows its own warning/update indicator when FPP core is behind, but an installed
+  plugin's own update state (this one included) is tracked separately from FPP core.
+  Being caught up on FPP itself doesn't mean every plugin is too - check the Plugin
+  Manager after updating FPP, not just the home page's own warning.
+- Restore your content/config from this plugin's backup after FPP (and its plugins) are
+  updated, not before. It works either order, but updating first means you're only
+  troubleshooting one variable at a time if anything looks off afterward, rather than
+  wondering whether it's the restore or the pending updates.
