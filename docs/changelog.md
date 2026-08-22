@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a "Replacing FPP's Native Backup: A Readiness Assessment" section to the
+  documentation (`docs/backup-replacement-assessment.md`), linked from README. A
+  plain-language audit of what stands between Remote Backup today and fully replacing
+  FPP's native `Backup/Restore Configuration` and `File Copy Backup/Restore`, kept as a
+  working list to re-evaluate as the plugin matures rather than a one-time verdict.
+  Findings are rated Critical (no equivalent to FPP's config-only backup; no restore
+  path of its own; explicitly Beta with no fallback), Significant (single-Host point of
+  failure; every remote must be SSH-reachable; no proactive alert on silent failure), and
+  Minor (no integrity/test-restore verification; a couple of already-documented rough
+  edges; still shaking out real bugs). Also covers a narrower question - replacing just
+  `File Copy Backup` while leaving config backup and restore native - which two of the
+  three Critical findings don't apply to, and concludes as a net strengthening of FPP's
+  overall backup story provided the single-Host and silent-failure findings are actually
+  addressed first.
 - **Fixed:** "Download All Logs" (and "Download," for a single log) could keep serving a
   stale, previously-downloaded archive/file on every click after the first, instead of
   the current contents of `data/logs/`. Both are plain GET requests to a URL that never
