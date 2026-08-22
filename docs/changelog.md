@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** a new "After a fresh SD card (a from-scratch rebuild)" section in
+  [Restoring a Backup](restoring-a-backup.md): restoring content/config can't bring FPP's
+  own software version along (that's a property of the image flashed, not something any
+  backup/restore tool touches), so flash the latest nightly build to minimize how many
+  updates are needed afterward, and check for plugin updates separately in the Plugin
+  Manager once FPP core is current - FPP's own home page warning covers FPP core, not each
+  installed plugin's own update state. No behavior changed; prompted by a real user
+  scenario (full FPP update, backup, fresh SD image, restore, FPP then reporting the
+  device ~100 changes behind) that turned out to be expected and unrelated to the backup
+  itself.
 - **Fixed:** the previous `data/settings.json.bak` fix for settings.json going
   empty/corrupt wasn't real independent protection - a follow-up incident on a live system,
   roughly an hour after the first, showed the exact same "unreadable, raw=" break a second
