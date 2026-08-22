@@ -5,6 +5,29 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** "Current File" could show text that was never a real filename - confirmed
+  from a real report and a real remote's log: `Falcon Player OS Image v2026-08` (that
+  remote's own sshd login banner/MOTD, printed even for this plugin's non-interactive
+  rsync transport session) sat in the Status page's Current File column for an extended
+  stretch while that remote was slow/struggling to actually start transferring. Root
+  cause: the "current file" poll (`run_backup.sh`'s `while kill -0 "$rsync_pid"` loop)
+  grepped the *whole* per-remote log for "the last non-percent line," with no concept of
+  where rsync's own real per-file output actually begins - anything logged before it (that
+  banner, or a "Warning: Permanently added ... to the list of known hosts" first-connection
+  message) was fair game to be mistaken for a filename, and stayed displayed for as long as
+  nothing newer had been logged yet. Now anchored to rsync's own `receiving`/`sending
+  incremental file list` marker line, which always immediately precedes real transfer
+  output - nothing before it is ever shown, so Current File is blank (not misleading) until
+  there's something real to report. Verified directly against the real remote's actual log
+  content (both the "poll landed before transfer started" and "poll landed mid-transfer"
+  cases). Also added `maxConcurrent=$MAX_CONCURRENT` to the existing "run start" log line
+  in `engine.log`, so a mismatch between the configured concurrency limit and what a run
+  actually used is visible directly in the log rather than needing to be inferred from
+  timing (a real, separate report of 3 remotes appearing to run concurrently despite
+  `maxConcurrent` set to 2 turned out - confirmed by directly reproducing this plugin's
+  concurrency-limiting launcher in isolation - to be exactly the signature of
+  `maxConcurrent` actually being 3 at the time that run started, not a bug in the launcher
+  itself; this log addition would have shown that immediately).
 - **Documented** a new "After a fresh SD card (a from-scratch rebuild)" section in
   [Restoring a Backup](restoring-a-backup.md): restoring content/config can't bring FPP's
   own software version along (that's a property of the image flashed, not something any
