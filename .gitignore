@@ -1,4 +1,5 @@
 data/settings.json
+data/settings.json.bak
 data/status/*.json
 data/logs/*
 data/pids/*

@@ -306,15 +306,50 @@ function rb_default_settings() {
     ];
 }
 
+// rb_settings_backup_path: where rb_save_settings() below mirrors every
+// successful write, and where rb_load_settings() below looks for a
+// last-known-good copy to recover from if the live file has gone empty
+// or corrupt. A real incident: an external process (observed to coincide
+// with an FPP/OS update - the web server going quiet for ~2 minutes in
+// ajax.log, no saveSettings request anywhere near it) truncated
+// settings.json to 0 bytes outside this plugin's own code entirely.
+// Every request after that hit the "unreadable, using defaults" branch
+// below forever, silently running on in-memory defaults with no way back
+// short of someone noticing and re-entering every setting by hand -
+// destination, remotes list, SSH config, all of it.
+function rb_settings_backup_path($SETTINGS_FILE) {
+    return $SETTINGS_FILE . '.bak';
+}
+
 function rb_load_settings($SETTINGS_FILE) {
     if (!file_exists($SETTINGS_FILE)) return rb_default_settings();
     $raw = @file_get_contents($SETTINGS_FILE);
     $d = json_decode((string)$raw, true);
-    if (!is_array($d)) {
-        rb_log_line("WARN: settings.json unreadable or invalid, using defaults. raw=" . substr((string)$raw, 0, 300));
-        return rb_default_settings();
+    if (is_array($d)) {
+        return array_merge(rb_default_settings(), $d);
     }
-    return array_merge(rb_default_settings(), $d);
+
+    // Live file exists but is empty/corrupt. Try the backup before
+    // giving up to plain defaults - see rb_settings_backup_path() above
+    // for why this exists.
+    rb_log_line("WARN: settings.json unreadable or invalid, raw=" . substr((string)$raw, 0, 300));
+    $backupFile = rb_settings_backup_path($SETTINGS_FILE);
+    $backupRaw = @file_get_contents($backupFile);
+    $backupData = ($backupRaw !== false) ? json_decode($backupRaw, true) : null;
+    if (is_array($backupData)) {
+        rb_log_line("RECOVERED settings.json from $backupFile - restoring it as the live file");
+        rb_save_settings($SETTINGS_FILE, $backupData);
+        return array_merge(rb_default_settings(), $backupData);
+    }
+
+    // No usable backup either - fall back to defaults, but persist them
+    // to disk too so the file stops being empty/broken and this doesn't
+    // keep re-triggering (and re-logging this same warning) on literally
+    // every request from here on.
+    rb_log_line("WARN: no usable backup at $backupFile either - resetting settings.json to defaults");
+    $defaults = rb_default_settings();
+    rb_save_settings($SETTINGS_FILE, $defaults);
+    return $defaults;
 }
 
 // Returns true/false so callers can report real failures back to the UI
@@ -335,6 +370,17 @@ function rb_save_settings($SETTINGS_FILE, $settings) {
     }
     @chmod($SETTINGS_FILE, 0666);
     rb_log_line("SAVE OK to $SETTINGS_FILE (" . strlen($json) . ' bytes)');
+
+    // Best-effort mirror to .bak - see rb_settings_backup_path() above.
+    // Never allowed to fail the save itself; it's a safety net, not the
+    // primary write.
+    $backupFile = rb_settings_backup_path($SETTINGS_FILE);
+    $backupTmp = $backupFile . '.tmp';
+    if (@file_put_contents($backupTmp, $json) !== false) {
+        @rename($backupTmp, $backupFile);
+    }
+    @chmod($backupFile, 0666);
+
     return true;
 }
 

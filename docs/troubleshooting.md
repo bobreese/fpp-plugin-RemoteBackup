@@ -232,3 +232,28 @@ which device(s) were left out. Unlike Backup Destination Missing/Space Insuffici
 this popup reports something that already finished, not an ongoing condition - it doesn't
 come back on a page reload, only clicking its OK button (or a *later* scheduled run hitting
 this same situation again) clears it.
+
+## Settings Reset to Defaults
+
+If Config suddenly shows every setting back at its default (destination cleared, remote
+list empty, options unchecked) with no changes made on purpose, `data/settings.json` itself
+became empty or invalid - this has been observed to happen from something entirely outside
+this plugin, e.g. an OS/FPP update restarting the web server at exactly the wrong moment.
+Nothing about a normal Save Settings, a halt/failover, or any of this plugin's own writes
+can produce that outcome (they're all atomic write-then-rename), so if it happens it's worth
+suspecting whatever else changed on the system around the same time.
+
+As of this fix, `data/settings.json.bak` is kept alongside the live file - a plain mirror
+updated on every successful settings write, whether that write came from the Config page or
+from a script (e.g. auto-failover switching the destination). If the live file is ever found
+empty or unreadable, it's restored automatically from that backup the next time anything
+touches it - a page load, an ajax request, or even just a script sourcing
+`scripts/lib_common.sh` - so this should now self-heal within moments rather than silently
+running on empty defaults indefinitely (which is what happened before this fix existed: the
+live file stayed broken forever, since nothing ever checked or repaired it, and every single
+request just kept re-reading defaults with no way back short of noticing and re-entering
+every setting by hand). `data/logs/engine.log` and `data/logs/ajax.log` log a `RECOVERED
+settings.json from settings.json.bak` line when this happens. If both the live file and the
+backup are found broken at the same time (much less likely, but possible if the same event
+hit both), it falls back to plain defaults and persists those instead, rather than
+continuing to fail on every request.

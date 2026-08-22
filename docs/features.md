@@ -177,3 +177,9 @@
   [Restoring a Backup](restoring-a-backup.md) for the full walkthrough, including why
   File Copy Restore's device browser shows a `/` and a `System Volume Information`
   folder, and why neither of those should ever be selected as the thing you're restoring.
+- **Self-healing plugin settings.** `data/settings.json` is mirrored to `data/settings.json.bak`
+  on every successful write; if the live file is ever found empty or unreadable (observed
+  once from something entirely outside this plugin - an OS/FPP update restarting the web
+  server mid-write), it's restored from that backup automatically the next time anything
+  touches it, instead of silently running on defaults indefinitely. See
+  [Troubleshooting](troubleshooting.md#settings-reset-to-defaults) for the full story.
