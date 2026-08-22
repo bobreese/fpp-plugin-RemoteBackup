@@ -45,12 +45,14 @@
   runs, so it is safe to run repeatedly with no side effects.
 - **Delete handling.** Optional `rsync --delete` so the host backup mirrors deletions made
   on the remote, or leave it off to only ever accumulate files.
-- **Won't start while a show is running.** Before a manual or scheduled run touches
-  anything, every selected remote's own FPP API is checked; if any of them are currently
-  playing a sequence, the whole run is refused (not just that remote) rather than risking
-  stutters/dropped frames from reading the same SD card fppd is actively playing off of.
-  A remote that can't be reached is treated as unknown, not playing, so it doesn't block
-  backing up everything else.
+- **Won't start while a show is running (configurable).** Before a manual or scheduled run
+  touches anything, every selected remote's own FPP API is checked; if any of them are
+  currently playing a sequence, by default the whole run is refused (not just that remote)
+  rather than risking stutters/dropped frames from reading the same SD card fppd is
+  actively playing off of - Config's Backup Options can instead have it skip just the busy
+  remote(s) and back up everything else. A remote that can't be reached is treated as
+  unknown, not playing, so it doesn't block backing up everything else. See "Configurable
+  response to a remote playing a sequence" below for the full picture.
 - **Dated, per-remote backups.** Each remote's backup folder is named
   `<Hostname>-<YYYYMMDD>` (e.g. `Pi5-20260803`) and remotes are never mixed together.
   By default this is a single rolling "current" backup (renamed to today's date and
@@ -124,6 +126,15 @@
   nobody there to answer a popup. See
   [Troubleshooting](troubleshooting.md#backup-space-insufficient) for the full
   walkthrough.
+- **Configurable response to a remote playing a sequence.** Before a real run touches
+  anything, every selected remote is checked for active playback; Config's Backup Options
+  chooses what happens if one is found playing - **Stop the whole backup** (default,
+  refuses the entire run) or **Skip that remote and back up the others instead** (with a
+  warning that the other remotes' transfers still share the network with the live show). A
+  scheduled run applies whichever is selected with nobody to ask, and reports what it did
+  via a one-time popup the next time Status or Config is opened - a Skip also shows exactly
+  which device(s) were left out. See
+  [Troubleshooting](troubleshooting.md#remote-playing-a-sequence) for the full walkthrough.
 - **Safety checks.** Both the primary and secondary/clone drive Format flows refuse to
   touch the disk FPP itself is currently running from - resolved by asking the system for
   the actual device backing the root filesystem (whatever it is: SD card, NVMe, or USB),

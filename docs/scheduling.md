@@ -29,10 +29,16 @@ A few things worth knowing before scheduling it:
   It's still worth not scheduling entries close enough together that this becomes the
   normal outcome - a refused run explains why in `data/logs/engine.log` and in FPP's own
   command output, but it still means that scheduled backup didn't happen.
-- A scheduled run is also refused outright (same "explains why, but didn't happen"
-  outcome) if any selected remote is actively playing a sequence at the moment it fires -
-  worth keeping in mind if you schedule backups during hours a show might still be
-  running rather than only overnight.
+- A scheduled run also checks whether any selected remote is actively playing a sequence
+  at the moment it fires - what happens next depends on **"If a selected remote is playing
+  a sequence when a backup starts"** in Config's Backup Options: by default (**Stop**) the
+  whole run is refused outright (same "explains why, but didn't happen" outcome, worth
+  keeping in mind if you schedule backups during hours a show might still be running rather
+  than only overnight); with **Skip** selected, the busy remote(s) are left out and
+  everything else selected still backs up normally. Either way, since nobody's watching a
+  scheduled run happen, the next time the Status or Config page is opened afterward a
+  one-time popup reports what happened - which remote(s) were involved, and whether the
+  whole run was refused or just those remote(s) skipped.
 - Host Mode must be enabled and destination storage configured/mounted before the
   schedule fires, same as running it manually - otherwise the scheduled run fails
   immediately (visible in its log, but nothing gets backed up).

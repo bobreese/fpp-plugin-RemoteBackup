@@ -282,7 +282,27 @@ function rb_default_settings() {
         // destinationMount is saved/activated.
         'lowSpaceReason' => null,
         'lowSpaceEstimatedBytes' => null,
-        'lowSpaceAvailableBytes' => null
+        'lowSpaceAvailableBytes' => null,
+        // What to do when a selected remote is found playing a sequence
+        // right as a real run is about to start: 'stop' (default) refuses
+        // the WHOLE run, same as this plugin has always done; 'skip'
+        // instead leaves just that remote out of this run and backs up
+        // the rest. Enforced by run_backup.sh - see its "remote-playing
+        // check" block.
+        'remotePlayingPolicy' => 'stop',
+        // Set by run_backup.sh only for a --scheduled run (an FPP
+        // Command - Scheduler/Playlist/Event, not a manual Start Backup
+        // click) whose play-check actually did something: refused the
+        // run outright, or skipped one or more remotes under 'skip'
+        // policy. Nobody is watching a scheduled run happen, so the
+        // Status/Config page shows a one-time "here's what happened"
+        // popup the next time either is open, driven by this field.
+        // Cleared only by acknowledgePlayOutcome (the popup's dismiss) or
+        // overwritten by a newer notice - unlike haltedReason/
+        // lowSpaceReason above, this reports a past event rather than an
+        // ongoing condition, so it deliberately does not auto-clear on
+        // its own.
+        'lastScheduledPlayOutcome' => null
     ];
 }
 
@@ -552,6 +572,9 @@ switch ($action) {
         foreach (['maxConcurrent', 'sshPort'] as $k) {
             if (isset($body[$k])) $settings[$k] = (int)$body[$k];
         }
+        if (isset($body['remotePlayingPolicy']) && in_array($body['remotePlayingPolicy'], ['stop', 'skip'], true)) {
+            $settings['remotePlayingPolicy'] = $body['remotePlayingPolicy'];
+        }
         if (isset($body['logRetentionCount'])) {
             // Clamped rather than trusted outright - this feeds straight into
             // a shell loop counter in prune_logs.sh/rb_prune_remote_logs, and
@@ -676,6 +699,24 @@ switch ($action) {
         break;
     }
 
+    // Dismisses the "here's what a scheduled run just did" popup driven by
+    // lastScheduledPlayOutcome (see rb_default_settings()). Unlike
+    // haltBackups/useFailover/useDestination above, this doesn't resolve
+    // anything - it's a plain past-event notice, so dismissing it is just
+    // acknowledging it was seen, not fixing a still-active problem.
+    case 'acknowledgePlayOutcome': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $settings = rb_load_settings($SETTINGS_FILE);
+        if (!empty($settings['lastScheduledPlayOutcome']) && is_array($settings['lastScheduledPlayOutcome'])) {
+            $settings['lastScheduledPlayOutcome']['acknowledged'] = true;
+            if (!rb_save_settings($SETTINGS_FILE, $settings)) {
+                rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
+            }
+        }
+        echo json_encode(['ok' => true]);
+        break;
+    }
+
     case 'pushSshKey': {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();
@@ -734,18 +775,39 @@ switch ($action) {
 
         // Pulling media off a device's SD card while fppd is actively
         // reading those same files for playback risks stutters/dropped
-        // frames during a live show, so refuse the WHOLE run (not just the
-        // busy remote) if any selected remote is currently playing a
-        // sequence. This is a synchronous pre-check purely for immediate
-        // UI feedback - run_backup.sh performs the same check itself and
-        // is the guard that actually matters, since it also covers
-        // Scheduler-triggered and manual/cron runs that never go through
-        // this endpoint at all.
+        // frames during a live show. remotePlayingPolicy controls what
+        // happens: 'stop' (default) refuses the WHOLE run (not just the
+        // busy remote); 'skip' lets the run proceed and leaves the busy
+        // remote(s) out of it instead - $skippedPlaying below just carries
+        // their names back for an immediate toast, since run_backup.sh
+        // (not this synchronous pre-check) is what actually does the
+        // filtering, and is the only guard that covers Scheduler-triggered
+        // and manual/cron runs that never go through this endpoint at all.
+        $skippedPlaying = [];
         $playCheckArgs = empty($ids) ? [] : ['--remotes', implode(',', array_map('rb_slugify', $ids))];
         $playCheck = rb_run_json("$SCRIPTS_DIR/check_remotes_playing.sh", $playCheckArgs, 20);
         if ($playCheck && !empty($playCheck['playing'])) {
-            $names = array_map(function ($r) { return $r['hostname']; }, $playCheck['playing']);
-            rb_fail('Refusing to start: currently playing a sequence - ' . implode(', ', $names), 409);
+            $playingNames = array_map(function ($r) { return $r['hostname']; }, $playCheck['playing']);
+            $playingIds = array_map(function ($r) { return $r['id']; }, $playCheck['playing']);
+            $policySettings = rb_load_settings($SETTINGS_FILE);
+            $playPolicy = isset($policySettings['remotePlayingPolicy']) ? $policySettings['remotePlayingPolicy'] : 'stop';
+
+            if ($playPolicy !== 'skip') {
+                rb_fail('Refusing to start: currently playing a sequence - ' . implode(', ', $playingNames), 409);
+            }
+
+            // Under 'skip' policy there's usually still something left to
+            // back up - but if every explicitly-requested remote turns out
+            // to be one of the busy ones, skipping would leave nothing to
+            // do, so that specific case still refuses outright.
+            if (!empty($ids)) {
+                $requestedIds = array_map('rb_slugify', $ids);
+                $stillRunnable = array_diff($requestedIds, $playingIds);
+                if (empty($stillRunnable)) {
+                    rb_fail('Refusing to start: every selected remote is currently playing a sequence - ' . implode(', ', $playingNames), 409);
+                }
+            }
+            $skippedPlaying = $playingNames;
         }
 
         // Clear stale per-remote status files from any previous run so
@@ -763,7 +825,7 @@ switch ($action) {
         rb_log_line("START cmd=$cmd");
         shell_exec($cmd);
 
-        echo json_encode(['ok' => true, 'started' => true, 'dryRun' => $dryRun]);
+        echo json_encode(['ok' => true, 'started' => true, 'dryRun' => $dryRun, 'skippedPlaying' => $skippedPlaying]);
         break;
     }
 
@@ -960,7 +1022,8 @@ switch ($action) {
             'haltedReason' => isset($settings['haltedReason']) ? $settings['haltedReason'] : null,
             'lowSpaceReason' => isset($settings['lowSpaceReason']) ? $settings['lowSpaceReason'] : null,
             'lowSpaceEstimatedBytes' => isset($settings['lowSpaceEstimatedBytes']) ? $settings['lowSpaceEstimatedBytes'] : null,
-            'lowSpaceAvailableBytes' => isset($settings['lowSpaceAvailableBytes']) ? $settings['lowSpaceAvailableBytes'] : null
+            'lowSpaceAvailableBytes' => isset($settings['lowSpaceAvailableBytes']) ? $settings['lowSpaceAvailableBytes'] : null,
+            'lastScheduledPlayOutcome' => isset($settings['lastScheduledPlayOutcome']) ? $settings['lastScheduledPlayOutcome'] : null
         ]);
         break;
     }

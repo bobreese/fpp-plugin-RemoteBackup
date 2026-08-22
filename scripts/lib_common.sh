@@ -52,6 +52,23 @@ rb_set_setting() {
     fi
 }
 
+# rb_set_setting_json <jq path> <raw JSON value>: like rb_set_setting above,
+# but for a JSON value (object/array/bool/number) instead of a plain
+# string - e.g. rb_set_setting_json '.lastScheduledPlayOutcome'
+# '{"policy":"skip","refused":false,...}'. The caller is responsible for
+# producing valid JSON (e.g. via jq -n); this does not quote or escape it.
+rb_set_setting_json() {
+    local path="$1" value="$2" tmp
+    [ -f "$SETTINGS_FILE" ] || return 1
+    tmp=$(mktemp "${SETTINGS_FILE}.tmp_XXXXXX")
+    if jq --argjson v "$value" "${path} = \$v" "$SETTINGS_FILE" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$SETTINGS_FILE"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
 # Atomically write JSON to a status file for one remote.
 # Usage: rb_write_status <remoteId> <json string>
 rb_write_status() {

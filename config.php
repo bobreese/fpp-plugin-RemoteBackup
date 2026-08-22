@@ -70,6 +70,18 @@ $rbPlugin = basename(__DIR__);
                 If a <em>scheduled</em> run's destination doesn't have enough free space, switch automatically to SD Card / System Storage instead of refusing the run
                 &mdash; off by default, so a scheduled backup refuses (with a reason logged, and a popup here/on Status) rather than silently landing somewhere unexpected. A manual Start Backup always shows the popup either way, regardless of this setting.</label><br>
             <br>
+            If a selected remote is playing a sequence when a backup starts:<br>
+            <label class="ms-3"><input type="radio" name="rb-playPolicy-choice" id="rb-playPolicy-stop" value="stop">
+                Stop the whole backup (default) - nothing runs until the show is over or you deselect that remote.</label><br>
+            <label class="ms-3"><input type="radio" name="rb-playPolicy-choice" id="rb-playPolicy-skip" value="skip">
+                Skip that remote and back up the others instead.
+                <strong>Warning:</strong> the busy remote's own SD card is never read either way, but the
+                <em>other</em> remotes' rsync transfers still run on the same network while its show is live, which
+                can itself add contention/timing risk for a synced show even though nothing reads from that
+                device directly.</label><br>
+            <small>A scheduled run applies whichever of these is selected with nobody to ask; a manual Start
+                Backup shows an immediate notice either way (a toast under Skip, an error under Stop).</small><br>
+            <br>
             Max concurrent transfers:
             <input id="rb-maxConcurrent" type="number" min="1" max="8" style="width:4em">
             <small>(default 2: the first devices start immediately, each finished transfer lets the next queued remote start)</small><br>
@@ -334,6 +346,56 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // "A scheduled backup skipped/refused something while nobody was
+    // watching" popup - self-contained mirror of the same functions in
+    // status.php (see there for the full rationale). Reports a past event
+    // (a --scheduled run that already finished), not an ongoing condition,
+    // so it does not reset itself the way the two popups above do - only
+    // an explicit dismiss (acknowledgePlayOutcome) or a newer notice
+    // replacing it clears it.
+    var rbPlayOutcomePopupShown = false;
+
+    function rbHandlePlayOutcomeStatus(res) {
+        if (!res || !res.ok) return;
+        var o = res.lastScheduledPlayOutcome;
+        if (!o || o.acknowledged) { rbPlayOutcomePopupShown = false; return; }
+        if (rbPlayOutcomePopupShown) return;
+        rbPlayOutcomePopupShown = true;
+        rbShowPlayOutcomeModal(o);
+    }
+
+    function rbShowPlayOutcomeModal(o) {
+        var modalId = 'rb-play-outcome-modal';
+        var names = (o.remotes || []).join(', ');
+        var bodyHtml;
+        if (o.refused) {
+            bodyHtml = '<div class="callout callout-danger mb-2">A scheduled backup on ' +
+                new Date(o.timestamp).toLocaleString() + ' was refused - every remote it would have backed up ' +
+                'was currently playing a sequence: <b>' + names + '</b>. Nothing was backed up.</div>';
+        } else {
+            bodyHtml = '<div class="callout callout-warning mb-2">A scheduled backup on ' +
+                new Date(o.timestamp).toLocaleString() + ' completed, but skipped the following remote(s) because ' +
+                'they were currently playing a sequence: <b>' + names + '</b>. Everything else selected was ' +
+                'backed up normally.</div>';
+        }
+        DoModalDialog({
+            id: modalId,
+            title: 'Scheduled Backup - Remote(s) Playing',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                OK: {
+                    class: 'btn-primary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('acknowledgePlayOutcome', { body: {} });
+                    }
+                }
+            }
+        });
+    }
+
     // Slow background poll, just to catch a destination disappearing while
     // this page happens to be the one open - no live run state to show here,
     // so there's no reason to poll anywhere near status.php's active-run rate.
@@ -342,6 +404,7 @@ $rbPlugin = basename(__DIR__);
         api('status').then(function (res) {
             rbHandleDestinationStatus(res);
             rbHandleLowSpaceStatus(res);
+            rbHandlePlayOutcomeStatus(res);
             setTimeout(rbPollDestination, RB_DEST_POLL_MS);
         });
     }
@@ -1001,6 +1064,8 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-autoFailoverOnLowSpace').checked = !!state.settings.autoFailoverOnLowSpace;
+            var playPolicy = state.settings.remotePlayingPolicy === 'skip' ? 'skip' : 'stop';
+            document.getElementById('rb-playPolicy-' + playPolicy).checked = true;
             document.getElementById('rb-maxConcurrent').value = state.settings.maxConcurrent || 2;
             document.getElementById('rb-logRetentionCount').value = state.settings.logRetentionCount || 15;
             document.getElementById('rb-sshUser').value = state.settings.sshUser || 'fpp';
@@ -1094,6 +1159,7 @@ $rbPlugin = basename(__DIR__);
             snapshotMode: document.getElementById('rb-snapshotMode').checked,
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
+            remotePlayingPolicy: document.getElementById('rb-playPolicy-skip').checked ? 'skip' : 'stop',
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
             logRetentionCount: parseInt(document.getElementById('rb-logRetentionCount').value, 10) || 15,
             sshUser: document.getElementById('rb-sshUser').value || 'fpp',

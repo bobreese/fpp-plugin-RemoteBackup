@@ -5,6 +5,32 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a configurable response to a remote playing a sequence when a real backup run
+  is about to start, plus a "Scheduled Backup - Remote(s) Playing" report popup for
+  scheduled runs. Previously this was always an unconditional whole-run refusal; a new
+  **"If a selected remote is playing a sequence when a backup starts"** setting in Config's
+  Backup Options (`remotePlayingPolicy`, default `stop`, no behavior change for existing
+  installs) adds a second choice, **Skip that remote and back up the others instead** -
+  `run_backup.sh`'s existing play-check now branches on it, filtering the busy remote(s)
+  out of `REMOTES_JSON` (and out of the pre-flight space estimate, which runs against
+  whatever's left) rather than aborting, and writing each one a `"skipped"` status entry so
+  it shows on the Status page as **Skipped (playing)** instead of just not appearing. If
+  every selected remote turns out to be playing, skipping down to nothing still refuses the
+  whole run, same as Stop. A manual Start Backup/Dry Run click gets an immediate toast
+  either way (an error under Stop, a "skipping X, continuing" notice under Skip, from
+  `ajax.php`'s synchronous pre-check) - since nobody's around to see that for a scheduled
+  run, `commands/run_remote_backup*.sh` now pass a new `--scheduled` flag through to
+  `run_backup.sh`, which records a one-time `lastScheduledPlayOutcome` notice (policy used,
+  refused or not, which remote(s)) that the Status/Config page surfaces as a popup the next
+  time either is opened - dismissed via a new `acknowledgePlayOutcome` action, since (unlike
+  the Destination Missing/Space Insufficient popups) this reports a past event rather than
+  an ongoing condition and shouldn't just reappear on a reload. New `rb_set_setting_json()`
+  helper in `lib_common.sh` for persisting that JSON record from the shell side. Verified
+  with a tmpfs-backed integration test covering Stop (manual and scheduled), Skip with a
+  partial match (one remote actually backed up, the other correctly marked skipped), and
+  Skip where every selected remote was "playing" (falls back to a full refusal). See
+  [Troubleshooting](troubleshooting.md#remote-playing-a-sequence),
+  [Features](features.md), and [Scheduling backups](scheduling.md).
 - **Added** a pre-flight space check before every real backup run (manual or scheduled),
   with a "Backup Space Insufficient" popup mirroring the existing "Backup Destination
   Missing" one. `run_backup.sh` now estimates the total transfer across every selected

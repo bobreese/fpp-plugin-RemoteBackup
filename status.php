@@ -353,6 +353,58 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // "A scheduled backup skipped/refused something while nobody was
+    // watching" popup - driven by lastScheduledPlayOutcome on the same
+    // 'status' poll. Unlike the destination-missing/low-space popups
+    // above, this reports a past event (a --scheduled run that already
+    // finished), not an ongoing condition, so it does NOT reset itself
+    // just because the field goes away on its own - the only way it
+    // clears is res.lastScheduledPlayOutcome.acknowledged coming back
+    // true, which only happens once the user dismisses it (or a newer
+    // notice replaces it, itself unacknowledged again).
+    var rbPlayOutcomePopupShown = false;
+
+    function rbHandlePlayOutcomeStatus(res) {
+        if (!res || !res.ok) return;
+        var o = res.lastScheduledPlayOutcome;
+        if (!o || o.acknowledged) { rbPlayOutcomePopupShown = false; return; }
+        if (rbPlayOutcomePopupShown) return;
+        rbPlayOutcomePopupShown = true;
+        rbShowPlayOutcomeModal(o);
+    }
+
+    function rbShowPlayOutcomeModal(o) {
+        var modalId = 'rb-play-outcome-modal';
+        var names = (o.remotes || []).join(', ');
+        var bodyHtml;
+        if (o.refused) {
+            bodyHtml = '<div class="callout callout-danger mb-2">A scheduled backup on ' +
+                formatLocalTime(o.timestamp) + ' was refused - every remote it would have backed up ' +
+                'was currently playing a sequence: <b>' + names + '</b>. Nothing was backed up.</div>';
+        } else {
+            bodyHtml = '<div class="callout callout-warning mb-2">A scheduled backup on ' +
+                formatLocalTime(o.timestamp) + ' completed, but skipped the following remote(s) because ' +
+                'they were currently playing a sequence: <b>' + names + '</b>. Everything else selected was ' +
+                'backed up normally.</div>';
+        }
+        DoModalDialog({
+            id: modalId,
+            title: 'Scheduled Backup - Remote(s) Playing',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                OK: {
+                    class: 'btn-primary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('acknowledgePlayOutcome', { body: {} });
+                    }
+                }
+            }
+        });
+    }
+
     function humanBytes(n) {
         n = parseInt(n || 0, 10);
         if (!n) return '0 B';
@@ -391,7 +443,7 @@ $rbPlugin = basename(__DIR__);
 
     var STATE_LABEL = {
         queued: 'Queued', running: 'Running', done: 'Done',
-        'dry-run-complete': 'Dry Run Complete', error: 'Error'
+        'dry-run-complete': 'Dry Run Complete', error: 'Error', skipped: 'Skipped (playing)'
     };
 
     function updateLogOptions(remotes) {
@@ -432,8 +484,8 @@ $rbPlugin = basename(__DIR__);
             body.innerHTML = remotes.map(function (r) {
                 var label = STATE_LABEL[r.state] || r.state;
                 var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
-                var fileCell = (r.state === 'error')
-                    ? '<span class="text-danger" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
+                var fileCell = (r.state === 'error' || r.state === 'skipped')
+                    ? '<span class="' + (r.state === 'skipped' ? 'text-warning' : 'text-danger') + '" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
                     : (r.currentFile || '');
                 var progressCell = '';
                 if (r.percent != null) {
@@ -543,6 +595,7 @@ $rbPlugin = basename(__DIR__);
             if (res.ok) renderStatus(res);
             if (res.ok) rbHandleDestinationStatus(res);
             if (res.ok) rbHandleLowSpaceStatus(res);
+            if (res.ok) rbHandlePlayOutcomeStatus(res);
             if (res.ok && lastActiveSeen && !res.active) {
                 // A run just finished - refresh the Backed Up list so new/updated folders show up.
                 if (typeof loadBackedUpList === 'function') loadBackedUpList(true);
@@ -666,7 +719,12 @@ $rbPlugin = basename(__DIR__);
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
                 msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-                if (res.ok) { pendingRunButtonId = 'rb-start'; markButtonActive('rb-start'); poll(); } else { $.jGrowl('Failed to start backup: ' + res.error, { themeState: 'danger' }); }
+                if (res.ok) {
+                    pendingRunButtonId = 'rb-start'; markButtonActive('rb-start'); poll();
+                    if (res.skippedPlaying && res.skippedPlaying.length) {
+                        $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing. Continuing with the rest.', { themeState: 'warning' });
+                    }
+                } else { $.jGrowl('Failed to start backup: ' + res.error, { themeState: 'danger' }); }
             });
         });
     });
@@ -678,7 +736,12 @@ $rbPlugin = basename(__DIR__);
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Dry run started.' : ('Error: ' + res.error);
                 msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-                if (res.ok) { pendingRunButtonId = 'rb-dryrun'; markButtonActive('rb-dryrun'); poll(); } else { $.jGrowl('Failed to start dry run: ' + res.error, { themeState: 'danger' }); }
+                if (res.ok) {
+                    pendingRunButtonId = 'rb-dryrun'; markButtonActive('rb-dryrun'); poll();
+                    if (res.skippedPlaying && res.skippedPlaying.length) {
+                        $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing. Continuing with the rest.', { themeState: 'warning' });
+                    }
+                } else { $.jGrowl('Failed to start dry run: ' + res.error, { themeState: 'danger' }); }
             });
         });
     });

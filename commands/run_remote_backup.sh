@@ -13,5 +13,5 @@ if [ -f "${DATA_DIR}/run_active.json" ] && [ "$(jq -r '.active // false' "${DATA
     exit 1
 fi
 
-nohup "${PLUGINDIR}/scripts/run_backup.sh" > /dev/null 2>&1 &
+nohup "${PLUGINDIR}/scripts/run_backup.sh" --scheduled > /dev/null 2>&1 &
 echo "Remote Backup started"

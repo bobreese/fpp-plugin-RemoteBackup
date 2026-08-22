@@ -200,3 +200,35 @@ For a large or many-remote backup, expect the run to take noticeably longer over
 it did before this existed. There's no setting to skip it entirely; `--skip-space-check`
 (used internally by "Start Anyway") is the only way past it, and it only applies to that
 one retry.
+
+## Remote Playing a Sequence
+
+Before a real run touches anything, every selected remote's own FPP API is checked for
+whether it's currently playing a sequence - pulling media off a device's SD card while its
+own fppd is actively reading those same files risks stutters or dropped frames during a
+live show. Config's Backup Options has a setting for what happens next:
+
+- **Stop the whole backup (default)** - refuses the *entire* run, not just the busy
+  remote, with a clear reason logged (`data/logs/engine.log`, and FPP's own command output
+  for a scheduled run). A manual Start Backup/Dry Run click shows this as an immediate
+  error toast instead of even starting.
+- **Skip that remote and back up the others instead** - leaves just the busy remote(s) out
+  of this run and proceeds with everything else selected. The busy remote's own SD card is
+  never read either way, but its own status entry on the Status page shows as **Skipped
+  (playing)** rather than silently not appearing, and a manual click gets an immediate
+  toast naming who's being skipped. **Worth knowing:** the *other* remotes' rsync transfers
+  still run on the same network while the busy one's show is live - that's its own possible
+  source of contention/timing risk for a synced show, even though nothing reads from the
+  playing device directly. If every selected remote turns out to be playing at once,
+  skipping down to nothing is treated the same as Stop - the whole run is refused rather
+  than "completing" having backed up nothing.
+
+**A scheduled run has nobody to answer for itself**, so whichever policy is selected just
+applies outright, same as a manual run's outcome minus the live toast. Since nobody's
+watching it happen, the next time the Status or Config page is opened after a scheduled run
+actually hit this (refused entirely, or skipped at least one remote), a one-time popup
+titled **"Scheduled Backup - Remote(s) Playing"** reports what happened and, under Skip,
+which device(s) were left out. Unlike Backup Destination Missing/Space Insufficient above,
+this popup reports something that already finished, not an ongoing condition - it doesn't
+come back on a page reload, only clicking its OK button (or a *later* scheduled run hitting
+this same situation again) clears it.
