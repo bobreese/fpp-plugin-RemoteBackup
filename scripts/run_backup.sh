@@ -833,15 +833,38 @@ backup_one() {
 
 # --- Concurrency-limited launcher: first N start immediately, each ---
 # --- completion backfills the next queued remote (per spec).       ---
-running=0
+#
+# rb_prune_finished_pids <array var name>: drops any PID from the named
+# array that's no longer alive, in place. Used below instead of trusting
+# a hand-incremented/decremented counter to track how many backgrounded
+# backup_one() jobs are actually still running - a real report showed
+# more remotes starting concurrently than maxConcurrent allowed (3
+# instead of 2, confirmed by logging the actual maxConcurrent value in
+# effect and seeing it really was 2) despite the previous counter-based
+# version of this loop looking correct on paper and reproducing correctly
+# in isolated testing. Re-deriving the true count from kill -0 on our own
+# tracked PIDs, every time, can't drift out of sync with reality the way
+# a counter that assumes "wait -n returning means exactly one specific
+# job's slot freed" can if that assumption is ever wrong for any reason.
+rb_prune_finished_pids() {
+    local -n _pids_ref="$1"
+    local pid kept=()
+    for pid in "${_pids_ref[@]}"; do
+        kill -0 "$pid" 2>/dev/null && kept+=("$pid")
+    done
+    _pids_ref=("${kept[@]}")
+}
+
+running_pids=()
 echo "$REMOTES_JSON" | jq -c '.[]' > "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 while IFS= read -r remote_json; do
-    backup_one "$remote_json" &
-    running=$((running + 1))
-    if [ "$running" -ge "$MAX_CONCURRENT" ]; then
+    rb_prune_finished_pids running_pids
+    while [ "${#running_pids[@]}" -ge "$MAX_CONCURRENT" ]; do
         wait -n
-        running=$((running - 1))
-    fi
+        rb_prune_finished_pids running_pids
+    done
+    backup_one "$remote_json" &
+    running_pids+=("$!")
 done < "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 wait
 rm -f "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
