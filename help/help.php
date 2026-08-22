@@ -259,6 +259,16 @@
             <code>data/logs/engine.log</code> (viewable from the Status page's Diagnostic Log) and in
             FPP's own command output for that Scheduler entry - worth checking there before assuming a
             scheduled backup silently failed for no reason.</p>
+            <div class="callout callout-info mb-0 mt-2">
+                <b>Picking a time?</b> Config's <b>"Show Schedule Conflict Check"</b> panel reads the
+                configured show schedule straight off whichever system you designate as the show
+                master, and shows a day-by-day table of what's already scheduled to play - so you can
+                pick a Scheduler time for backups that's clear of the show before you save it, rather
+                than finding out during a live show. It's a recommendation to verify, not a guarantee
+                - test any suggested time once before relying on it. See
+                <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/schedule-conflict-check.md" target="_blank" rel="noopener">Show Schedule Conflict Check</a>
+                for the full version.
+            </div>
         </div>
     </fieldset>
 
