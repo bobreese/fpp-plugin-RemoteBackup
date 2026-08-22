@@ -1,0 +1,139 @@
+# Replacing FPP's Native Backup: A Readiness Assessment
+
+[← Back to README](../README.md)
+
+A working list of what stands between Remote Backup as it is today and fully replacing
+FPP's native backup and restore tools, kept here to revisit and re-evaluate as the
+plugin matures. This is a plain-language audit, not a benchmark - each finding is rated
+by how much it actually blocks a "replace FPP's native tools" decision, not by how hard
+it would be to fix.
+
+Three FPP-side things are in scope for comparison:
+
+- **FPP's native `Backup/Restore Configuration`** - exports just FPP's own settings
+  (channel outputs, universes, schedule, playlists metadata, plugin config) as a small
+  archive with no media in it, built for a fast re-setup after a reflash.
+- **FPP's native `File Copy Backup/Restore`** - copies actual show content (media,
+  sequences, effects, playlists) for one system, run by hand.
+- **Remote Backup (this plugin)** - pulls the full `/home/fpp/media` content tree from
+  every selected MultiSync remote onto one Host, on a schedule, plus optional system/
+  network config as a raw archive.
+
+## Findings, by severity
+
+### Critical - block replacing FPP's native backup outright
+
+1. **No equivalent to FPP's own config-only backup.** Remote Backup has nothing like
+   FPP's native `Backup/Restore Configuration`. Its optional system-config capture pulls
+   `/etc/fpp` and network config as a raw `.tar.gz`, which covers the OS/network layer,
+   not FPP's own internal settings, and isn't something FPP's restore flow can read back
+   in.
+   - *To close it:* a mode that calls FPP's own config-export mechanism on each remote
+     (if exposed over its API) and stores the result as a clearly separate, restorable
+     artifact - not folded into the general media pull.
+2. **No restore path of its own.** By design, Remote Backup only pulls. Content restore
+   is handed off entirely to FPP's native `File Copy Restore`; anything in a
+   `system-config.tar.gz` has to be manually untarred and placed back by hand, with no
+   guided flow at all.
+   - *To close it:* the biggest architectural decision on this whole list - either
+     accept that FPP's native restore stays in the loop permanently (in which case
+     "replace" isn't really the right goal), or build and prove out a real restore path
+     independent of it.
+3. **Explicitly Beta, with no fallback if it's the only copy.** Reasonable for a
+   complement running alongside native backup; a different risk entirely as someone's
+   sole backup mechanism, with zero redundancy if a bug in an actively-changing codebase
+   silently breaks a run.
+   - *To close it:* a real track record - enough time in the field, and enough of the
+     findings below closed, to drop the Beta label in good conscience.
+
+### Significant - weaken the case for full replacement, matter more once it's the only backup
+
+4. **One Host is a single point of failure for everyone.** Every remote's backup
+   depends on one Host's SSH access, its SD card, and its `settings.json`. If the Host
+   dies, every scheduled backup stops at once - and the Host's own SSH keys and
+   configuration aren't themselves backed up anywhere.
+   - *To close it:* a documented, tested Host-recovery procedure at minimum; ideally the
+     Host's own SSH keypair and `data/settings.json` get folded into its own backup set
+     automatically.
+5. **Every remote must be SSH-reachable from the Host.** A remote behind a firewall
+   change, moved to a different VLAN, or with SSH locked down simply can't be backed up
+   - there's no fallback path. FPP's native File Copy Backup runs locally on each
+     system, so it has no such network dependency to begin with.
+   - *To close it:* not fully solvable while the architecture is "Host pulls over SSH" -
+     worth documenting plainly as a standing precondition, and worth extending the
+     missing-destination Halt/Failover pattern to an unreachable-remote case too.
+6. **No proactive alert when a backup silently fails.** A broken SSH key or an
+   unreachable remote fails quietly until someone opens the Status page or reads
+   `engine.log`. That risk is larger specifically because the whole point of adopting
+   this plugin is to stop checking backups by hand.
+   - *To close it:* some form of push beyond the Status page - even something modest,
+     like an FPP Command/event hook on repeated failure, or a summary emailed after
+     every scheduled run.
+
+### Minor - worth knowing, not blocking
+
+7. **No integrity check beyond rsync's own transfer guarantees.** No checksum
+   verification pass and no test-restore step after a run completes.
+   - *To close it:* an optional post-run verification pass, even a lightweight one
+     (file count and size comparison against the source).
+8. **A couple of small, already-documented rough edges** - stray `/etc/fstab` backup
+   files that never get cleaned up, and the SSH keypair path being hardcoded rather than
+   reading its own `sshKeyPath` setting. Both already called out in
+   [Requirements, Install, and Uninstall](requirements-install-uninstall.md#uninstall)'s
+   Known Minor Gaps.
+9. **Still shaking out real bugs.** A 32-bit integer overflow in the free-space display
+   was found and fixed in this plugin's development - harmless (display-only, never
+   blocked an actual backup), but a sign the codebase is still maturing rather than
+   long-settled the way FPP's native tools are.
+
+## Bottom line: not ready to replace - a strong complement today
+
+Remote Backup solves a real problem FPP's native tools don't touch: unattended,
+scheduled, centralized content backup across a whole MultiSync show. That's genuinely
+valuable and worth running today, alongside FPP's native tools, not instead of them.
+
+- **Keep FPP's native config backup and restore in the loop** - Remote Backup has no
+  equivalent to either one today.
+- **Don't treat it as the only copy** until it's out of Beta and the single-Host failure
+  mode has a real answer.
+- **The restore-path decision (#2) is the one that actually matters most** - everything
+  else on this list is buildable; deciding whether Remote Backup should ever own restore
+  is the real fork in the road.
+
+## A narrower question: replacing just File Copy Backup
+
+A different, smaller question worth separating out: not "replace everything," but
+specifically swapping FPP's native `File Copy Backup` for Remote Backup, while leaving
+config backup and restore native either way.
+
+That reframing removes two of the three Critical findings above - they're about config
+backup and restore, and neither is in scope for this narrower swap. Restore is
+unaffected: Remote Backup already formats destinations the same way File Copy Backup
+would, producing the same `<Hostname>-<date>` folder layout File Copy Restore expects,
+so restoring content Remote Backup pulled is no different from restoring content File
+Copy Backup produced.
+
+On the one job both tools actually share - backing up content - Remote Backup is a real
+upgrade, not a lateral move:
+
+- File Copy Backup is manual, one system at a time. The most common way backups
+  actually fail is "nobody ran it before the disaster" - scheduling closes exactly that
+  gap, across every remote at once.
+- Dry-run space verification and optional dated snapshot history are capabilities File
+  Copy Backup doesn't have at all, not just does worse.
+- Delete-mirroring keeps the backup from silently accumulating stale content
+  indefinitely, if wanted.
+
+The honest cost: swapping a simple, dependency-free, long-proven manual process for a
+more capable but Beta, automated one that concentrates risk into a single Host and its
+SSH access to everything. **Verdict: a net strengthening of FPP's overall backup story
+for this narrower swap - provided findings #4 (protect the Host itself) and #6 (alert on
+silent failure) are actually addressed first**, not left as-is. Without those two, it's
+a trade of one failure mode (forgot to click) for a different one (didn't notice it
+broke), which isn't obviously safer on its own.
+
+## Revisiting this assessment
+
+Re-check this list against the plugin's current state before treating any finding as
+resolved - in particular, whether a given fix has actually shipped, not just been
+proposed here. See the [Changelog](changelog.md) for what's actually landed.

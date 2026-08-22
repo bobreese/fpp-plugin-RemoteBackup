@@ -18,3 +18,4 @@ An FPP plugin that turns one Falcon Player system into a **Backup Host** which p
 - [Directory layout](docs/directory-layout.md)
 - [Changelog](docs/changelog.md)
 - [Pre-submission checklist / Plugin Guidelines compliance](docs/plugin-guidelines-compliance.md)
+- [Replacing FPP's Native Backup: A Readiness Assessment](docs/backup-replacement-assessment.md)
