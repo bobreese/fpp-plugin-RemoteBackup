@@ -5,6 +5,26 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the previous `data/settings.json.bak` fix for settings.json going
+  empty/corrupt wasn't real independent protection - a follow-up incident on a live system,
+  roughly an hour after the first, showed the exact same "unreadable, raw=" break a second
+  time, except this time `settings.json.bak` was *also* gone despite having been freshly
+  written less than an hour earlier. Root cause: whatever's doing this wipes (or replaces)
+  the whole `data/` directory, not just `settings.json` in isolation, so a backup living
+  inside that same directory goes down with it - the original fix's core assumption was
+  wrong. A second backup is now kept entirely outside `data/`, and outside this plugin's own
+  directory altogether, at `/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak` (the same
+  persistent FPP media root this plugin already trusts elsewhere). `rb_load_settings()`
+  (`ajax.php`) and the self-heal check in `lib_common.sh` both now try the in-`data/`-dir
+  backup first, then this external one, before finally falling back to (and persisting)
+  plain defaults - and `rb_save_settings()`/`rb_backup_settings_file()` write both on every
+  successful save. `fpp_uninstall.sh` now removes the external copy too, since it lives
+  outside the directory FPP deletes wholesale on uninstall. Verified against the exact
+  failure mode observed on the real system (live file and in-dir backup both wiped,
+  external copy still valid) on both the PHP and shell sides. This plugin still has no
+  visibility into what's actually causing the underlying wipe - see
+  [Troubleshooting](troubleshooting.md#settings-reset-to-defaults) for what to check on the
+  OS/FPP side if it keeps recurring. See also [Features](features.md).
 - **Added** a "Show Schedule Conflict Check" panel to Config - reads the configured
   schedule straight off a designated show-master system's own `/api/schedule` API and lays
   it out as a Sunday-through-Saturday table (green "Clear" cells vs. what's actually

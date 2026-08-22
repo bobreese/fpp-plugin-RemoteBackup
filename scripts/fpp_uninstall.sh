@@ -46,6 +46,18 @@ echo "Note: that key's public half may still be listed in each remote's"
 echo "~fpp/.ssh/authorized_keys. That's harmless (nothing will use it"
 echo "anymore) but remove it there too if you want it fully gone."
 
+# --- Remove the external settings.json backup ----------------------------
+# Deliberately kept outside PLUGINDIR (see ajax.php's
+# rb_settings_external_backup_path()/lib_common.sh's
+# SETTINGS_EXTERNAL_BACKUP for why) specifically so FPP's own delete of
+# this plugin's directory can't take it out along with everything else -
+# which means it's this uninstall script's job to clean it up, not FPP's.
+EXTERNAL_SETTINGS_BACKUP="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
+if [ -f "$EXTERNAL_SETTINGS_BACKUP" ]; then
+    echo "Removing settings backup: $EXTERNAL_SETTINGS_BACKUP"
+    rm -f "$EXTERNAL_SETTINGS_BACKUP"
+fi
+
 # --- Remove the /etc/fstab entry for the USB backup drive, if present ---
 if [ -f /etc/fstab ] && grep -q "/mnt/Backups" /etc/fstab 2>/dev/null; then
     echo "Removing /mnt/Backups entry from /etc/fstab"

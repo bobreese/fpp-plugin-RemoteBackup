@@ -17,23 +17,37 @@ rb_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_DIR}/engine.log"
 }
 
+# Second backup location, deliberately outside data/ (and outside this
+# plugin's directory entirely) - see the matching comment on
+# rb_settings_external_backup_path() in ajax.php for why: a real incident
+# proved settings.json.bak living in data/ alongside settings.json isn't
+# independent protection, since whatever wiped the live file wiped that
+# backup right along with it (both live in the same directory). This
+# fixed /home/fpp/media path is the same stable FPP media root
+# RB_SDCARD_FALLBACK_DIR below already trusts.
+SETTINGS_EXTERNAL_BACKUP="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
+
 # Self-heal settings.json if it exists but is empty/corrupt - observed
-# cause: something outside this plugin entirely (an OS/FPP update
-# restarting the web server mid-write, in one real incident) truncated it
-# to 0 bytes, and every script/request from then on just silently ran on
-# empty/default values with nothing ever repairing it. Every script
-# sources this file before doing anything else, so this one check covers
-# every entry point (run_backup.sh, the FPP Commands, every ajax.php
-# action via its own PHP-side equivalent) rather than needing to be
-# repeated per-script. Restores from settings.json.bak - kept in sync by
-# rb_backup_settings_file() below and by ajax.php's own
-# rb_save_settings() - only if that backup itself is valid JSON;
-# otherwise this deliberately does nothing; it's not this check's job to
-# invent defaults for a file that may simply never have existed yet.
+# cause: something outside this plugin entirely wipes data/ (or at least
+# settings.json and its in-dir backup together) on a recurring basis, not
+# a one-time fluke - two occurrences inside about an hour on a live
+# system, each preceded by a multi-minute total gap in ajax.log (no
+# requests logged at all). Every script sources this file before doing
+# anything else, so this one check covers every entry point
+# (run_backup.sh, the FPP Commands, every ajax.php action via its own
+# PHP-side equivalent) rather than needing to be repeated per-script.
+# Tries settings.json.bak first (kept in sync by rb_backup_settings_file()
+# below and by ajax.php's own rb_save_settings()), then the external copy
+# above, only if a backup is itself valid JSON; otherwise this
+# deliberately does nothing further - it's not this check's job to invent
+# defaults for a file that may simply never have existed yet.
 if [ -f "$SETTINGS_FILE" ] && ! jq -e . "$SETTINGS_FILE" >/dev/null 2>&1; then
     if [ -f "${SETTINGS_FILE}.bak" ] && jq -e . "${SETTINGS_FILE}.bak" >/dev/null 2>&1; then
         cp "${SETTINGS_FILE}.bak" "$SETTINGS_FILE" 2>/dev/null
         rb_log "RECOVERED settings.json from settings.json.bak (live file was empty/corrupt)"
+    elif [ -f "$SETTINGS_EXTERNAL_BACKUP" ] && jq -e . "$SETTINGS_EXTERNAL_BACKUP" >/dev/null 2>&1; then
+        cp "$SETTINGS_EXTERNAL_BACKUP" "$SETTINGS_FILE" 2>/dev/null
+        rb_log "RECOVERED settings.json from $SETTINGS_EXTERNAL_BACKUP (live file and its in-dir backup were both empty/corrupt)"
     fi
 fi
 
@@ -55,22 +69,23 @@ rb_setting() {
 }
 
 # rb_backup_settings_file: best-effort mirror of the just-written
-# settings.json to settings.json.bak, called after every successful write
-# below - the same backup ajax.php's rb_save_settings()/rb_load_settings()
-# maintain and recover from on the PHP side (see the comment on
-# rb_settings_backup_path() there for why this exists: settings.json has
-# been observed truncated to 0 bytes by something outside this plugin
-# entirely, e.g. an OS/FPP update restarting the web server mid-write,
-# with no way back short of re-entering every setting by hand). Never
-# allowed to fail the caller - it's a safety net, not the primary write.
+# settings.json to BOTH backup locations (settings.json.bak in data/, and
+# the external SETTINGS_EXTERNAL_BACKUP copy above), called after every
+# successful write below - the same two backups ajax.php's
+# rb_save_settings()/rb_load_settings() maintain and recover from on the
+# PHP side. See SETTINGS_EXTERNAL_BACKUP's own comment above for why
+# there are two, not just one. Never allowed to fail the caller - it's a
+# safety net, not the primary write.
 rb_backup_settings_file() {
-    local tmp
-    tmp=$(mktemp "${SETTINGS_FILE}.bak.tmp_XXXXXX") || return 0
-    if cp "$SETTINGS_FILE" "$tmp" 2>/dev/null; then
-        mv "$tmp" "${SETTINGS_FILE}.bak" 2>/dev/null
-    else
-        rm -f "$tmp"
-    fi
+    local dest tmp
+    for dest in "${SETTINGS_FILE}.bak" "$SETTINGS_EXTERNAL_BACKUP"; do
+        tmp=$(mktemp "${dest}.tmp_XXXXXX" 2>/dev/null) || continue
+        if cp "$SETTINGS_FILE" "$tmp" 2>/dev/null; then
+            mv "$tmp" "$dest" 2>/dev/null
+        else
+            rm -f "$tmp"
+        fi
+    done
 }
 
 # rb_set_setting <jq path> <string value>: updates a single key in

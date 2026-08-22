@@ -314,19 +314,34 @@ function rb_default_settings() {
     ];
 }
 
-// rb_settings_backup_path: where rb_save_settings() below mirrors every
-// successful write, and where rb_load_settings() below looks for a
-// last-known-good copy to recover from if the live file has gone empty
-// or corrupt. A real incident: an external process (observed to coincide
-// with an FPP/OS update - the web server going quiet for ~2 minutes in
-// ajax.log, no saveSettings request anywhere near it) truncated
-// settings.json to 0 bytes outside this plugin's own code entirely.
-// Every request after that hit the "unreadable, using defaults" branch
-// below forever, silently running on in-memory defaults with no way back
-// short of someone noticing and re-entering every setting by hand -
-// destination, remotes list, SSH config, all of it.
+// rb_settings_backup_path: the in-data-dir mirror rb_save_settings() below
+// keeps of every successful write, and the first place rb_load_settings()
+// looks to recover a live file that's gone empty or corrupt.
 function rb_settings_backup_path($SETTINGS_FILE) {
     return $SETTINGS_FILE . '.bak';
+}
+
+// rb_settings_external_backup_path: a SECOND mirror, deliberately kept
+// outside data/ (and outside this plugin's directory entirely) at a fixed,
+// hardcoded location on the FPP media tree - the same /home/fpp/media root
+// RB_SDCARD_FALLBACK_DIR in lib_common.sh already trusts as a stable,
+// always-present FPP path.
+//
+// Why a second copy in a different place, not just the one above: a real
+// incident (data/settings.json.bak's own first version) proved the
+// in-data-dir copy alone isn't independent protection. Two occurrences
+// inside about an hour on a live system each showed the exact same
+// signature - a multi-minute total gap in ajax.log (no requests at all,
+// not just a slowdown), then the very next request finding settings.json
+// empty. The SECOND occurrence also found settings.json.bak gone too,
+// despite it having been freshly written less than an hour earlier -
+// meaning whatever is doing this wipes (or replaces) the whole data/
+// directory, not just the one file, so a backup living inside that same
+// directory goes down with it. This second copy living entirely outside
+// data/ - and outside the plugin directory FPP itself replaces wholesale
+// on an update/reinstall - is what actually survives that failure mode.
+function rb_settings_external_backup_path() {
+    return '/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak';
 }
 
 function rb_load_settings($SETTINGS_FILE) {
@@ -337,24 +352,28 @@ function rb_load_settings($SETTINGS_FILE) {
         return array_merge(rb_default_settings(), $d);
     }
 
-    // Live file exists but is empty/corrupt. Try the backup before
-    // giving up to plain defaults - see rb_settings_backup_path() above
-    // for why this exists.
+    // Live file exists but is empty/corrupt. Try the in-data-dir backup
+    // first (handles a single bad write to the live file alone), then the
+    // external one (handles data/ itself being wiped, backup included) -
+    // see the two path functions above for why both exist.
     rb_log_line("WARN: settings.json unreadable or invalid, raw=" . substr((string)$raw, 0, 300));
-    $backupFile = rb_settings_backup_path($SETTINGS_FILE);
-    $backupRaw = @file_get_contents($backupFile);
-    $backupData = ($backupRaw !== false) ? json_decode($backupRaw, true) : null;
-    if (is_array($backupData)) {
-        rb_log_line("RECOVERED settings.json from $backupFile - restoring it as the live file");
-        rb_save_settings($SETTINGS_FILE, $backupData);
-        return array_merge(rb_default_settings(), $backupData);
+
+    foreach ([rb_settings_backup_path($SETTINGS_FILE), rb_settings_external_backup_path()] as $backupFile) {
+        $backupRaw = @file_get_contents($backupFile);
+        $backupData = ($backupRaw !== false) ? json_decode($backupRaw, true) : null;
+        if (is_array($backupData)) {
+            rb_log_line("RECOVERED settings.json from $backupFile - restoring it as the live file");
+            rb_save_settings($SETTINGS_FILE, $backupData);
+            return array_merge(rb_default_settings(), $backupData);
+        }
     }
 
-    // No usable backup either - fall back to defaults, but persist them
-    // to disk too so the file stops being empty/broken and this doesn't
-    // keep re-triggering (and re-logging this same warning) on literally
-    // every request from here on.
-    rb_log_line("WARN: no usable backup at $backupFile either - resetting settings.json to defaults");
+    // No usable backup either place - fall back to defaults, but persist
+    // them to disk too so the file stops being empty/broken and this
+    // doesn't keep re-triggering (and re-logging this same warning) on
+    // literally every request from here on.
+    rb_log_line("WARN: no usable backup at " . rb_settings_backup_path($SETTINGS_FILE) . ' or ' .
+        rb_settings_external_backup_path() . ' either - resetting settings.json to defaults');
     $defaults = rb_default_settings();
     rb_save_settings($SETTINGS_FILE, $defaults);
     return $defaults;
@@ -379,15 +398,16 @@ function rb_save_settings($SETTINGS_FILE, $settings) {
     @chmod($SETTINGS_FILE, 0666);
     rb_log_line("SAVE OK to $SETTINGS_FILE (" . strlen($json) . ' bytes)');
 
-    // Best-effort mirror to .bak - see rb_settings_backup_path() above.
-    // Never allowed to fail the save itself; it's a safety net, not the
-    // primary write.
-    $backupFile = rb_settings_backup_path($SETTINGS_FILE);
-    $backupTmp = $backupFile . '.tmp';
-    if (@file_put_contents($backupTmp, $json) !== false) {
-        @rename($backupTmp, $backupFile);
+    // Best-effort mirrors, in-data-dir and external - see the two path
+    // functions above. Never allowed to fail the save itself; they're a
+    // safety net, not the primary write.
+    foreach ([rb_settings_backup_path($SETTINGS_FILE), rb_settings_external_backup_path()] as $backupFile) {
+        $backupTmp = $backupFile . '.tmp';
+        if (@file_put_contents($backupTmp, $json) !== false) {
+            @rename($backupTmp, $backupFile);
+            @chmod($backupFile, 0666);
+        }
     }
-    @chmod($backupFile, 0666);
 
     return true;
 }
