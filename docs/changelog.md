@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** a new "A USB/SSD Drive Shows Two Partitions" section in
+  [Troubleshooting](troubleshooting.md): `format_usb.sh`'s Format & Mount flow always
+  wipes and repartitions the *whole disk* with exactly one GPT partition, regardless of
+  which partition entry was clicked, so it can't be the source of a drive that shows a
+  small already-there partition alongside a large already-formatted one (the "Mount," not
+  "Format," button next to the large entry is the tell - this plugin never formatted it,
+  so the split predates it, most often factory partitioning). Clicking Format & Mount on
+  either entry consolidates the whole disk into one partition, erasing everything on it.
+  No behavior changed.
 - **Documented** that a real, expected delay - scaling with how many remotes are selected -
   happens between clicking Dry Run/Start Backup and the Backup Status table showing
   anything, since the pre-flight space check runs sequentially, one remote at a time,

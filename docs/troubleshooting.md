@@ -262,6 +262,27 @@ settings.json from ...` line naming which of the two it recovered from. Only if 
 backups are found broken at the same time does it fall back to plain defaults and persist
 those, rather than continuing to fail (and re-log the same warning) on every single request.
 
+## A USB/SSD Drive Shows Two Partitions
+
+If Config's storage list shows a drive split into two entries - a large one already
+formatted (exfat/ext4, offered as "Mount as Backups") plus a small extra one (often
+around 16 MB, "no filesystem - needs formatting first") - this isn't something this
+plugin's own formatting created. **Format & Mount as Backups** always operates on the
+*whole disk*, not just whichever partition entry you click: it wipes every signature
+on the whole drive (`wipefs -a`) and writes a brand-new GPT table with exactly **one**
+partition spanning 0-100% (`parted mklabel gpt mkpart primary 0% 100%`) - there's no
+code path that produces a second partition. The button next to the already-formatted
+entry is "Mount," not "Format," which is the tell: this plugin never formatted that
+partition, so the split predates it - most often factory partitioning on the drive
+(a small reserved/utility partition is common on external SSDs) or an earlier format
+by something other than this plugin.
+
+To consolidate into one clean partition spanning the whole drive, click **Format &
+Mount as Backups** on either entry - it wipes the *entire* disk regardless of which
+partition you clicked, leaving a single fresh partition using all of it. This erases
+everything currently on the drive, including the already-formatted partition, so only
+do it if there's nothing there worth keeping (or back it up elsewhere first).
+
 **If this keeps happening, the backups are a safety net, not a cure.** Two occurrences
 inside about an hour have been observed on one real system, each with the exact same
 signature: a multi-minute total gap in `ajax.log` (no requests logged at all, not a
