@@ -5,6 +5,30 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the concurrency-limited launcher in `run_backup.sh` could actually run more
+  remotes at once than `maxConcurrent` allowed - a real follow-up report, on a run whose
+  own log confirmed (via the `maxConcurrent=N` value added to the "run start" line in the
+  previous fix) that the setting really was 2, still showed 3 remotes starting together,
+  a fourth time now, always the same three. The previous version tracked "how many are
+  running" with a hand-incremented/decremented counter that assumed `wait -n` returning
+  always meant exactly one specific tracked job's slot had freed - correct on paper, and
+  it reproduced correctly in every isolated test built to check it, but evidently wasn't
+  a safe assumption on the real system where this happened. Replaced with
+  `rb_prune_finished_pids()`, which re-derives the true "how many of my own backgrounded
+  jobs are still alive" by running `kill -0` on every tracked PID, every time - before
+  considering a new dispatch, and again after every `wait -n` - so it can't drift out of
+  sync with reality regardless of the exact cause. Stress-tested at `maxConcurrent=2`
+  (5 remotes) and `maxConcurrent=3` (10 remotes), confirming strict adherence to the cap
+  in both cases with no regression - though the original failure mode itself couldn't be
+  reproduced in isolated testing, so this is a structural hardening against the whole
+  class of "counter drifted from reality" bugs, not a fix verified against the exact
+  original mechanism. The likely knock-on effect this was producing - a slow/weaker
+  remote (e.g. a BeagleBone Black) appearing stuck at "Running" with a blank Current File
+  for an extended stretch under genuine 3-way resource contention, needing a page refresh
+  to catch up once it finally completed - should also improve as a result, though that
+  part was host contention, not a UI/polling bug (`action=status` polls are deliberately
+  excluded from `ajax.log`'s own request logging to avoid heartbeat noise, so this
+  couldn't be confirmed directly either way from the log evidence alone).
 - **Documented** an abbreviated version of "After a fresh SD card (a from-scratch
   rebuild)" (added to [Restoring a Backup](restoring-a-backup.md) previously) in the
   in-app Help popover's own Restoring a Backup section (`help/help.php`), with a link out
