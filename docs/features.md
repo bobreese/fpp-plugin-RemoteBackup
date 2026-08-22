@@ -145,6 +145,16 @@
   via a one-time popup the next time Status or Config is opened - a Skip also shows exactly
   which device(s) were left out. See
   [Troubleshooting](troubleshooting.md#remote-playing-a-sequence) for the full walkthrough.
+- **Show Schedule Conflict Check.** Config's own panel of the same name reads the
+  configured schedule straight off whichever system you designate as the show master
+  (`/api/schedule`, that system's own FPP API) and lays it out as a Sunday-through-Saturday
+  table, plus a quick "does this day/time conflict" checker - a proactive complement to the
+  reactive "won't start while a show is running" check above, for picking a backup time in
+  the first place rather than reacting to one that's already live. Clearly marked as a
+  recommendation to verify, not a guarantee - see
+  [Show Schedule Conflict Check](schedule-conflict-check.md) for exactly why (expired/
+  disabled entries filtered out, but day-of-week codes and `SunSet`/`SunRise`-anchored
+  entries both carry real caveats worth reading before trusting it against a live show).
 - **Safety checks.** Both the primary and secondary/clone drive Format flows refuse to
   touch the disk FPP itself is currently running from - resolved by asking the system for
   the actual device backing the root filesystem (whatever it is: SD card, NVMe, or USB),

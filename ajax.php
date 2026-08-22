@@ -302,7 +302,15 @@ function rb_default_settings() {
         // lowSpaceReason above, this reports a past event rather than an
         // ongoing condition, so it deliberately does not auto-clear on
         // its own.
-        'lastScheduledPlayOutcome' => null
+        'lastScheduledPlayOutcome' => null,
+        // Address of the FPP system designated as the show master for
+        // Config's "Show Schedule Conflict Check" panel - not necessarily
+        // one of the remotes[] entries above (the master isn't
+        // automatically one you'd back up), so it's its own field rather
+        // than reusing a remote selection. Purely advisory/read-only: this
+        // is never consulted by run_backup.sh or any run guard, only by
+        // that one Config panel when a human clicks "Check Schedule."
+        'scheduleMasterAddress' => ''
     ];
 }
 
@@ -427,6 +435,20 @@ switch ($action) {
         $data = rb_run_json("$SCRIPTS_DIR/host_info.sh", [], 10);
         if (!$data) $data = ['hostname' => '', 'addresses' => []];
         echo json_encode(['ok' => true, 'data' => $data]);
+        break;
+    }
+
+    // checkMasterSchedule: Config's "Show Schedule Conflict Check" panel -
+    // read-only, purely advisory (see the panel's own Note and
+    // docs/schedule-conflict-check.md). Address comes from the query
+    // string rather than saved settings so the panel can be used to check
+    // a candidate address before ever saving it as scheduleMasterAddress.
+    case 'checkMasterSchedule': {
+        $address = isset($_GET['address']) ? trim((string)$_GET['address']) : '';
+        if ($address === '') rb_fail('address required');
+        $data = rb_run_json("$SCRIPTS_DIR/check_master_schedule.sh", [$address], 15);
+        if (!$data) $data = ['ok' => false, 'error' => 'No response from check_master_schedule.sh - see data/logs/ajax.log'];
+        echo json_encode($data);
         break;
     }
 
@@ -600,7 +622,7 @@ switch ($action) {
         foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
-        foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword'] as $k) {
+        foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword', 'scheduleMasterAddress'] as $k) {
             if (!isset($body[$k])) continue;
             // Treat an empty sshPassword as "unset" so the system default
             // (rb_default_settings' 'falcon') remains in effect unless a

@@ -101,6 +101,39 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
+    <fieldset class="border rounded p-2 mt-2">
+        <legend>Show Schedule Conflict Check</legend>
+        <div class="p-2">
+            <div class="callout callout-warning mb-2">
+                <strong>Note:</strong> this is a possible recommendation, not a guarantee. It's built from the
+                schedule the master reports right now, using FPP day-of-week codes and read the way this plugin
+                understands them - not verified against every FPP version, and any <code>SunSet</code>/<code>SunRise</code>-anchored
+                entry is shown as-is rather than resolved to an exact time (it shifts by season). If you use this
+                to help pick a backup time, <strong>test that actual backup once before trusting it against a live
+                show</strong> - watch it run start-to-finish on a night nothing is scheduled, confirm about how long
+                it takes, and build in a safety margin before the next scheduled item rather than cutting it close.
+            </div>
+            Show master:
+            <select id="rb-scheduleMasterSelect" style="max-width:20em"></select>
+            <input type="text" id="rb-scheduleMasterCustom" placeholder="Custom address (hostname or IP)" style="display:none;max-width:16em">
+            <button type="button" class="btn btn-sm btn-secondary" id="rb-checkSchedule">Check Schedule</button>
+            <span id="rb-scheduleStatus" class="ms-2"></span>
+            <div id="rb-scheduleResults" class="mt-2"></div>
+            <div id="rb-scheduleCheckTimeWrap" class="mt-2" style="display:none">
+                <b>Check a specific time:</b>
+                <select id="rb-scheduleCheckDay">
+                    <option value="Sun">Sunday</option><option value="Mon">Monday</option>
+                    <option value="Tue">Tuesday</option><option value="Wed">Wednesday</option>
+                    <option value="Thu">Thursday</option><option value="Fri">Friday</option>
+                    <option value="Sat">Saturday</option>
+                </select>
+                <input type="time" id="rb-scheduleCheckTime" value="09:00">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="rb-scheduleCheckBtn">Check</button>
+                <span id="rb-scheduleCheckResult" class="ms-2"></span>
+            </div>
+        </div>
+    </fieldset>
+
     <button type="button" class="btn btn-primary mt-2" id="rb-save">Save Settings</button>
     <a class="btn btn-outline-secondary mt-2" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status</a>
     <span id="rb-saveMsg" class="ms-2"></span>
@@ -973,6 +1006,121 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // "Show Schedule Conflict Check" panel - purely advisory, read-only
+    // (see the panel's own Note). Populates the master-address picker from
+    // state.remotes (the master isn't necessarily one of them, so there's
+    // always a "Custom address..." fallback), fetches/classifies the
+    // master's /api/schedule via the checkMasterSchedule ajax action, and
+    // renders the result as a day-of-week table plus a quick "does this
+    // time conflict" mini-checker against the same already-fetched data.
+    var scheduleData = null; // last successful {days:{...}} response, reused by the time-checker
+
+    function renderScheduleMasterSelect() {
+        var sel = document.getElementById('rb-scheduleMasterSelect');
+        var current = sel.value || (state.settings && state.settings.scheduleMasterAddress) || '';
+        var html = '';
+        state.remotes.forEach(function (r) {
+            html += '<option value="' + r.address + '">' + r.hostname + ' (' + r.address + ')</option>';
+        });
+        html += '<option value="__custom__">Custom address...</option>';
+        sel.innerHTML = html;
+
+        var knownAddr = state.remotes.some(function (r) { return r.address === current; });
+        if (current && knownAddr) {
+            sel.value = current;
+            document.getElementById('rb-scheduleMasterCustom').style.display = 'none';
+        } else if (current) {
+            sel.value = '__custom__';
+            document.getElementById('rb-scheduleMasterCustom').value = current;
+            document.getElementById('rb-scheduleMasterCustom').style.display = '';
+        }
+    }
+
+    document.getElementById('rb-scheduleMasterSelect').addEventListener('change', function () {
+        var custom = document.getElementById('rb-scheduleMasterCustom');
+        custom.style.display = (this.value === '__custom__') ? '' : 'none';
+    });
+
+    function currentScheduleMasterAddress() {
+        var sel = document.getElementById('rb-scheduleMasterSelect');
+        if (sel.value === '__custom__') {
+            return document.getElementById('rb-scheduleMasterCustom').value.trim();
+        }
+        return sel.value;
+    }
+
+    var DAY_LABELS = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
+    var DAY_ORDER = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    function renderScheduleResults(days) {
+        var html = '<table class="table table-sm table-bordered"><tr>';
+        DAY_ORDER.forEach(function (d) { html += '<th>' + DAY_LABELS[d] + '</th>'; });
+        html += '</tr><tr>';
+        DAY_ORDER.forEach(function (d) {
+            var entries = days[d] || [];
+            if (!entries.length) {
+                html += '<td class="table-success"><small>Clear</small></td>';
+                return;
+            }
+            var cell = entries.map(function (e) {
+                var cls = e.unparsed ? 'text-danger' : (e.sunRelative ? 'text-warning' : '');
+                var tag = e.unparsed ? ' (unrecognized time - verify manually)' : (e.sunRelative ? ' (approximate - sun-relative)' : '');
+                return '<div class="' + cls + '"><small>' + e.start + '–' + e.end + '<br>' +
+                    e.label.replace(/</g, '&lt;') + tag + '</small></div>';
+            }).join('<hr class="my-1">');
+            html += '<td class="table-warning">' + cell + '</td>';
+        });
+        html += '</tr></table>';
+        document.getElementById('rb-scheduleResults').innerHTML = html;
+        document.getElementById('rb-scheduleCheckTimeWrap').style.display = '';
+    }
+
+    document.getElementById('rb-checkSchedule').addEventListener('click', function () {
+        var addr = currentScheduleMasterAddress();
+        var statusEl = document.getElementById('rb-scheduleStatus');
+        if (!addr) { $.jGrowl('Enter or pick a master address first.', { themeState: 'danger' }); return; }
+        statusEl.textContent = 'Checking...';
+        document.getElementById('rb-scheduleResults').innerHTML = '';
+        api('checkMasterSchedule&address=' + encodeURIComponent(addr)).then(function (res) {
+            if (!res.ok) {
+                statusEl.textContent = '';
+                scheduleData = null;
+                document.getElementById('rb-scheduleCheckTimeWrap').style.display = 'none';
+                $.jGrowl('Could not check schedule: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                return;
+            }
+            statusEl.textContent = '';
+            scheduleData = res.days;
+            renderScheduleResults(res.days);
+        });
+    });
+
+    document.getElementById('rb-scheduleCheckBtn').addEventListener('click', function () {
+        var resultEl = document.getElementById('rb-scheduleCheckResult');
+        if (!scheduleData) { resultEl.textContent = ''; return; }
+        var day = document.getElementById('rb-scheduleCheckDay').value;
+        var timeVal = document.getElementById('rb-scheduleCheckTime').value; // "HH:MM"
+        if (!timeVal) { resultEl.textContent = ''; return; }
+        var checkTime = timeVal + ':00';
+        var entries = scheduleData[day] || [];
+        var hit = null, approximate = false;
+        entries.forEach(function (e) {
+            if (e.sunRelative || e.unparsed) { approximate = true; return; }
+            // Literal HH:MM:SS strings compare correctly as plain strings.
+            if (checkTime >= e.start && checkTime < e.end) hit = e;
+        });
+        if (hit) {
+            resultEl.className = 'ms-2 text-danger';
+            resultEl.textContent = 'Conflicts with "' + hit.label + '" (' + hit.start + '–' + hit.end + ')';
+        } else if (approximate) {
+            resultEl.className = 'ms-2 text-warning';
+            resultEl.textContent = 'No exact conflict, but ' + DAY_LABELS[day] + ' has a sun-relative or unrecognized entry - verify manually.';
+        } else {
+            resultEl.className = 'ms-2 text-success';
+            resultEl.textContent = 'Clear.';
+        }
+    });
+
     // fromScan entries are keyed by hostname first (id = sanitized
     // hostname), falling back to address only when a matching hostname
     // isn't already known - but a device renamed in FPP (same IP, new
@@ -1075,6 +1223,7 @@ $rbPlugin = basename(__DIR__);
             state.remotes = state.settings.remotes || [];
             renderRemotes();
             renderStorage();
+            renderScheduleMasterSelect();
         });
         api('probeStorage').then(function (res) {
             if (res.ok) { state.storage = res.data; renderStorage(); }
@@ -1084,6 +1233,7 @@ $rbPlugin = basename(__DIR__);
             if (res.ok) {
                 state.remotes = mergeRemoteLists(res.data.remotes || [], state.remotes);
                 renderRemotes();
+                renderScheduleMasterSelect();
             } else {
                 setScanError('rb-remoteList', res.error);
             }
@@ -1160,6 +1310,7 @@ $rbPlugin = basename(__DIR__);
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
             remotePlayingPolicy: document.getElementById('rb-playPolicy-skip').checked ? 'skip' : 'stop',
+            scheduleMasterAddress: currentScheduleMasterAddress(),
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
             logRetentionCount: parseInt(document.getElementById('rb-logRetentionCount').value, 10) || 15,
             sshUser: document.getElementById('rb-sshUser').value || 'fpp',
