@@ -127,7 +127,7 @@ $rbPlugin = basename(__DIR__);
                     <option value="Thu">Thursday</option><option value="Fri">Friday</option>
                     <option value="Sat">Saturday</option>
                 </select>
-                <input type="time" id="rb-scheduleCheckTime" value="09:00">
+                <span id="rb-scheduleCheckTimeInputs"></span>
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="rb-scheduleCheckBtn">Check</button>
                 <span id="rb-scheduleCheckResult" class="ms-2"></span>
             </div>
@@ -1052,6 +1052,67 @@ $rbPlugin = basename(__DIR__);
     var DAY_LABELS = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
     var DAY_ORDER = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+    // Whether to render times 12-hour AM/PM or 24-hour - set from the same
+    // master's own Settings > Localization > Time Format
+    // (checkMasterSchedule's timeFormat field, read server-side from
+    // GET /api/settings/TimeFormat) each time "Check Schedule" succeeds, so
+    // this panel matches what that system is actually configured to show
+    // rather than a hardcoded choice or the browser's own locale guess.
+    // Defaults true (FPP's own factory default) until a real check has run.
+    var scheduleUse12h = true;
+
+    // Only ever applied to a literal HH:MM:SS clock time - a sun-relative
+    // label ("SunSet+30m") or an unparsed one ("? garbage") is returned
+    // completely unchanged, since neither is really a time to reformat.
+    function formatTimeForDisplay(t) {
+        if (!/^\d{2}:\d{2}:\d{2}$/.test(t)) return t;
+        var h = parseInt(t.slice(0, 2), 10);
+        var m = t.slice(3, 5);
+        // FPP's own 24-hour display is zero-padded HH:MM with no seconds
+        // (its option is literally labeled "HH:MM (23:40)").
+        if (!scheduleUse12h) return (h < 10 ? '0' : '') + h + ':' + m;
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        var h12 = h % 12; if (h12 === 0) h12 = 12;
+        return h12 + ':' + m + ' ' + ampm;
+    }
+
+    // (Re)builds the "Check a specific time" input to match scheduleUse12h -
+    // deliberately not a plain <input type="time">, since that control's
+    // displayed format follows the browser/OS locale, not anything this
+    // page can set, which could easily disagree with what the master
+    // itself is configured to show. getCheckTime24() below always reads
+    // whichever of these is currently in the DOM back out as HH:MM:SS.
+    function buildScheduleCheckTimeInputs() {
+        var wrap = document.getElementById('rb-scheduleCheckTimeInputs');
+        var html;
+        if (scheduleUse12h) {
+            html = '<select id="rb-scheduleCheckHour">';
+            for (var h = 1; h <= 12; h++) html += '<option value="' + h + '"' + (h === 9 ? ' selected' : '') + '>' + h + '</option>';
+            html += '</select>:<select id="rb-scheduleCheckMinute">';
+            for (var m = 0; m < 60; m++) { var mm = (m < 10 ? '0' : '') + m; html += '<option value="' + mm + '">' + mm + '</option>'; }
+            html += '</select> <select id="rb-scheduleCheckAmPm"><option value="AM" selected>AM</option><option value="PM">PM</option></select>';
+        } else {
+            html = '<select id="rb-scheduleCheckHour24">';
+            for (var h2 = 0; h2 < 24; h2++) { var hh = (h2 < 10 ? '0' : '') + h2; html += '<option value="' + hh + '"' + (h2 === 9 ? ' selected' : '') + '>' + hh + '</option>'; }
+            html += '</select>:<select id="rb-scheduleCheckMinute24">';
+            for (var m2 = 0; m2 < 60; m2++) { var mm2 = (m2 < 10 ? '0' : '') + m2; html += '<option value="' + mm2 + '">' + mm2 + '</option>'; }
+            html += '</select>';
+        }
+        wrap.innerHTML = html;
+    }
+
+    function getCheckTime24() {
+        if (scheduleUse12h) {
+            var h = parseInt(document.getElementById('rb-scheduleCheckHour').value, 10) % 12;
+            if (document.getElementById('rb-scheduleCheckAmPm').value === 'PM') h += 12;
+            var m = document.getElementById('rb-scheduleCheckMinute').value;
+            return (h < 10 ? '0' : '') + h + ':' + m + ':00';
+        }
+        var h2 = document.getElementById('rb-scheduleCheckHour24').value;
+        var m2 = document.getElementById('rb-scheduleCheckMinute24').value;
+        return h2 + ':' + m2 + ':00';
+    }
+
     function renderScheduleResults(days) {
         var html = '<table class="table table-sm table-bordered"><tr>';
         DAY_ORDER.forEach(function (d) { html += '<th>' + DAY_LABELS[d] + '</th>'; });
@@ -1065,7 +1126,7 @@ $rbPlugin = basename(__DIR__);
             var cell = entries.map(function (e) {
                 var cls = e.unparsed ? 'text-danger' : (e.sunRelative ? 'text-warning' : '');
                 var tag = e.unparsed ? ' (unrecognized time - verify manually)' : (e.sunRelative ? ' (approximate - sun-relative)' : '');
-                return '<div class="' + cls + '"><small>' + e.start + '–' + e.end + '<br>' +
+                return '<div class="' + cls + '"><small>' + formatTimeForDisplay(e.start) + '–' + formatTimeForDisplay(e.end) + '<br>' +
                     e.label.replace(/</g, '&lt;') + tag + '</small></div>';
             }).join('<hr class="my-1">');
             html += '<td class="table-warning">' + cell + '</td>';
@@ -1090,6 +1151,8 @@ $rbPlugin = basename(__DIR__);
                 return;
             }
             statusEl.textContent = '';
+            scheduleUse12h = res.timeFormat !== '24';
+            buildScheduleCheckTimeInputs();
             scheduleData = res.days;
             renderScheduleResults(res.days);
         });
@@ -1099,9 +1162,7 @@ $rbPlugin = basename(__DIR__);
         var resultEl = document.getElementById('rb-scheduleCheckResult');
         if (!scheduleData) { resultEl.textContent = ''; return; }
         var day = document.getElementById('rb-scheduleCheckDay').value;
-        var timeVal = document.getElementById('rb-scheduleCheckTime').value; // "HH:MM"
-        if (!timeVal) { resultEl.textContent = ''; return; }
-        var checkTime = timeVal + ':00';
+        var checkTime = getCheckTime24();
         var entries = scheduleData[day] || [];
         var hit = null, approximate = false;
         entries.forEach(function (e) {
@@ -1111,7 +1172,7 @@ $rbPlugin = basename(__DIR__);
         });
         if (hit) {
             resultEl.className = 'ms-2 text-danger';
-            resultEl.textContent = 'Conflicts with "' + hit.label + '" (' + hit.start + '–' + hit.end + ')';
+            resultEl.textContent = 'Conflicts with "' + hit.label + '" (' + formatTimeForDisplay(hit.start) + '–' + formatTimeForDisplay(hit.end) + ')';
         } else if (approximate) {
             resultEl.className = 'ms-2 text-warning';
             resultEl.textContent = 'No exact conflict, but ' + DAY_LABELS[day] + ' has a sun-relative or unrecognized entry - verify manually.';
