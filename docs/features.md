@@ -66,6 +66,16 @@
   index to reconstruct: any single dated snapshot folder is fully self-contained and
   restorable entirely on its own, exactly like a rolling backup, whether or not the
   snapshots next to it still exist.
+- **Runs as a real background process, independent of the browser.** Clicking Dry Run,
+  Start Backup, or Start Clone launches the underlying script detached from that one web
+  request and returns immediately - the transfer itself is a background process on the FPP
+  system, not something tied to the page or tab that started it. Navigating to the FPP home
+  page, closing the browser, or your phone locking doesn't pause or cancel it; it runs to
+  completion (or failure) exactly the same either way, and progress is tracked on disk
+  (`data/status/*.json`, `data/run_active.json`) rather than in the page itself, so coming
+  back later - even from a different browser - just resumes showing the current live state.
+  The only way to stop one mid-run is the explicit **Stop**/**Stop Clone** button; there's no
+  timeout tied to the page being open.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
