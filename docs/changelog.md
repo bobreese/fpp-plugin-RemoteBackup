@@ -5,6 +5,27 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `data/settings.json` going empty/corrupt (observed once from something outside
+  this plugin entirely - an OS/FPP update restarting the web server mid-write, no
+  `saveSettings` request anywhere near the moment it happened) left every setting silently
+  reset to plain defaults *forever*, with nothing ever detecting or repairing it - a fresh
+  `rb_load_settings()` call on every single request kept re-reading the same broken file and
+  re-logging the same warning, with no way back short of noticing and re-entering every
+  setting (destination, remote list, SSH config, everything) by hand. `data/settings.json.bak`
+  is now kept as a plain mirror, refreshed on every successful settings write whether it came
+  from `ajax.php`'s `rb_save_settings()` (the Config page, halt/failover, etc.) or a script's
+  `rb_set_setting()`/`rb_set_setting_json()` (e.g. auto-failover switching the destination).
+  If the live file is ever found empty or invalid JSON, it's restored from that backup
+  automatically - on the PHP side inside `rb_load_settings()` itself, and on the shell side
+  via a check at the top of `lib_common.sh` so every script (`run_backup.sh`, the FPP
+  Commands, everything) self-heals just by sourcing it, not only through the web UI. Falls
+  back to (and persists) plain defaults only if the backup is *also* broken. Logs a
+  `RECOVERED settings.json from settings.json.bak` line either way it happens. Verified with
+  a standalone PHP harness (save-then-load, live-file-truncated recovery, both-files-broken
+  fallback) and a shell test sourcing a patched `lib_common.sh` against a truncated
+  `settings.json`. See
+  [Troubleshooting](troubleshooting.md#settings-reset-to-defaults) and
+  [Features](features.md).
 - **Added** a configurable response to a remote playing a sequence when a real backup run
   is about to start, plus a "Scheduled Backup - Remote(s) Playing" report popup for
   scheduled runs. Previously this was always an unconditional whole-run refusal; a new

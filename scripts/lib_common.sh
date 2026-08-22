@@ -17,6 +17,26 @@ rb_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_DIR}/engine.log"
 }
 
+# Self-heal settings.json if it exists but is empty/corrupt - observed
+# cause: something outside this plugin entirely (an OS/FPP update
+# restarting the web server mid-write, in one real incident) truncated it
+# to 0 bytes, and every script/request from then on just silently ran on
+# empty/default values with nothing ever repairing it. Every script
+# sources this file before doing anything else, so this one check covers
+# every entry point (run_backup.sh, the FPP Commands, every ajax.php
+# action via its own PHP-side equivalent) rather than needing to be
+# repeated per-script. Restores from settings.json.bak - kept in sync by
+# rb_backup_settings_file() below and by ajax.php's own
+# rb_save_settings() - only if that backup itself is valid JSON;
+# otherwise this deliberately does nothing; it's not this check's job to
+# invent defaults for a file that may simply never have existed yet.
+if [ -f "$SETTINGS_FILE" ] && ! jq -e . "$SETTINGS_FILE" >/dev/null 2>&1; then
+    if [ -f "${SETTINGS_FILE}.bak" ] && jq -e . "${SETTINGS_FILE}.bak" >/dev/null 2>&1; then
+        cp "${SETTINGS_FILE}.bak" "$SETTINGS_FILE" 2>/dev/null
+        rb_log "RECOVERED settings.json from settings.json.bak (live file was empty/corrupt)"
+    fi
+fi
+
 # setting <jq filter> [default]
 rb_setting() {
     local filter="$1"
@@ -34,6 +54,25 @@ rb_setting() {
     fi
 }
 
+# rb_backup_settings_file: best-effort mirror of the just-written
+# settings.json to settings.json.bak, called after every successful write
+# below - the same backup ajax.php's rb_save_settings()/rb_load_settings()
+# maintain and recover from on the PHP side (see the comment on
+# rb_settings_backup_path() there for why this exists: settings.json has
+# been observed truncated to 0 bytes by something outside this plugin
+# entirely, e.g. an OS/FPP update restarting the web server mid-write,
+# with no way back short of re-entering every setting by hand). Never
+# allowed to fail the caller - it's a safety net, not the primary write.
+rb_backup_settings_file() {
+    local tmp
+    tmp=$(mktemp "${SETTINGS_FILE}.bak.tmp_XXXXXX") || return 0
+    if cp "$SETTINGS_FILE" "$tmp" 2>/dev/null; then
+        mv "$tmp" "${SETTINGS_FILE}.bak" 2>/dev/null
+    else
+        rm -f "$tmp"
+    fi
+}
+
 # rb_set_setting <jq path> <string value>: updates a single key in
 # settings.json in place (read, modify, write as one atomic mv). Used
 # sparingly, only where a script needs to persist a state change on its own
@@ -46,6 +85,7 @@ rb_set_setting() {
     tmp=$(mktemp "${SETTINGS_FILE}.tmp_XXXXXX")
     if jq --arg v "$value" "${path} = \$v" "$SETTINGS_FILE" > "$tmp" 2>/dev/null; then
         mv "$tmp" "$SETTINGS_FILE"
+        rb_backup_settings_file
     else
         rm -f "$tmp"
         return 1
@@ -63,6 +103,7 @@ rb_set_setting_json() {
     tmp=$(mktemp "${SETTINGS_FILE}.tmp_XXXXXX")
     if jq --argjson v "$value" "${path} = \$v" "$SETTINGS_FILE" > "$tmp" 2>/dev/null; then
         mv "$tmp" "$SETTINGS_FILE"
+        rb_backup_settings_file
     else
         rm -f "$tmp"
         return 1
