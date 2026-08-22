@@ -5,6 +5,14 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** [Troubleshooting](troubleshooting.md) with a clickable table of contents
+  at the top - every top-level section, plus each individual error-message case under SSH
+  key failures and Backup Destination Missing (the two sections with several distinct
+  sub-cases), links straight to that spot; a "Back to top" link closes out each top-level
+  section for the round trip. Anchor targets computed and verified against GitHub's actual
+  heading-slug algorithm rather than guessed, since several headings contain punctuation
+  (quotes, slashes, parentheses) that doesn't survive slugging literally. No content
+  changed, just navigation.
 - **Documented** a new "A USB/SSD Drive Shows Two Partitions" section in
   [Troubleshooting](troubleshooting.md): `format_usb.sh`'s Format & Mount flow always
   wipes and repartitions the *whole disk* with exactly one GPT partition, regardless of
