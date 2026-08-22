@@ -13,7 +13,7 @@
 # an exact clock time rather than risk guessing wrong).
 #
 # Usage: check_master_schedule.sh <address>
-# Output JSON: {"ok":true,"days":{"Sun":[...],"Mon":[...],...}}
+# Output JSON: {"ok":true,"timeFormat":"12"|"24","days":{"Sun":[...],...}}
 # Each interval: {start, end, sunRelative, unparsed, label}
 #   sunRelative - start/end (or both) is a "SunSet"/"SunRise" anchor, not an
 #     exact clock time; the value shown includes any configured offset
@@ -23,6 +23,15 @@
 #     visible rather than silently dropped, since a real configured entry
 #     this script can't fully understand should never just vanish from
 #     the picture.
+#   start/end are always the raw literal HH:MM:SS (or sun-relative label)
+#   as reported by the master's own /api/schedule - not pre-formatted for
+#   display. timeFormat says how the client should render a literal time:
+#   read from the SAME master's own Settings > Localization > Time Format
+#   (GET /api/settings/TimeFormat, a strftime-style value - "%H:%M" for
+#   24-hour, "%I:%M %p" for 12-hour AM/PM), so the schedule panel matches
+#   whatever that system is actually configured to show, not a hardcoded
+#   choice. Defaults to "12" (FPP's own default) if that setting can't be
+#   read for any reason - never fails the whole request over it.
 
 . "$(dirname "$0")/lib_common.sh"
 
@@ -44,6 +53,16 @@ fi
 
 TODAY=$(date '+%Y-%m-%d')
 
+# TimeFormat is its own separate FPP setting (Settings > Localization),
+# best-effort only - a missing/unreachable/unexpected value falls back to
+# "12" (FPP's own factory default) rather than failing the whole check
+# over a setting that has nothing to do with the schedule data itself.
+TIME_FORMAT_RAW=$(curl -s --max-time 5 "http://${urlhost}/api/settings/TimeFormat" 2>/dev/null | jq -r '.value // empty' 2>/dev/null)
+case "$TIME_FORMAT_RAW" in
+    *%H*) TIME_FORMAT="24" ;;
+    *) TIME_FORMAT="12" ;;
+esac
+
 # --- Classification -------------------------------------------------------
 # Day-of-week codes (0-6 = Sun-Sat, 7 = every day, 8 = weekdays, 9 =
 # weekends) follow documented FPP convention, corroborated by two real
@@ -55,7 +74,7 @@ TODAY=$(date '+%Y-%m-%d')
 # it's flagged (unparsed) and kept, never quietly ignored, since a false
 # "this day looks clear" is a much worse outcome here than an overcautious
 # one.
-jq --arg today "$TODAY" '
+jq --arg today "$TODAY" --arg timeFormat "$TIME_FORMAT" '
 def dayNames: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 def daysForCode($d):
@@ -106,6 +125,7 @@ def offsetLabel($off):
 ]
 | . as $entries
 | { ok: true,
+    timeFormat: $timeFormat,
     days: (dayNames | reduce .[] as $d ({};
       . + { ($d): ( [ $entries[] | select(.days | index($d)) | {start,end,sunRelative,unparsed,label} ]
                     | sort_by(if (.sunRelative or .unparsed) then "zzz" else .start end) ) }

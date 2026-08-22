@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** the Show Schedule Conflict Check panel to display times in whichever format
+  the master itself is actually configured to use, instead of the master's own raw
+  `HH:MM:SS` strings. Read from that same master's `GET /api/settings/TimeFormat` (a
+  strftime-style value - `%H:%M` for 24-hour, `%I:%M %p` for 12-hour AM/PM - the same
+  Settings > Localization > Time Format setting FPP's own UI uses), defaulting to 12-hour
+  (FPP's own factory default) if that setting can't be read for any reason - never fails
+  the whole schedule check over it. Applies to the results table, the conflict-check
+  answer text, and the "Check a specific time" picker itself, which is now built from
+  explicit hour/minute(/AM-PM) `<select>`s matching the detected format rather than a
+  plain `<input type="time">`, since that control's displayed format follows the
+  browser/OS locale rather than anything the page can set - which could easily disagree
+  with what the master is actually configured to show. `SunSet`/`SunRise`-anchored and
+  unparsed entries are left completely untouched either way, since neither is really a
+  clock time to reformat. See [Show Schedule Conflict Check](schedule-conflict-check.md).
 - **Documented** [Troubleshooting](troubleshooting.md) with a clickable table of contents
   at the top - every top-level section, plus each individual error-message case under SSH
   key failures and Backup Destination Missing (the two sections with several distinct

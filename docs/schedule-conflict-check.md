@@ -23,10 +23,14 @@ Backup" Scheduler entry in the first place.
    one of the systems you back up, so it's tracked separately from your remote selections.
 3. Click **Check Schedule**. It fetches that system's own `/api/schedule` and shows a
    Sunday-through-Saturday table: a green **Clear** cell means nothing configured and
-   enabled applies to that day; anything else lists what does.
-4. Optionally, use **"Check a specific time"** below the table to type a day and time and
-   get a direct answer - Clear, a named conflict, or an approximate warning - without
-   having to read the whole table yourself.
+   enabled applies to that day; anything else lists what does. Times are shown in
+   whichever format that same master is actually configured to use (Settings >
+   Localization > Time Format, `12-hour AM/PM` or `24-hour`) - not a hardcoded choice,
+   and not the browser's own locale guess.
+4. Optionally, use **"Check a specific time"** below the table to pick a day and time (the
+   picker itself also follows the master's Time Format setting) and get a direct answer -
+   Clear, a named conflict, or an approximate warning - without having to read the whole
+   table yourself.
 5. If you're happy with the picker's address, click **Save Settings** to remember it for
    next time.
 
