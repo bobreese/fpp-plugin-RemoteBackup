@@ -2,6 +2,21 @@
 
 [← Back to README](../README.md)
 
+- [SSH key failures](#ssh-key-failures)
+  - ["key push failed - click 'Push SSH Key' to retry with a password"](#key-push-failed---click-push-ssh-key-to-retry-with-a-password)
+  - ["sshpass is not installed on the Host."](#sshpass-is-not-installed-on-the-host)
+  - ["No local SSH key found; re-run the plugin install script."](#no-local-ssh-key-found-re-run-the-plugin-install-script)
+  - ["Timed out connecting/authenticating to `<address>`."](#timed-out-connectingauthenticating-to-address)
+  - ["Key push failed (rc=N): `<raw ssh output>`"](#key-push-failed-rcn-raw-ssh-output)
+  - [A reimaged/rebuilt remote ("new SD/boot device")](#a-reimagedrebuilt-remote-new-sdboot-device)
+  - [The push reports success, but backups still fail with "Permission denied (publickey)"](#the-push-reports-success-but-backups-still-fail-with-permission-denied-publickey)
+- [Backup Destination Missing](#backup-destination-missing)
+  - [Plugging the drive back in doesn't automatically resolve this](#plugging-the-drive-back-in-doesnt-automatically-resolve-this)
+- [Backup Space Insufficient](#backup-space-insufficient)
+- [Remote Playing a Sequence](#remote-playing-a-sequence)
+- [Settings Reset to Defaults](#settings-reset-to-defaults)
+- [A USB/SSD Drive Shows Two Partitions](#a-usbssd-drive-shows-two-partitions)
+
 ## SSH key failures
 
 Checking a remote's box (or manually adding one) pushes the Host's dedicated backup SSH
@@ -92,6 +107,8 @@ only really a risk if the key was ever copied to that remote by some other means
 manual `scp`, a different tool). Fix: click **Push SSH Key** again to re-push through
 this plugin, which corrects the permissions along with the key itself.
 
+[↑ Back to top](#troubleshooting)
+
 ## Backup Destination Missing
 
 If a configured destination drive (USB/NVMe/SSD, anything other than the SD Card/System
@@ -154,6 +171,8 @@ To actually bring it back:
    the destination present again and clears the halt automatically - no separate
    "resume" button to find.
 
+[↑ Back to top](#troubleshooting)
+
 ## Backup Space Insufficient
 
 Every real backup run (manual or scheduled) starts with a pre-flight check: an estimate
@@ -201,6 +220,8 @@ it did before this existed. There's no setting to skip it entirely; `--skip-spac
 (used internally by "Start Anyway") is the only way past it, and it only applies to that
 one retry.
 
+[↑ Back to top](#troubleshooting)
+
 ## Remote Playing a Sequence
 
 Before a real run touches anything, every selected remote's own FPP API is checked for
@@ -233,6 +254,8 @@ this popup reports something that already finished, not an ongoing condition - i
 come back on a page reload, only clicking its OK button (or a *later* scheduled run hitting
 this same situation again) clears it.
 
+[↑ Back to top](#troubleshooting)
+
 ## Settings Reset to Defaults
 
 If Config suddenly shows every setting back at its default (destination cleared, remote
@@ -262,6 +285,8 @@ settings.json from ...` line naming which of the two it recovered from. Only if 
 backups are found broken at the same time does it fall back to plain defaults and persist
 those, rather than continuing to fail (and re-log the same warning) on every single request.
 
+[↑ Back to top](#troubleshooting)
+
 ## A USB/SSD Drive Shows Two Partitions
 
 If Config's storage list shows a drive split into two entries - a large one already
@@ -282,6 +307,8 @@ Mount as Backups** on either entry - it wipes the *entire* disk regardless of wh
 partition you clicked, leaving a single fresh partition using all of it. This erases
 everything currently on the drive, including the already-formatted partition, so only
 do it if there's nothing there worth keeping (or back it up elsewhere first).
+
+[↑ Back to top](#troubleshooting)
 
 **If this keeps happening, the backups are a safety net, not a cure.** Two occurrences
 inside about an hour have been observed on one real system, each with the exact same
