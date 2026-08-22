@@ -112,6 +112,18 @@
   running. A halt clears itself automatically the moment the missing drive is seen mounted
   again, or a different destination is saved. See
   [Troubleshooting](troubleshooting.md#backup-destination-missing) for the full walkthrough.
+- **Pre-flight space check on every real run.** Before copying anything, estimates the
+  total transfer across every selected remote (the same `rsync --dry-run` pass a regular
+  Dry Run does, so it correctly credits files that already exist on the destination) and
+  compares it to free space right at that moment. If it won't fit, the run is refused
+  before anything is copied and a **"Backup Space Insufficient"** popup offers **Start
+  Anyway**, **Replace Destination** (pick any other currently-mounted drive with enough
+  room), **Use Failover** (SD Card / System Storage), or **Cancel** - picking any of the
+  first three automatically retries the backup. A scheduled run applies a fixed policy
+  instead (refuse and log, or auto-failover if turned on in Backup Options), since there's
+  nobody there to answer a popup. See
+  [Troubleshooting](troubleshooting.md#backup-space-insufficient) for the full
+  walkthrough.
 - **Safety checks.** Both the primary and secondary/clone drive Format flows refuse to
   touch the disk FPP itself is currently running from - resolved by asking the system for
   the actual device backing the root filesystem (whatever it is: SD card, NVMe, or USB),

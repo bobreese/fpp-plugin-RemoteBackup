@@ -267,7 +267,22 @@ function rb_default_settings() {
         // run_backup.sh, which refuses to start while it's set. Cleared
         // automatically once the configured destination is seen mounted
         // again, or a different destinationMount is saved/activated.
-        'haltedReason' => null
+        'haltedReason' => null,
+        // Scheduled-run policy for the pre-flight space check in
+        // run_backup.sh: off by default (a scheduled run refuses outright
+        // and logs why when the estimated transfer won't fit); on switches
+        // the destination to SD Card/System Storage automatically instead
+        // of refusing, since an unattended run has nobody to answer the
+        // "Backup Space Insufficient" popup a manual click would see.
+        'autoFailoverOnLowSpace' => false,
+        // Set by run_backup.sh's pre-flight space check when it refuses a
+        // real run - non-empty means the Status/Config page's "Backup Space
+        // Insufficient" popup should show. Cleared automatically the next
+        // time a pre-flight check doesn't come up short, or a different
+        // destinationMount is saved/activated.
+        'lowSpaceReason' => null,
+        'lowSpaceEstimatedBytes' => null,
+        'lowSpaceAvailableBytes' => null
     ];
 }
 
@@ -516,7 +531,7 @@ switch ($action) {
         $settings = rb_load_settings($SETTINGS_FILE);
         $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
 
-        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig'] as $k) {
+        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword'] as $k) {
@@ -573,6 +588,13 @@ switch ($action) {
         if (!empty($settings['haltedReason']) && isset($settings['destinationMount']) && $settings['destinationMount'] !== $prevDestinationMount) {
             unset($settings['haltedReason']);
         }
+        // Same idea for a low-space refusal - picking a different
+        // destination is itself the fix, so the "Backup Space Insufficient"
+        // popup shouldn't keep reappearing for a destination that's no
+        // longer even the active one.
+        if (!empty($settings['lowSpaceReason']) && isset($settings['destinationMount']) && $settings['destinationMount'] !== $prevDestinationMount) {
+            unset($settings['lowSpaceReason'], $settings['lowSpaceEstimatedBytes'], $settings['lowSpaceAvailableBytes']);
+        }
 
         if (!rb_save_settings($SETTINGS_FILE, $settings)) {
             rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
@@ -627,6 +649,33 @@ switch ($action) {
         break;
     }
 
+    // useDestination: the "Replace Destination" choice on the "Backup Space
+    // Insufficient" popup - switches to any OTHER currently-mounted drive
+    // the user picks (not just "/", which useFailover above already
+    // covers). Re-probes storage itself rather than trusting the client's
+    // mountpoint blindly, so this can't be pointed at something that isn't
+    // actually a real, currently-mounted destination.
+    case 'useDestination': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $body = rb_json_body();
+        $mountpoint = isset($body['mountpoint']) ? (string)$body['mountpoint'] : '';
+        if ($mountpoint === '') rb_fail('mountpoint required');
+
+        if ($mountpoint !== '/' && !rb_is_mounted($mountpoint)) {
+            rb_fail('That drive is not currently mounted - rescan storage and try again.', 409);
+        }
+
+        $settings = rb_load_settings($SETTINGS_FILE);
+        $settings['destinationMount'] = $mountpoint;
+        unset($settings['haltedReason'], $settings['lowSpaceReason'], $settings['lowSpaceEstimatedBytes'], $settings['lowSpaceAvailableBytes']);
+        if (!rb_save_settings($SETTINGS_FILE, $settings)) {
+            rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
+        }
+        rb_log_line("DESTINATION REPLACED: destinationMount switched to '$mountpoint'");
+        echo json_encode(['ok' => true, 'data' => $settings]);
+        break;
+    }
+
     case 'pushSshKey': {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();
@@ -660,6 +709,21 @@ switch ($action) {
         $body = rb_json_body();
         $dryRun = isset($body['dryRun']) && $body['dryRun'];
         $ids = isset($body['remotes']) && is_array($body['remotes']) ? $body['remotes'] : [];
+        // Set when the user already saw the "Backup Space Insufficient"
+        // popup and explicitly chose "Start Anyway" - passed through to
+        // run_backup.sh so its own pre-flight check doesn't just refuse
+        // this attempt too. Acknowledging it is itself resolving it, same
+        // as picking a new destination - clears the stale reason so the
+        // popup doesn't linger for a run the user already chose to proceed
+        // with anyway.
+        $skipSpaceCheck = isset($body['skipSpaceCheck']) && $body['skipSpaceCheck'];
+        if ($skipSpaceCheck) {
+            $s = rb_load_settings($SETTINGS_FILE);
+            if (!empty($s['lowSpaceReason'])) {
+                unset($s['lowSpaceReason'], $s['lowSpaceEstimatedBytes'], $s['lowSpaceAvailableBytes']);
+                rb_save_settings($SETTINGS_FILE, $s);
+            }
+        }
 
         if (rb_is_active("$DATA_DIR/run_active.json")) {
             rb_fail('A backup run is already in progress', 409);
@@ -689,6 +753,7 @@ switch ($action) {
         foreach (glob("$STATUS_DIR/*.json") as $f) { @unlink($f); }
 
         $args = $dryRun ? ' --dry-run' : '';
+        if ($skipSpaceCheck) $args .= ' --skip-space-check';
         if (!empty($ids)) {
             $safeIds = array_map('rb_slugify', $ids);
             $args .= ' --remotes ' . escapeshellarg(implode(',', $safeIds));
@@ -892,7 +957,10 @@ switch ($action) {
             'dryRunSummary' => $summary, 'destStorage' => $destStorage,
             'destinationMount' => isset($settings['destinationMount']) ? $settings['destinationMount'] : null,
             'destinationMissing' => $destinationMissing,
-            'haltedReason' => isset($settings['haltedReason']) ? $settings['haltedReason'] : null
+            'haltedReason' => isset($settings['haltedReason']) ? $settings['haltedReason'] : null,
+            'lowSpaceReason' => isset($settings['lowSpaceReason']) ? $settings['lowSpaceReason'] : null,
+            'lowSpaceEstimatedBytes' => isset($settings['lowSpaceEstimatedBytes']) ? $settings['lowSpaceEstimatedBytes'] : null,
+            'lowSpaceAvailableBytes' => isset($settings['lowSpaceAvailableBytes']) ? $settings['lowSpaceAvailableBytes'] : null
         ]);
         break;
     }

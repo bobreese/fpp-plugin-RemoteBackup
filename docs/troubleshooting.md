@@ -153,3 +153,50 @@ To actually bring it back:
 4. Once mounted, the next `status` poll (Status or Config page, whichever is open) sees
    the destination present again and clears the halt automatically - no separate
    "resume" button to find.
+
+## Backup Space Insufficient
+
+Every real backup run (manual or scheduled) starts with a pre-flight check: an estimate
+of the total transfer size across every selected remote, compared against the
+destination's free space right at that moment - the same `rsync --dry-run` pass a
+regular Dry Run does, so it correctly credits files that already exist on the
+destination instead of assuming a full re-copy every time. If the estimate exceeds
+what's actually free, the run is refused before anything is copied, and a **"Backup
+Space Insufficient"** popup appears on whichever of the Status or Config page happens to
+be open:
+
+- **Start Anyway** - proceeds despite the warning. Useful if the estimate looks stale
+  (e.g. you just freed up space) - the transfer may still only partially complete if it
+  genuinely doesn't fit, same as before this check existed.
+- **Replace Destination** - pick any other currently-mounted drive with enough room for
+  the estimated transfer, right from the popup.
+- **Use Failover** - switch to SD Card / System Storage (always available, no drive
+  required).
+- **Cancel** - leave it refused. Nothing runs again until you come back and pick one of
+  the above, or fix the space situation yourself and try again.
+
+Picking Start Anyway, Replace Destination, or Use Failover automatically retries the
+backup right away, using whatever's currently selected on the Config page - you don't
+need to click Start Backup again yourself.
+
+**Why this only shows up after a run was attempted, not before you click Start.**
+Unlike a missing drive (a fact that's true or false at any moment, checked continuously),
+"will this fit" requires actually estimating the transfer size, which takes real time -
+there's no cheap way to know in advance. So the check happens as part of every real run
+itself, and the popup reflects a run that was just refused, not a warning shown before
+you've clicked anything.
+
+**A scheduled run has nobody to answer that popup**, so it applies a fixed policy
+instead: refuse and log a clear reason (same as a manual run, just with no popup for
+anyone to see until they next open the Status or Config page), unless **"If a scheduled
+run's destination doesn't have enough free space, switch automatically to SD Card /
+System Storage"** is turned on in Config's Backup Options - off by default, so a
+scheduled backup never lands somewhere unexpected without you having explicitly opted
+into that.
+
+**The pre-flight check adds real time to every real run** - it's doing a full
+Dry-Run-equivalent pass before the actual transfer starts, not a cheap instant check.
+For a large or many-remote backup, expect the run to take noticeably longer overall than
+it did before this existed. There's no setting to skip it entirely; `--skip-space-check`
+(used internally by "Start Anyway") is the only way past it, and it only applies to that
+one retry.

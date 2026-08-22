@@ -36,3 +36,14 @@ A few things worth knowing before scheduling it:
 - Host Mode must be enabled and destination storage configured/mounted before the
   schedule fires, same as running it manually - otherwise the scheduled run fails
   immediately (visible in its log, but nothing gets backed up).
+- A real scheduled run also refuses outright if the destination doesn't look like it has
+  enough free space for the estimated transfer - there's nobody there to answer the
+  "Backup Space Insufficient" popup a manual run would see, so it logs a clear reason
+  instead (`data/logs/engine.log` and FPP's own command output) and stops rather than
+  guessing. Turn on **"If a scheduled run's destination doesn't have enough free space,
+  switch automatically to SD Card / System Storage"** in Config's Backup Options if you'd
+  rather a scheduled run always complete somewhere than be skipped for this reason - off
+  by default. This check also means a real scheduled run now takes noticeably longer
+  than before, since it's doing a full dry-run-equivalent pass first; the Dry Run command
+  above is unaffected. See
+  [Troubleshooting](troubleshooting.md#backup-space-insufficient).

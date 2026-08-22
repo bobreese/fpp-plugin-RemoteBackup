@@ -66,6 +66,9 @@ $rbPlugin = basename(__DIR__);
             <label><input type="checkbox" id="rb-includeSystemConfig">
                 Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config.tar.gz</code> archive alongside each remote's backup
                 &mdash; <strong>includes WiFi passwords and other credentials in plain text on the destination drive.</strong> Pulled via sudo on the remote, so it needs the same passwordless-sudo access this plugin already relies on for SSH key setup.</label><br>
+            <label><input type="checkbox" id="rb-autoFailoverOnLowSpace">
+                If a <em>scheduled</em> run's destination doesn't have enough free space, switch automatically to SD Card / System Storage instead of refusing the run
+                &mdash; off by default, so a scheduled backup refuses (with a reason logged, and a popup here/on Status) rather than silently landing somewhere unexpected. A manual Start Backup always shows the popup either way, regardless of this setting.</label><br>
             <br>
             Max concurrent transfers:
             <input id="rb-maxConcurrent" type="number" min="1" max="8" style="width:4em">
@@ -198,6 +201,139 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // "Backup Space Insufficient" popup - self-contained mirror of the same
+    // functions in status.php (see there for the full rationale). Config
+    // has no visible Start Backup button, so "retry" here calls the same
+    // 'start' action directly against state.remotes' current selection
+    // rather than a click handler - the ajax action itself doesn't care
+    // which page asked for it.
+    var rbLowSpacePopupShown = false;
+
+    function rbHandleLowSpaceStatus(res) {
+        if (!res || !res.ok) return;
+        if (!res.lowSpaceReason) { rbLowSpacePopupShown = false; return; }
+        if (rbLowSpacePopupShown) return;
+        rbLowSpacePopupShown = true;
+        rbShowLowSpaceModal(res.lowSpaceReason, res.lowSpaceEstimatedBytes, res.lowSpaceAvailableBytes, res.destinationMount);
+    }
+
+    function rbRetryStartAfterLowSpace() {
+        var ids = (state.remotes || []).filter(function (r) { return r.selected; }).map(function (r) { return r.id; });
+        if (!ids.length) return;
+        api('start', { body: { remotes: ids, dryRun: false, skipSpaceCheck: true } }).then(function (r) {
+            if (!r.ok) $.jGrowl('Failed to start backup: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+        });
+    }
+
+    function rbShowLowSpaceModal(reason, estBytes, availBytes, currentDest) {
+        var modalId = 'rb-lowspace-modal';
+        var bodyHtml =
+            '<div class="callout callout-danger mb-2">' + reason + '</div>' +
+            'The last backup attempt was refused before copying anything. Choose how to proceed:<br><br>' +
+            '<b>Start Anyway</b> - proceed despite the warning; the transfer may only partially complete if it ' +
+            'truly doesn\'t fit.<br>' +
+            '<b>Replace Destination</b> - pick a different currently-mounted drive with enough room.<br>' +
+            '<b>Use Failover</b> - switch to SD Card / System Storage (always available).';
+        DoModalDialog({
+            id: modalId,
+            title: 'Backup Space Insufficient',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                Cancel: function () { CloseModalDialog(modalId); },
+                'Start Anyway': {
+                    class: 'btn-danger',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        $.jGrowl('Starting backup despite the space warning...', { themeState: 'info' });
+                        rbRetryStartAfterLowSpace();
+                    }
+                },
+                'Replace Destination': {
+                    class: 'btn-secondary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        rbShowReplaceDestinationPicker(estBytes, currentDest);
+                    }
+                },
+                'Use Failover': {
+                    class: 'btn-primary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('useFailover', { body: {} }).then(function (r) {
+                            if (r.ok) {
+                                state.settings = r.data; renderStorage();
+                                $.jGrowl('Failover activated - retrying backup on SD Card / System Storage.', { themeState: 'success' });
+                                rbRetryStartAfterLowSpace();
+                            } else {
+                                $.jGrowl('Could not activate failover: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+                            }
+                        });
+                    }
+                }
+            }
+        });
+    }
+
+    function rbShowReplaceDestinationPicker(neededBytes, currentDest) {
+        api('probeStorage').then(function (res) {
+            if (!res.ok) { $.jGrowl('Could not list storage: ' + (res.error || 'unknown error'), { themeState: 'danger' }); return; }
+            var candidates = [];
+            ['nvme', 'ssd', 'usb', 'sdcard'].forEach(function (g) {
+                (res.data[g] || []).forEach(function (d) {
+                    if (d.mountpoint !== currentDest) candidates.push(d);
+                });
+            });
+
+            var modalId = 'rb-replace-dest-modal';
+            var bodyHtml;
+            if (!candidates.length) {
+                bodyHtml = '<div class="callout callout-warning">No other mounted storage found. Mount a drive ' +
+                    'below first, or use Failover instead.</div>';
+            } else {
+                bodyHtml = '<div class="mb-2">Pick a destination' +
+                    (neededBytes ? ' with room for the estimated ~' + humanBytes(neededBytes) + ' transfer' : '') + ':</div>';
+                candidates.forEach(function (d, i) {
+                    var enough = neededBytes ? (d.availBytes >= neededBytes) : true;
+                    bodyHtml += '<div class="mb-1"><label><input type="radio" name="rb-replace-dest-choice" value="' +
+                        d.mountpoint + '" ' + (i === 0 ? 'checked' : '') + '> ' +
+                        (d.deviceLabel || d.mountpoint) + (d.label ? ' - volume label "' + d.label + '"' : '') +
+                        ' - ' + d.mountpoint + ' - ' + humanBytes(d.availBytes) + ' free' +
+                        (enough ? '' : ' <span class="text-danger">(likely still not enough)</span>') + '</label></div>';
+                });
+            }
+
+            DoModalDialog({
+                id: modalId,
+                title: 'Replace Destination',
+                class: 'modal-m',
+                backdrop: true,
+                body: bodyHtml,
+                buttons: candidates.length ? {
+                    Cancel: function () { CloseModalDialog(modalId); },
+                    Use: {
+                        class: 'btn-primary',
+                        click: function () {
+                            var chosen = document.querySelector('input[name="rb-replace-dest-choice"]:checked');
+                            if (!chosen) return;
+                            CloseModalDialog(modalId);
+                            api('useDestination', { body: { mountpoint: chosen.value } }).then(function (r) {
+                                if (r.ok) {
+                                    state.settings = r.data; renderStorage();
+                                    $.jGrowl('Destination switched - retrying backup.', { themeState: 'success' });
+                                    rbRetryStartAfterLowSpace();
+                                } else {
+                                    $.jGrowl('Could not switch destination: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+                                }
+                            });
+                        }
+                    }
+                } : { Close: function () { CloseModalDialog(modalId); } }
+            });
+        });
+    }
+
     // Slow background poll, just to catch a destination disappearing while
     // this page happens to be the one open - no live run state to show here,
     // so there's no reason to poll anywhere near status.php's active-run rate.
@@ -205,6 +341,7 @@ $rbPlugin = basename(__DIR__);
     function rbPollDestination() {
         api('status').then(function (res) {
             rbHandleDestinationStatus(res);
+            rbHandleLowSpaceStatus(res);
             setTimeout(rbPollDestination, RB_DEST_POLL_MS);
         });
     }
@@ -863,6 +1000,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-deleteExtra').checked = !!state.settings.deleteExtraneous;
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
+            document.getElementById('rb-autoFailoverOnLowSpace').checked = !!state.settings.autoFailoverOnLowSpace;
             document.getElementById('rb-maxConcurrent').value = state.settings.maxConcurrent || 2;
             document.getElementById('rb-logRetentionCount').value = state.settings.logRetentionCount || 15;
             document.getElementById('rb-sshUser').value = state.settings.sshUser || 'fpp';
@@ -955,6 +1093,7 @@ $rbPlugin = basename(__DIR__);
             deleteExtraneous: document.getElementById('rb-deleteExtra').checked,
             snapshotMode: document.getElementById('rb-snapshotMode').checked,
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
+            autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
             logRetentionCount: parseInt(document.getElementById('rb-logRetentionCount').value, 10) || 15,
             sshUser: document.getElementById('rb-sshUser').value || 'fpp',

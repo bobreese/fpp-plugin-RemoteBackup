@@ -5,6 +5,27 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** a pre-flight space check before every real backup run (manual or scheduled),
+  with a "Backup Space Insufficient" popup mirroring the existing "Backup Destination
+  Missing" one. `run_backup.sh` now estimates the total transfer across every selected
+  remote (the same `rsync --dry-run --stats` pass a regular Dry Run does, so it correctly
+  credits files already on the destination via `--link-dest` instead of assuming a full
+  re-copy) and compares it to free space on the destination right before committing to
+  the real run - placed before `run_active.json` is ever marked active, same as the
+  existing "remotes playing" guard, so a refusal never leaves the Status page showing a
+  stuck "active" run. If it won't fit, a manual run's popup offers **Start Anyway**,
+  **Replace Destination** (pick any other currently-mounted drive with enough room, via a
+  new `useDestination` ajax action that re-validates the drive is actually mounted
+  server-side), **Use Failover** (SD Card / System Storage), or **Cancel**; picking any of
+  the first three automatically retries the backup. A scheduled run has nobody to answer
+  a popup, so it applies a fixed policy instead: refuse and log a clear reason, unless the
+  new **"If a scheduled run's destination doesn't have enough free space, switch
+  automatically to SD Card / System Storage"** setting (Config > Backup Options, off by
+  default) is turned on. New `lowSpaceReason`/`lowSpaceEstimatedBytes`/
+  `lowSpaceAvailableBytes`/`autoFailoverOnLowSpace` settings and a `--skip-space-check`
+  flag (used internally by "Start Anyway" to bypass the check on that one retry). See
+  [Troubleshooting](troubleshooting.md#backup-space-insufficient),
+  [Features](features.md), and [Scheduling backups](scheduling.md).
 - **Added** a "Replacing FPP's Native Backup: A Readiness Assessment" section to the
   documentation (`docs/backup-replacement-assessment.md`), linked from README. A
   plain-language audit of what stands between Remote Backup today and fully replacing

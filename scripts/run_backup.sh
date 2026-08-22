@@ -2,7 +2,12 @@
 # Core Remote Backup engine.
 #
 # Usage:
-#   run_backup.sh [--dry-run] [--remotes host1,host2,...] [--foreground]
+#   run_backup.sh [--dry-run] [--remotes host1,host2,...] [--foreground] [--skip-space-check]
+#
+# --skip-space-check bypasses the pre-flight free-space estimate a real run
+# otherwise always does first (see the "Pre-flight space check" block below) -
+# used when the caller has already seen that same warning and explicitly
+# chose to proceed anyway.
 #
 # With no --remotes, every remote marked "selected": true in
 # data/settings.json is backed up. Up to `maxConcurrent` (default 2)
@@ -17,6 +22,7 @@
 DRYRUN=0
 REMOTE_FILTER=""
 FOREGROUND=0
+SKIP_SPACE_CHECK=0
 RUN_ID=$(date '+%Y%m%d-%H%M%S')
 
 while [ $# -gt 0 ]; do
@@ -24,6 +30,7 @@ while [ $# -gt 0 ]; do
         --dry-run) DRYRUN=1 ;;
         --remotes) shift; REMOTE_FILTER="$1" ;;
         --foreground) FOREGROUND=1 ;;
+        --skip-space-check) SKIP_SPACE_CHECK=1 ;;
     esac
     shift
 done
@@ -246,6 +253,110 @@ if [ -n "$PLAYING_REMOTES" ]; then
     rb_log "ABORT: $reason"
     echo "A Remote Backup run was refused: $reason" >&2
     exit 1
+fi
+
+# estimate_one <remote_json>: prints one remote's estimated transfer size in
+# bytes to stdout. Mirrors backup_one() below's own target/snapshot/
+# existing-backup resolution (kept as a deliberate small duplication rather
+# than a shared helper, so this read-only estimate pass can never risk
+# touching backup_one()'s real-run behavior) so the estimate correctly
+# credits already-existing files via --link-dest instead of a cruder guess -
+# the same rsync --dry-run + --stats pass a real Dry Run does. Writes no
+# status.json entry and no data/logs/ file of its own; its rsync output goes
+# to a throwaway scratch file, since it exists purely to produce one number,
+# not to be inspected like a real per-remote run.
+estimate_one() {
+    local remote_json="$1"
+    local id address today target existing prev is_host src rsync_host
+    local extra=() scratch_out bytes ssh_cmd
+
+    id=$(echo "$remote_json" | jq -r '.id')
+    address=$(echo "$remote_json" | jq -r '.address')
+    today=$(date '+%Y%m%d')
+    ssh_cmd="ssh -i ${SSH_KEY} -p ${SSH_PORT} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o BatchMode=yes"
+
+    is_host=0
+    rb_is_host_address "$address" && is_host=1
+    if [ "$is_host" = "1" ]; then
+        src="/home/fpp/media/"
+    else
+        rsync_host="$address"
+        case "$address" in *:*) rsync_host="[${address}]" ;; esac
+        src="${SSH_USER}@${rsync_host}:/home/fpp/media/"
+    fi
+
+    if [ "$SNAPSHOT_MODE" = "true" ]; then
+        target="${DEST_ROOT}/${id}-${today}"
+        prev=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "$(basename "$target")" 2>/dev/null | sort | tail -1)
+        [ -n "$prev" ] && extra+=(--link-dest="$prev")
+    else
+        existing=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "${id}-${today}" 2>/dev/null | sort | tail -1)
+        target="${existing:-${DEST_ROOT}/${id}-${today}}"
+    fi
+
+    scratch_out=$(mktemp "${DATA_DIR}/tmp_estimate_XXXXXX")
+    if [ "$is_host" = "1" ]; then
+        rsync -a -n --stats --copy-links "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
+    else
+        rsync -a -n --stats --copy-links -e "$ssh_cmd" "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
+    fi
+    bytes=$(rb_parse_rsync_bytes "$(grep -m1 '^Total transferred file size:' "$scratch_out" | grep -oE '[0-9][0-9,]*(\.[0-9]+)?[KMGT]?' | head -1)")
+    rm -f "$scratch_out"
+    echo "${bytes:-0}"
+}
+
+# --- Pre-flight space check (real runs only) ------------------------------
+# Estimates total transfer size across every selected remote and compares it
+# to the destination's current free space, before committing to a real run.
+# This is the one place BOTH a manual Start Backup click and a
+# Scheduler-triggered run always go through (same reasoning as the "remotes
+# playing" guard above), so it's the only guard that can actually cover the
+# unattended case - which has nobody to ask, so it refuses outright by
+# default. autoFailoverOnLowSpace (off by default) switches the destination
+# to SD Card/System Storage automatically instead of refusing, for those who
+# want a scheduled run to always complete somewhere rather than being
+# skipped. Skipped entirely for an actual dry run (nothing to protect - it
+# never writes anything) and for --skip-space-check (the UI's "Start Anyway"
+# override, once a human has already seen this same warning). Placed here,
+# before run_active.json is ever set true (same reasoning as the "remotes
+# playing" guard above it) - a refusal below exits before that write, so it
+# can never leave the UI showing a stuck "active" run that already exited.
+if [ "$DRYRUN" != "1" ] && [ "$SKIP_SPACE_CHECK" != "1" ]; then
+    ESTIMATE_TOTAL=0
+    ESTIMATE_LIST=$(mktemp "${DATA_DIR}/tmp_estimate_list_XXXXXX")
+    echo "$REMOTES_JSON" | jq -c '.[]' > "$ESTIMATE_LIST"
+    while IFS= read -r remote_json; do
+        one_bytes=$(estimate_one "$remote_json")
+        ESTIMATE_TOTAL=$((ESTIMATE_TOTAL + one_bytes))
+    done < "$ESTIMATE_LIST"
+    rm -f "$ESTIMATE_LIST"
+
+    AVAILABLE_NOW=$(df -B1 --output=avail "$DEST_MOUNT" 2>/dev/null | tail -1 | tr -d ' ')
+    [ -z "$AVAILABLE_NOW" ] && AVAILABLE_NOW=0
+
+    if [ "$ESTIMATE_TOTAL" -gt "$AVAILABLE_NOW" ]; then
+        AUTO_FAILOVER=$(rb_setting '.autoFailoverOnLowSpace' 'false')
+        if [ "$AUTO_FAILOVER" = "true" ] && [ "$DEST_MOUNT" != "/" ]; then
+            rb_log "LOW SPACE: estimated $(rb_human_bytes "$ESTIMATE_TOTAL") needed, $(rb_human_bytes "$AVAILABLE_NOW") available on '$DEST_MOUNT' - autoFailoverOnLowSpace is on, switching destination to SD Card / System Storage ('/') and continuing"
+            rb_set_setting '.destinationMount' '/'
+            DEST_MOUNT="/"
+            DEST_ROOT="$(rb_dest_root "$DEST_MOUNT")"
+            mkdir -p "$DEST_ROOT"
+        else
+            reason="estimated transfer (~$(rb_human_bytes "$ESTIMATE_TOTAL")) exceeds free space on '$DEST_MOUNT' (~$(rb_human_bytes "$AVAILABLE_NOW") available)"
+            rb_log "ABORT: refusing to start - $reason"
+            rb_set_setting '.lowSpaceReason' "$reason"
+            jq --argjson e "$ESTIMATE_TOTAL" --argjson a "$AVAILABLE_NOW" '.lowSpaceEstimatedBytes = $e | .lowSpaceAvailableBytes = $a' \
+                "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp_lowspace" 2>/dev/null && mv "${SETTINGS_FILE}.tmp_lowspace" "$SETTINGS_FILE"
+            echo "A Remote Backup run was refused: $reason" >&2
+            exit 1
+        fi
+    elif [ -n "$(rb_setting '.lowSpaceReason')" ]; then
+        # This attempt has enough room - clear a stale refusal from an
+        # earlier attempt so the UI's popup doesn't keep reappearing for a
+        # situation that's already resolved.
+        rb_set_setting '.lowSpaceReason' ""
+    fi
 fi
 
 rb_log "=== run start (dryRun=$DRYRUN runId=$RUN_ID remotes=$COUNT) ==="
