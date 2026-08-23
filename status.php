@@ -469,7 +469,8 @@ $rbPlugin = basename(__DIR__);
 
     var STATE_LABEL = {
         queued: 'Queued', running: 'Running', done: 'Done',
-        'dry-run-complete': 'Dry Run Complete', error: 'Error', skipped: 'Skipped (playing)'
+        'dry-run-complete': 'Dry Run Complete', error: 'Error', skipped: 'Skipped (playing)',
+        'done-with-warnings': 'Done (warnings)'
     };
 
     function updateLogOptions(remotes) {
@@ -510,14 +511,15 @@ $rbPlugin = basename(__DIR__);
             body.innerHTML = remotes.map(function (r) {
                 var label = STATE_LABEL[r.state] || r.state;
                 var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
-                var fileCell = (r.state === 'error' || r.state === 'skipped')
-                    ? '<span class="' + (r.state === 'skipped' ? 'text-warning' : 'text-danger') + '" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
+                var fileCell = (r.state === 'error' || r.state === 'skipped' || r.state === 'done-with-warnings')
+                    ? '<span class="' + (r.state === 'error' ? 'text-danger' : 'text-warning') + '" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
                     : (r.currentFile || '');
                 var progressCell = '';
                 if (r.percent != null) {
                     var barClass = 'progress-bar';
                     if (r.state === 'running') barClass += ' progress-bar-striped progress-bar-animated';
                     else if (r.state === 'error') barClass += ' bg-danger';
+                    else if (r.state === 'done-with-warnings') barClass += ' bg-warning';
                     else if (r.state === 'done' || r.state === 'dry-run-complete') barClass += ' bg-success';
                     progressCell = '<div class="progress" style="height:1.2em;min-width:90px;">' +
                         '<div class="' + barClass + '" role="progressbar" style="width:' + r.percent + '%;" ' +

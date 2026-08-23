@@ -5,6 +5,22 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** a Host that backs up itself (selected as one of its own "remotes") could
+  show a false "Error" with a confusing detail line that was actually just rsync's own
+  transfer-stats summary (e.g. `sent 469.81M bytes  received 13.13K bytes  ...`).
+  Root cause: this plugin's own `data/pids/<id>.pid` files are created and deleted
+  *during the very same run* that's reading them - another selected remote's rsync job
+  starting/finishing while the Host's self-backup is scanning `/home/fpp/media` could
+  catch a PID file in rsync's initial file list, then find it gone by transfer time,
+  which rsync correctly (but confusingly, from this plugin's UI) reports as exit code
+  24, "some files vanished." Excluded this plugin's own live operational state
+  (`data/pids/`, `data/*.lock`, `data/run_active.json`, `data/clone_active.json`) from a
+  Host's self-backup unconditionally - none of it is meaningful backup content anyway,
+  and restoring a stale lock/PID file onto a fresh system would be actively wrong, not
+  just useless. As a second layer, rc=24 specifically is no longer lumped in with real
+  errors: it's now its own **"Done (warnings)"** state (amber, not red) with an accurate
+  detail line naming which file(s) actually vanished, in case some other, non-plugin
+  source file ever triggers the same rsync behavior.
 - **Changed** every toast notification this plugin shows (Config and Status pages) to
   stay on screen for 6 seconds instead of FPP's own 3-second default - set per-call
   (`life: 6000` on each `$.jGrowl(...)` call in this plugin's own `status.php`/
