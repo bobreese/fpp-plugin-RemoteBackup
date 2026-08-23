@@ -5,6 +5,19 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** the "Backup Space Insufficient" popup's **Cancel** button to **Stop Backup**,
+  on both the Status and Config pages. This refusal always happens in `run_backup.sh`'s
+  pre-flight space check, before the run is ever marked active or any file is transferred
+  - so in the normal case there's nothing actually running - but the new button now also
+  calls the same `stop` action the Status page's own Stop button uses (kills any tracked
+  per-remote process, clears the active-run flag) as a safety net, rather than just
+  dismissing the popup. See
+  [Troubleshooting](troubleshooting.md#backup-space-insufficient).
+- **Changed** the Show Schedule Conflict Check panel's results table to add horizontal
+  padding (`px-3`) to both the header and day cells - with 7 day columns side by side,
+  `table-sm`'s tight default padding meant a time range like `3:00 PM-9:00 PM` butted
+  right up against the 1px column borders. See
+  [Show Schedule Conflict Check](schedule-conflict-check.md).
 - **Changed** the Show Schedule Conflict Check panel's results table to space entries out
   more (each entry in a multi-entry day cell now gets its own bottom margin/divider instead
   of a thin `<hr>`), and to recognize every day-of-week option in FPP Scheduler's own Day

@@ -191,7 +191,11 @@ be open:
   the estimated transfer, right from the popup.
 - **Use Failover** - switch to SD Card / System Storage (always available, no drive
   required).
-- **Cancel** - leave it refused. Nothing runs again until you come back and pick one of
+- **Stop Backup** - leave it refused, and make sure nothing is left running. In the
+  normal case there's nothing to stop - this refusal always happens before the run is
+  ever marked active or any file is transferred - but it also kills any tracked
+  per-remote process and clears the active-run flag, the same as the Status page's own
+  Stop button, as a safety net. Nothing runs again until you come back and pick one of
   the above, or fix the space situation yourself and try again.
 
 Picking Start Anyway, Replace Destination, or Use Failover automatically retries the
