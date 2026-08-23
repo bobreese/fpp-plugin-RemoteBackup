@@ -129,25 +129,39 @@ fi
 
 ADDED_FSTAB=false
 if [ "$ADD_FSTAB" = "1" ] && [ -n "$UUID" ]; then
-    if ! grep -q "UUID=${UUID}" /etc/fstab 2>/dev/null; then
-        # uid=/gid=/umask= are only valid mount options for the FAT family
-        # (no on-disk Unix ownership - see the MOUNT_OPTS comment above,
-        # which gates the live mount the exact same way). ext4 and other
-        # native-Unix filesystems don't understand them at all - `mount -o
-        # uid=...,gid=...` on an ext4 filesystem fails outright ("wrong fs
-        # type, bad option, bad superblock"), confirmed against a real
-        # ext4 loopback mount. This fstab line used to include them
-        # unconditionally, which the live mount path above never did: a
-        # freshly-mounted ext4 drive worked fine (via the plain `mount` +
-        # `chown fpp:fpp` below), but that same drive's fstab entry would
-        # fail on the next boot's `mount -a` - nofail keeps that from
-        # hanging boot, but the drive would just silently stay unmounted
-        # until someone opened Config and clicked Mount again.
-        FSTAB_OPTS="nofail,x-systemd.device-timeout=10"
-        case "$FSTYPE" in
-            vfat|fat|fat32|exfat|ntfs|ntfs3) FSTAB_OPTS="${FSTAB_OPTS},uid=fpp,gid=fpp,umask=000" ;;
-        esac
-        echo "UUID=${UUID} ${MOUNT_POINT} auto ${FSTAB_OPTS} 0 0" | sudo tee -a /etc/fstab >/dev/null
+    # uid=/gid=/umask= are only valid mount options for the FAT family
+    # (no on-disk Unix ownership - see the MOUNT_OPTS comment above, which
+    # gates the live mount the exact same way). ext4 and other native-Unix
+    # filesystems don't understand them at all - `mount -o uid=...,gid=...`
+    # on an ext4 filesystem fails outright ("wrong fs type, bad option, bad
+    # superblock"), confirmed against a real ext4 loopback mount. Symbolic
+    # uid=fpp,gid=fpp (resolved at mount time via NSS), not a hardcoded
+    # numeric UID/GID - FPP's own DriveMountHelper carries a comment citing
+    # a real prior bug (issue #2782) where a hardcoded UID broke write
+    # access on an install where fpp wasn't UID 1000.
+    FSTAB_OPTS="nofail,x-systemd.device-timeout=10"
+    case "$FSTYPE" in
+        vfat|fat|fat32|exfat|ntfs|ntfs3) FSTAB_OPTS="${FSTAB_OPTS},uid=fpp,gid=fpp,umask=000" ;;
+    esac
+    DESIRED_LINE="UUID=${UUID} ${MOUNT_POINT} auto ${FSTAB_OPTS} 0 0"
+
+    # Compare against whatever's actually there today, not just "does some
+    # line for this UUID exist" - a plain existence check meant a line
+    # written by an older version of this script (or hand-edited) never
+    # got refreshed to match current conventions, even across a real fix
+    # (the ext4 uid=/gid= bug above): re-mounting the same already-known
+    # drive was a silent no-op that left the stale/wrong line in place
+    # forever. sed-delete-then-append mirrors the same pattern
+    # unmount_usb.sh/format_usb.sh already use elsewhere in this plugin,
+    # backup file included, so a mismatch is always corrected instead of
+    # just detected once and then ignored on every future mount.
+    EXISTING_LINE=$(grep "UUID=${UUID}" /etc/fstab 2>/dev/null | head -1)
+    if [ "$EXISTING_LINE" != "$DESIRED_LINE" ]; then
+        if [ -n "$EXISTING_LINE" ]; then
+            sudo sed -i.rb-mount-bak "\\#UUID=${UUID}#d" /etc/fstab 2>/dev/null || true
+            rb_log "mount_usb: replacing outdated fstab entry for UUID=$UUID -> $MOUNT_POINT"
+        fi
+        echo "$DESIRED_LINE" | sudo tee -a /etc/fstab >/dev/null
         ADDED_FSTAB=true
         rb_log "mount_usb: added fstab entry for UUID=$UUID -> $MOUNT_POINT"
     fi
