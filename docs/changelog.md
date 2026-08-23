@@ -5,6 +5,25 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `mount_usb.sh` only ever checked "does *a* fstab line for this UUID already
+  exist" before writing one - never whether that line actually matched what the script
+  would write today. A stale entry (from an older version of this script, or hand-edited)
+  never got refreshed: re-mounting the same already-known drive was a silent no-op that
+  left the outdated line in place forever, even across a real fix (the previous ext4
+  `uid=`/`gid=` bug - anyone who'd mounted an ext4 drive before that fix shipped still
+  had the broken line sitting there). Found via a real fstab line
+  (`UUID=6B8B-F357 /mnt/Backups exfat nofail,...,uid=1000,gid=1000,umask=000 0 0`) that
+  predated the current script's conventions in two ways: a **hardcoded numeric UID/GID**
+  instead of the symbolic `uid=fpp,gid=fpp` the current script resolves at mount time -
+  FPP's own `DriveMountHelper` carries a comment citing a real prior bug (issue #2782)
+  where a hardcoded UID broke write access on an install where `fpp` wasn't UID 1000 -
+  and an explicit `exfat` fstype instead of `auto` (harmless on its own, just evidence of
+  drift). Now compares the existing line against what would be written today and
+  replaces it (with a `.bak` file first, matching the same pattern Unmount/Format already
+  use elsewhere in this plugin) whenever it doesn't match, instead of only ever checking
+  existence. A line that already matches is left untouched - no needless rewrite on every
+  ordinary mount.
+
 - **Fixed:** an ext4-formatted backup drive's `/etc/fstab` entry could fail to mount on
   the next reboot. `mount_usb.sh` was writing `uid=fpp,gid=fpp` into every fstab entry
   unconditionally, but those are only valid mount options for FAT-family filesystems
