@@ -12,13 +12,26 @@ where the destination drive physically is at the time:
 > browser shows them - neither is a backup. Always browse all the way into a specific
 > remote's own `<Hostname>-<YYYYMMDD>` folder first.
 
-1. **Using the Host, over the network.** Leave the destination drive right where it is,
-   still attached to the Host. On whichever system you're restoring to, open its own
-   *File Copy Backup/Restore* page, point the "Remote Storage" source at the Host, and
-   browse into the remote's own `<Hostname>-<YYYYMMDD>` folder (or
-   `<Hostname>/<YYYYMMDD>` if Snapshot mode was enabled) to restore from. This is the
-   easiest option whenever the system you're restoring to still has working network
-   access back to the Host.
+1. **Using the Host, over the network.** The drive stays physically on the Host the
+   whole time, but it does need to be **unmounted there first** - Config's Unmount
+   button. FPP's own device picker (which is what powers "Remote Storage" here) skips
+   any drive that's already mounted by something else, on the theory that it's meant for
+   mounting something itself, not browsing something already in active use - while this
+   plugin still has the drive mounted, "Remote Storage" only ever offers "Default FPP
+   Storage" (a fixed, unrelated path, never this plugin's actual backups - see
+   [Troubleshooting](troubleshooting.md#fpps-own-restorefile-manager-cant-see-this-plugins-backups)
+   for exactly why). Once unmounted:
+   1. On whichever system you're restoring to, open its own *File Copy Backup/Restore*
+      page, choose "Restore From Remote FPP Backups Directory," and point the "Remote
+      Host" at the Host.
+   2. The drive should now appear under "Remote Storage" by its raw device name (e.g.
+      `sda1`) instead of only "Default FPP Storage" - pick it.
+   3. Browse into the remote's own `<Hostname>-<YYYYMMDD>` folder (or
+      `<Hostname>/<YYYYMMDD>` if Snapshot mode was enabled) to restore from.
+   4. **Mount the drive again on the Host's Config page when you're done** - the next
+      backup run needs it mounted.
+   This is the easiest option whenever the system you're restoring to still has working
+   network access back to the Host, since nothing physically moves.
 2. **Using the drive directly in the device's own USB port.** Useful when the system
    you're restoring has no network access yet (e.g. a from-scratch rebuild after a dead
    SD card) or you'd just rather not depend on the network for it.
