@@ -5,6 +5,31 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** an opt-in "Let remotes and FPP's own File Copy Backup/Restore see current
+  backups on this drive without unmounting it first" checkbox under Config's Backup
+  Destination Storage - off by default. Previously, restoring from the primary backup
+  drive via FPP's own File Copy Backup/Restore (or from a remote pulling a restore with
+  Remote Storage left on "None") required unmounting the drive here first, since FPP's own
+  device pickers never list a drive this plugin still has mounted, so you couldn't back up
+  to and restore from the drive without unmounting/remounting in between. When this new
+  setting is turned on, the drive's current contents are made visible at FPP's normal
+  backups path (a bind mount, established/torn down automatically as the drive is
+  mounted/unmounted/reformatted or the destination is changed) while the drive stays
+  mounted here the whole time, so both can happen without ever unmounting it. Deliberately
+  built as a bind mount rather than a symlink - a symlink there looks like it works (backups
+  show up fine in listings) but silently fails every actual restore transfer, because FPP's
+  restore pulls over rsync's daemon protocol through a restricted/jailed module that refuses
+  to follow a symlink escaping its root, while FPP's own UI still misreports "BACKUP
+  COMPLETE... successfully copied" - confirmed against a real failed restore attempt using
+  exactly that symlink approach, then confirmed a bind mount doesn't have the problem
+  (transparent to the same jailed module, since it's the same underlying storage exposed at
+  a second path rather than a path that resolves elsewhere). The bind mount only ever
+  exists while the drive is both mounted at its usual mountpoint AND currently the saved
+  destination - switching the destination away (including to SD Card/System Storage
+  fallback, which normally uses that exact same path) or turning the checkbox back off
+  reverses it automatically, so a stale bind mount can never silently redirect a
+  different destination's backups onto this drive.
+
 - **Fixed:** `mount_usb.sh` only ever checked "does *a* fstab line for this UUID already
   exist" before writing one - never whether that line actually matched what the script
   would write today. A stale entry (from an older version of this script, or hand-edited)
