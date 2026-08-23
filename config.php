@@ -228,7 +228,7 @@ $rbPlugin = basename(__DIR__);
                     click: function () {
                         CloseModalDialog(modalId);
                         api('haltBackups', { body: { reason: 'destination drive (' + mp + ') not found' } }).then(function (r) {
-                            $.jGrowl(r.ok ? 'Backups halted until the destination is resolved.' : ('Could not halt backups: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'info' : 'danger' });
+                            $.jGrowl(r.ok ? 'Backups halted until the destination is resolved.' : ('Could not halt backups: ' + (r.error || 'unknown error')), { life: 6000, themeState: r.ok ? 'info' : 'danger' });
                         });
                     }
                 },
@@ -238,7 +238,7 @@ $rbPlugin = basename(__DIR__);
                         CloseModalDialog(modalId);
                         api('useFailover', { body: {} }).then(function (r) {
                             if (r.ok) { state.settings = r.data; renderStorage(); }
-                            $.jGrowl(r.ok ? 'Failover activated - destination switched to SD Card / System Storage.' : ('Could not activate failover: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'success' : 'danger' });
+                            $.jGrowl(r.ok ? 'Failover activated - destination switched to SD Card / System Storage.' : ('Could not activate failover: ' + (r.error || 'unknown error')), { life: 6000, themeState: r.ok ? 'success' : 'danger' });
                         });
                     }
                 }
@@ -266,7 +266,7 @@ $rbPlugin = basename(__DIR__);
         var ids = (state.remotes || []).filter(function (r) { return r.selected; }).map(function (r) { return r.id; });
         if (!ids.length) return;
         api('start', { body: { remotes: ids, dryRun: false, skipSpaceCheck: true } }).then(function (r) {
-            if (!r.ok) $.jGrowl('Failed to start backup: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+            if (!r.ok) $.jGrowl('Failed to start backup: ' + (r.error || 'unknown error'), { life: 6000, themeState: 'danger' });
         });
     }
 
@@ -298,7 +298,7 @@ $rbPlugin = basename(__DIR__);
                         // an earlier run is still finishing in the
                         // background.
                         api('stop', { body: {} }).then(function (res) {
-                            $.jGrowl(res.ok ? 'Backup stopped.' : ('Could not stop backup: ' + (res.error || 'unknown error')), { themeState: res.ok ? 'info' : 'danger' });
+                            $.jGrowl(res.ok ? 'Backup stopped.' : ('Could not stop backup: ' + (res.error || 'unknown error')), { life: 6000, themeState: res.ok ? 'info' : 'danger' });
                         });
                     }
                 },
@@ -306,7 +306,7 @@ $rbPlugin = basename(__DIR__);
                     class: 'btn-danger',
                     click: function () {
                         CloseModalDialog(modalId);
-                        $.jGrowl('Starting backup despite the space warning...', { themeState: 'info' });
+                        $.jGrowl('Starting backup despite the space warning...', { life: 6000, themeState: 'info' });
                         rbRetryStartAfterLowSpace();
                     }
                 },
@@ -324,10 +324,10 @@ $rbPlugin = basename(__DIR__);
                         api('useFailover', { body: {} }).then(function (r) {
                             if (r.ok) {
                                 state.settings = r.data; renderStorage();
-                                $.jGrowl('Failover activated - retrying backup on SD Card / System Storage.', { themeState: 'success' });
+                                $.jGrowl('Failover activated - retrying backup on SD Card / System Storage.', { life: 6000, themeState: 'success' });
                                 rbRetryStartAfterLowSpace();
                             } else {
-                                $.jGrowl('Could not activate failover: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+                                $.jGrowl('Could not activate failover: ' + (r.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                             }
                         });
                     }
@@ -338,7 +338,7 @@ $rbPlugin = basename(__DIR__);
 
     function rbShowReplaceDestinationPicker(neededBytes, currentDest) {
         api('probeStorage').then(function (res) {
-            if (!res.ok) { $.jGrowl('Could not list storage: ' + (res.error || 'unknown error'), { themeState: 'danger' }); return; }
+            if (!res.ok) { $.jGrowl('Could not list storage: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' }); return; }
             var candidates = [];
             ['nvme', 'ssd', 'usb', 'sdcard'].forEach(function (g) {
                 (res.data[g] || []).forEach(function (d) {
@@ -381,10 +381,10 @@ $rbPlugin = basename(__DIR__);
                             api('useDestination', { body: { mountpoint: chosen.value } }).then(function (r) {
                                 if (r.ok) {
                                     state.settings = r.data; renderStorage();
-                                    $.jGrowl('Destination switched - retrying backup.', { themeState: 'success' });
+                                    $.jGrowl('Destination switched - retrying backup.', { life: 6000, themeState: 'success' });
                                     rbRetryStartAfterLowSpace();
                                 } else {
-                                    $.jGrowl('Could not switch destination: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+                                    $.jGrowl('Could not switch destination: ' + (r.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                                 }
                             });
                         }
@@ -567,12 +567,12 @@ $rbPlugin = basename(__DIR__);
                         // even though it actually completed a moment later.
                         api('unmountUsb', { body: {}, timeoutMs: 30000 }).then(function (res) {
                             if (res.ok) {
-                                $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { themeState: 'success' });
+                                $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { life: 6000, themeState: 'success' });
                                 api('probeStorage').then(function (r2) {
                                     if (r2.ok) { state.storage = r2.data; renderStorage(); }
                                 });
                             } else {
-                                $.jGrowl('Unmount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                $.jGrowl('Unmount failed: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                                 btn.disabled = false;
                                 btn.textContent = 'Unmount';
                             }
@@ -588,7 +588,7 @@ $rbPlugin = basename(__DIR__);
                 btn.textContent = 'Mounting...';
                 api('mountUsb', { body: { device: device }, timeoutMs: 35000 }).then(function (res) {
                     if (res.ok) {
-                        $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { themeState: 'success' });
+                        $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { life: 6000, themeState: 'success' });
                         // Pre-select this drive as the destination - just fills in the
                         // radio button so it's ready to go, doesn't save anything on its
                         // own; "Save Settings" is still required, same as always.
@@ -597,7 +597,7 @@ $rbPlugin = basename(__DIR__);
                             if (r2.ok) { state.storage = r2.data; renderStorage(); }
                         });
                     } else {
-                        $.jGrowl('Mount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                        $.jGrowl('Mount failed: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                         btn.disabled = false;
                         btn.textContent = 'Mount as Backups';
                     }
@@ -640,7 +640,7 @@ $rbPlugin = basename(__DIR__);
                             var label = document.getElementById('rb-format-label').value;
                             var typed = document.getElementById('rb-format-confirm').value;
                             if (typed !== device) {
-                                $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { themeState: 'danger' });
+                                $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { life: 6000, themeState: 'danger' });
                                 return;
                             }
                             CloseModalDialog(modalId);
@@ -652,7 +652,7 @@ $rbPlugin = basename(__DIR__);
                                 timeoutMs: 120000
                             }).then(function (res) {
                                 if (res.ok) {
-                                    $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : '') + (res.clearedAllStatus ? '. All previous backup status on the Status page was cleared since this was your active destination drive.' : ''), { themeState: 'success' });
+                                    $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : '') + (res.clearedAllStatus ? '. All previous backup status on the Status page was cleared since this was your active destination drive.' : ''), { life: 6000, themeState: 'success' });
                                     // Same pre-select as the plain Mount flow above - a
                                     // no-op for Re-format (already the active destination).
                                     if (state.settings) state.settings.destinationMount = res.mountpoint || '/mnt/Backups';
@@ -660,7 +660,7 @@ $rbPlugin = basename(__DIR__);
                                         if (r2.ok) { state.storage = r2.data; renderStorage(); }
                                     });
                                 } else {
-                                    $.jGrowl('Format failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                    $.jGrowl('Format failed: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                                     btn.disabled = false;
                                     btn.textContent = resetLabel;
                                 }
@@ -748,12 +748,12 @@ $rbPlugin = basename(__DIR__);
                         // timeoutMs is set explicitly here.
                         api('unmountSecondary', { body: {}, timeoutMs: 30000 }).then(function (res) {
                             if (res.ok) {
-                                $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { themeState: 'success' });
+                                $.jGrowl('Unmounted ' + res.mountpoint + (res.device ? ' (' + res.device + ')' : '') + '.' + (res.removedFstab ? ' Removed it from /etc/fstab so it will not block boot if left unplugged.' : '') + ' It is now safe to disconnect the drive.', { life: 6000, themeState: 'success' });
                                 api('probeStorage').then(function (r2) {
                                     if (r2.ok) { state.storage = r2.data; renderStorage(); }
                                 });
                             } else {
-                                $.jGrowl('Unmount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                $.jGrowl('Unmount failed: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                                 btn.disabled = false;
                                 btn.textContent = 'Unmount';
                             }
@@ -773,12 +773,12 @@ $rbPlugin = basename(__DIR__);
                 // succeeded; a Rescan afterward showed it mounted).
                 api('mountSecondary', { body: { device: device }, timeoutMs: 35000 }).then(function (res) {
                     if (res.ok) {
-                        $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { themeState: 'success' });
+                        $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { life: 6000, themeState: 'success' });
                         api('probeStorage').then(function (r2) {
                             if (r2.ok) { state.storage = r2.data; renderStorage(); }
                         });
                     } else {
-                        $.jGrowl('Mount failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                        $.jGrowl('Mount failed: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                         btn.disabled = false;
                         btn.textContent = 'Mount as Clone Drive';
                     }
@@ -818,7 +818,7 @@ $rbPlugin = basename(__DIR__);
                             var label = document.getElementById('rb-format2-label').value;
                             var typed = document.getElementById('rb-format2-confirm').value;
                             if (typed !== device) {
-                                $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { themeState: 'danger' });
+                                $.jGrowl('Confirmation text did not match "' + device + '" - aborted, nothing was formatted.', { life: 6000, themeState: 'danger' });
                                 return;
                             }
                             CloseModalDialog(modalId);
@@ -830,12 +830,12 @@ $rbPlugin = basename(__DIR__);
                                 timeoutMs: 120000
                             }).then(function (res) {
                                 if (res.ok) {
-                                    $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : ''), { themeState: 'success' });
+                                    $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : ''), { life: 6000, themeState: 'success' });
                                     api('probeStorage').then(function (r2) {
                                         if (r2.ok) { state.storage = r2.data; renderStorage(); }
                                     });
                                 } else {
-                                    $.jGrowl('Format failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                                    $.jGrowl('Format failed: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                                     btn.disabled = false;
                                     btn.textContent = resetLabel;
                                 }
@@ -923,7 +923,7 @@ $rbPlugin = basename(__DIR__);
                 setKeyStatus(id, 'key installed', 'text-success');
             } else {
                 setKeyStatus(id, 'key push failed - click "Push SSH Key" to retry with a password', 'text-danger');
-                if (announce) $.jGrowl(res.message || res.error || 'Failed', { themeState: 'danger' });
+                if (announce) $.jGrowl(res.message || res.error || 'Failed', { life: 6000, themeState: 'danger' });
             }
             return res;
         });
@@ -1171,7 +1171,7 @@ $rbPlugin = basename(__DIR__);
     document.getElementById('rb-checkSchedule').addEventListener('click', function () {
         var addr = currentScheduleMasterAddress();
         var statusEl = document.getElementById('rb-scheduleStatus');
-        if (!addr) { $.jGrowl('Enter or pick a master address first.', { themeState: 'danger' }); return; }
+        if (!addr) { $.jGrowl('Enter or pick a master address first.', { life: 6000, themeState: 'danger' }); return; }
         statusEl.textContent = 'Checking...';
         document.getElementById('rb-scheduleResults').innerHTML = '';
         api('checkMasterSchedule&address=' + encodeURIComponent(addr)).then(function (res) {
@@ -1179,7 +1179,7 @@ $rbPlugin = basename(__DIR__);
                 statusEl.textContent = '';
                 scheduleData = null;
                 document.getElementById('rb-scheduleCheckTimeWrap').style.display = 'none';
-                $.jGrowl('Could not check schedule: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                $.jGrowl('Could not check schedule: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                 return;
             }
             statusEl.textContent = '';
@@ -1372,7 +1372,7 @@ $rbPlugin = basename(__DIR__);
                 if (renamed.length) {
                     $.jGrowl('Detected a System Name change on the same address: ' + renamed.join(', ') +
                         '. Updated in place (selection kept) instead of adding a duplicate - click "Save Settings" to keep it.',
-                        { themeState: 'info' });
+                        { life: 6000, themeState: 'info' });
                 }
             } else {
                 setScanError('rb-remoteList', res.error);
@@ -1383,7 +1383,7 @@ $rbPlugin = basename(__DIR__);
     document.getElementById('rb-addManual').addEventListener('click', function () {
         var host = document.getElementById('rb-manualHost').value.trim();
         var addr = document.getElementById('rb-manualAddr').value.trim();
-        if (!host || !addr) { $.jGrowl('Hostname and IP address are both required.', { themeState: 'danger' }); return; }
+        if (!host || !addr) { $.jGrowl('Hostname and IP address are both required.', { life: 6000, themeState: 'danger' }); return; }
         var id = host.replace(/[^A-Za-z0-9._-]+/g, '_');
         state.remotes.push({ id: id, hostname: host, address: addr, selected: true, source: 'manual' });
         document.getElementById('rb-manualHost').value = '';
@@ -1431,11 +1431,11 @@ $rbPlugin = basename(__DIR__);
                 rbDestMissingPopupShown = false;
                 msg.textContent = 'Saved.';
                 msg.className = 'ms-2 text-success';
-                $.jGrowl('Remote Backup settings saved.', { themeState: 'success' });
+                $.jGrowl('Remote Backup settings saved.', { life: 6000, themeState: 'success' });
             } else {
                 msg.textContent = 'Error: ' + (res.error || 'unknown');
                 msg.className = 'ms-2 text-danger';
-                $.jGrowl('Failed to save Remote Backup settings: ' + (res.error || 'unknown'), { themeState: 'danger' });
+                $.jGrowl('Failed to save Remote Backup settings: ' + (res.error || 'unknown'), { life: 6000, themeState: 'danger' });
             }
             setTimeout(function () { msg.textContent = ''; }, 4000);
         });

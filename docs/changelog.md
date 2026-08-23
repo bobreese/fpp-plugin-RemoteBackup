@@ -5,6 +5,12 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** every toast notification this plugin shows (Config and Status pages) to
+  stay on screen for 6 seconds instead of FPP's own 3-second default - set per-call
+  (`life: 6000` on each `$.jGrowl(...)` call in this plugin's own `status.php`/
+  `config.php`), not by touching FPP's shared `jquery.jgrowl.js` defaults, so every other
+  toast in FPP itself (and any other plugin) is unaffected.
+
 - **Documented** why FPP's own File Manager ("Backups" tab) and File Copy Backup/Restore
   never show this plugin's backups when a real NVMe/SSD/USB drive is the destination -
   traced through FPP's own source rather than guessed: File Manager's Backups tab always

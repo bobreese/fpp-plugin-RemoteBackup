@@ -215,7 +215,7 @@ $rbPlugin = basename(__DIR__);
                     click: function () {
                         CloseModalDialog(modalId);
                         api('haltBackups', { body: { reason: 'destination drive (' + mp + ') not found' } }).then(function (r) {
-                            $.jGrowl(r.ok ? 'Backups halted until the destination is resolved.' : ('Could not halt backups: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'info' : 'danger' });
+                            $.jGrowl(r.ok ? 'Backups halted until the destination is resolved.' : ('Could not halt backups: ' + (r.error || 'unknown error')), { life: 6000, themeState: r.ok ? 'info' : 'danger' });
                         });
                     }
                 },
@@ -224,7 +224,7 @@ $rbPlugin = basename(__DIR__);
                     click: function () {
                         CloseModalDialog(modalId);
                         api('useFailover', { body: {} }).then(function (r) {
-                            $.jGrowl(r.ok ? 'Failover activated - destination switched to SD Card / System Storage.' : ('Could not activate failover: ' + (r.error || 'unknown error')), { themeState: r.ok ? 'success' : 'danger' });
+                            $.jGrowl(r.ok ? 'Failover activated - destination switched to SD Card / System Storage.' : ('Could not activate failover: ' + (r.error || 'unknown error')), { life: 6000, themeState: r.ok ? 'success' : 'danger' });
                         });
                     }
                 }
@@ -293,7 +293,7 @@ $rbPlugin = basename(__DIR__);
                         // ever reached while an earlier run is still
                         // finishing in the background.
                         api('stop', { body: {} }).then(function (res) {
-                            $.jGrowl(res.ok ? 'Backup stopped.' : ('Could not stop backup: ' + (res.error || 'unknown error')), { themeState: res.ok ? 'info' : 'danger' });
+                            $.jGrowl(res.ok ? 'Backup stopped.' : ('Could not stop backup: ' + (res.error || 'unknown error')), { life: 6000, themeState: res.ok ? 'info' : 'danger' });
                         });
                     }
                 },
@@ -301,7 +301,7 @@ $rbPlugin = basename(__DIR__);
                     class: 'btn-danger',
                     click: function () {
                         CloseModalDialog(modalId);
-                        $.jGrowl('Starting backup despite the space warning...', { themeState: 'info' });
+                        $.jGrowl('Starting backup despite the space warning...', { life: 6000, themeState: 'info' });
                         rbRetryStartAfterLowSpace();
                     }
                 },
@@ -317,8 +317,8 @@ $rbPlugin = basename(__DIR__);
                     click: function () {
                         CloseModalDialog(modalId);
                         api('useFailover', { body: {} }).then(function (r) {
-                            if (r.ok) { $.jGrowl('Failover activated - retrying backup on SD Card / System Storage.', { themeState: 'success' }); rbRetryStartAfterLowSpace(); }
-                            else $.jGrowl('Could not activate failover: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+                            if (r.ok) { $.jGrowl('Failover activated - retrying backup on SD Card / System Storage.', { life: 6000, themeState: 'success' }); rbRetryStartAfterLowSpace(); }
+                            else $.jGrowl('Could not activate failover: ' + (r.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                         });
                     }
                 }
@@ -328,7 +328,7 @@ $rbPlugin = basename(__DIR__);
 
     function rbShowReplaceDestinationPicker(neededBytes, currentDest) {
         api('probeStorage').then(function (res) {
-            if (!res.ok) { $.jGrowl('Could not list storage: ' + (res.error || 'unknown error'), { themeState: 'danger' }); return; }
+            if (!res.ok) { $.jGrowl('Could not list storage: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' }); return; }
             var candidates = [];
             ['nvme', 'ssd', 'usb', 'sdcard'].forEach(function (g) {
                 (res.data[g] || []).forEach(function (d) {
@@ -369,8 +369,8 @@ $rbPlugin = basename(__DIR__);
                             if (!chosen) return;
                             CloseModalDialog(modalId);
                             api('useDestination', { body: { mountpoint: chosen.value } }).then(function (r) {
-                                if (r.ok) { $.jGrowl('Destination switched - retrying backup.', { themeState: 'success' }); rbRetryStartAfterLowSpace(); }
-                                else $.jGrowl('Could not switch destination: ' + (r.error || 'unknown error'), { themeState: 'danger' });
+                                if (r.ok) { $.jGrowl('Destination switched - retrying backup.', { life: 6000, themeState: 'success' }); rbRetryStartAfterLowSpace(); }
+                                else $.jGrowl('Could not switch destination: ' + (r.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                             });
                         }
                     }
@@ -721,7 +721,7 @@ $rbPlugin = basename(__DIR__);
             var msg = document.getElementById('rb-clone-msg');
             msg.textContent = res.ok ? 'Clone started.' : ('Error: ' + res.error);
             msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-            if (res.ok) { markButtonActive('rb-clone-start'); pollClone(); } else { $.jGrowl('Failed to start clone: ' + res.error, { themeState: 'danger' }); }
+            if (res.ok) { markButtonActive('rb-clone-start'); pollClone(); } else { $.jGrowl('Failed to start clone: ' + res.error, { life: 6000, themeState: 'danger' }); }
         });
     });
 
@@ -740,7 +740,7 @@ $rbPlugin = basename(__DIR__);
 
     document.getElementById('rb-start').addEventListener('click', function () {
         getSelectedRemoteIds().then(function (ids) {
-            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { themeState: 'danger' }); return; }
+            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { life: 6000, themeState: 'danger' }); return; }
             api('start', { body: { remotes: ids, dryRun: false } }).then(function (res) {
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
@@ -748,16 +748,16 @@ $rbPlugin = basename(__DIR__);
                 if (res.ok) {
                     pendingRunButtonId = 'rb-start'; markButtonActive('rb-start'); poll();
                     if (res.skippedPlaying && res.skippedPlaying.length) {
-                        $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing. Continuing with the rest.', { themeState: 'warning' });
+                        $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing. Continuing with the rest.', { life: 6000, themeState: 'warning' });
                     }
-                } else { $.jGrowl('Failed to start backup: ' + res.error, { themeState: 'danger' }); }
+                } else { $.jGrowl('Failed to start backup: ' + res.error, { life: 6000, themeState: 'danger' }); }
             });
         });
     });
 
     document.getElementById('rb-dryrun').addEventListener('click', function () {
         getSelectedRemoteIds().then(function (ids) {
-            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { themeState: 'danger' }); return; }
+            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { life: 6000, themeState: 'danger' }); return; }
             api('start', { body: { remotes: ids, dryRun: true } }).then(function (res) {
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Dry run started.' : ('Error: ' + res.error);
@@ -765,9 +765,9 @@ $rbPlugin = basename(__DIR__);
                 if (res.ok) {
                     pendingRunButtonId = 'rb-dryrun'; markButtonActive('rb-dryrun'); poll();
                     if (res.skippedPlaying && res.skippedPlaying.length) {
-                        $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing. Continuing with the rest.', { themeState: 'warning' });
+                        $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing. Continuing with the rest.', { life: 6000, themeState: 'warning' });
                     }
-                } else { $.jGrowl('Failed to start dry run: ' + res.error, { themeState: 'danger' }); }
+                } else { $.jGrowl('Failed to start dry run: ' + res.error, { life: 6000, themeState: 'danger' }); }
             });
         });
     });
@@ -884,7 +884,7 @@ $rbPlugin = basename(__DIR__);
             btn.textContent = resetLabel;
         }).catch(function (err) {
             statusEl.textContent = 'Download failed: ' + err.message;
-            $.jGrowl('Download failed: ' + err.message, { themeState: 'danger' });
+            $.jGrowl('Download failed: ' + err.message, { life: 6000, themeState: 'danger' });
             btn.disabled = false;
             btn.textContent = resetLabel;
         });
@@ -988,7 +988,7 @@ $rbPlugin = basename(__DIR__);
                             class: 'btn-danger',
                             click: function () {
                                 if (!document.getElementById('rb-delete-confirm').checked) {
-                                    $.jGrowl('Confirm the backup folder being deleted first - aborted, nothing was deleted.', { themeState: 'danger' });
+                                    $.jGrowl('Confirm the backup folder being deleted first - aborted, nothing was deleted.', { life: 6000, themeState: 'danger' });
                                     return;
                                 }
                                 CloseModalDialog(modalId);
@@ -1009,9 +1009,9 @@ $rbPlugin = basename(__DIR__);
                     body: JSON.stringify({ path: path, confirm: 'I_UNDERSTAND_THIS_DELETES_THE_BACKUP' })
                 }).then(function (r) { return r.text(); }).then(function (txt) {
                     var res;
-                    try { res = JSON.parse(txt); } catch (e) { $.jGrowl('Non-JSON response deleting backup.', { themeState: 'danger' }); return; }
+                    try { res = JSON.parse(txt); } catch (e) { $.jGrowl('Non-JSON response deleting backup.', { life: 6000, themeState: 'danger' }); return; }
                     if (res.ok) {
-                        $.jGrowl('Backup deleted.', { themeState: 'success' });
+                        $.jGrowl('Backup deleted.', { life: 6000, themeState: 'success' });
                         panel.style.display = 'none';
                         document.getElementById('rb-backedup-select').value = '';
                         loadBackedUpList(false);
@@ -1020,12 +1020,12 @@ $rbPlugin = basename(__DIR__);
                         // with a Backup Folder that no longer exists.
                         poll();
                     } else {
-                        $.jGrowl('Delete failed: ' + (res.error || 'unknown error'), { themeState: 'danger' });
+                        $.jGrowl('Delete failed: ' + (res.error || 'unknown error'), { life: 6000, themeState: 'danger' });
                         btn.disabled = false;
                         btn.textContent = 'Delete This Backup';
                     }
                 }).catch(function (err) {
-                    $.jGrowl('Request failed: ' + err.message, { themeState: 'danger' });
+                    $.jGrowl('Request failed: ' + err.message, { life: 6000, themeState: 'danger' });
                     btn.disabled = false;
                     btn.textContent = 'Delete This Backup';
                 });
