@@ -34,11 +34,15 @@ where the destination drive physically is at the time:
    network access back to the Host, since nothing physically moves.
 2. **Using the drive directly in the device's own USB port.** Useful when the system
    you're restoring has no network access yet (e.g. a from-scratch rebuild after a dead
-   SD card) or you'd just rather not depend on the network for it.
+   SD card) or you'd just rather not depend on the network for it. **Restoring onto the
+   Host itself?** Skip the physical move entirely - just Unmount on the Config page,
+   then go straight to step 3 on the Host's own File Copy Backup/Restore page; the drive
+   never has to leave its own USB port.
    1. On the Config page, **Unmount** the destination drive from the Host first - never
       unplug it while still mounted.
    2. Physically move the drive to the system you're restoring, and plug it into one of
-      *that system's own* USB ports.
+      *that system's own* USB ports (skip this step if you're restoring onto the Host
+      itself - see above).
    3. Open *that system's own* File Copy Backup/Restore page. Because this plugin always
       formats destination drives with a real GPT partition table (not a filesystem
       directly on the raw disk), the drive is recognized by FPP's own device picker on
