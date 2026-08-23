@@ -485,24 +485,31 @@ backup_one() {
                 '{id:$id, hostname:$hostname, address:$address, state:"error", dryRun:$dryrun, runId:$run, finishedAt:$t, errorDetail:"Destination is /home/fpp/media itself, which is where the Host stores its own source data - source and destination would be the same directory. Pick NVMe/SSD/USB storage for a Host backup instead."}')"
             return
         fi
-        case "$dest_real" in
-            "$media_real"/*)
-                # The SD Card/System Storage fallback destination lives at
-                # /home/fpp/media/backups (see rb_dest_root() in
-                # lib_common.sh) - a subdirectory of the very tree a
-                # Host-local backup copies FROM. Rather than refusing the
-                # whole Host backup over this, exclude just that one
-                # subdirectory from the copy (rsync --exclude, anchored at
-                # the source root) and back up everything else in
-                # /home/fpp/media normally - the other selected remotes'
-                # backups living there are plugin-managed destination
-                # data, not part of what "back up the Host" should mean
-                # anyway.
-                local dest_rel="${dest_real#"$media_real"/}"
-                host_exclude=(--exclude="/${dest_rel}")
-                rb_log "NOTE $id: destination '$DEST_ROOT' is inside /home/fpp/media (SD Card/System Storage fallback) - excluding '/${dest_rel}' from the Host's own backup so it doesn't copy its own destination folder into itself."
-                ;;
-        esac
+        # The SD Card/System Storage fallback destination always lives at
+        # /home/fpp/media/backups (see RB_SDCARD_FALLBACK_DIR/rb_dest_root()
+        # in lib_common.sh) - a reserved, plugin-managed location, not
+        # something a Host-local backup should ever copy into itself.
+        # Excluded unconditionally, regardless of whether that fallback is
+        # the CURRENTLY selected destination - switching a Host between the
+        # SD Card fallback and a real drive at different times (an ordinary
+        # thing to do, not a misconfiguration) leaves every other selected
+        # remote's full backup content still sitting in that directory once
+        # you switch away from it. Excluding it only while it was the
+        # active destination meant that leftover directory got swept into
+        # the Host's own backup the moment a real drive became the
+        # destination instead - a real run transferred 707 of 823 entries
+        # from exactly that stale folder. Same reasoning as the plugin's
+        # own operational-state exclude just below: excluded unconditionally
+        # so switching destinations back and forth can never resurrect it.
+        if [ -n "$media_real" ]; then
+            local sdcard_real sdcard_rel
+            sdcard_real=$(realpath -m "$RB_SDCARD_FALLBACK_DIR" 2>/dev/null)
+            sdcard_rel="${sdcard_real#"$media_real"/}"
+            host_exclude+=(--exclude="/${sdcard_rel}")
+            if [ -d "$sdcard_real" ]; then
+                rb_log "NOTE $id: excluding '/${sdcard_rel}' (SD Card/System Storage fallback location) from the Host's own backup - present on disk regardless of whether it's the currently active destination."
+            fi
+        fi
 
         # This plugin's own operational state under its own data/ directory
         # (also inside /home/fpp/media, regardless of which destination is

@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** a Host backing up itself could sweep every other selected remote's full
+  backup content into its own backup, if the SD Card/System Storage fallback had ever
+  been used as the destination in the past. The `/home/fpp/media/backups` exclude
+  (needed so a Host-local backup doesn't copy its own destination folder into itself)
+  only fired while that fallback was the *currently active* destination - switching to
+  a real NVMe/SSD/USB drive afterward left the old `/home/fpp/media/backups` directory
+  sitting there, still full of every other remote's data, no longer excluded from the
+  Host's own copy. Confirmed against a real report: 707 of 823 entries in one Host
+  self-backup were exactly that leftover directory. Now excluded unconditionally
+  whenever it exists on disk, regardless of which destination is currently active -
+  same reasoning already applied to this plugin's own `data/pids/` etc. exclude.
+
 - **Added** an "Errors/warnings only" checkbox to the Status page's Diagnostic Log
   viewer. Filters whatever log is currently loaded (engine.log, ajax.log, clone.log, or
   any individual remote's rsync log) down to lines matching this plugin's own
