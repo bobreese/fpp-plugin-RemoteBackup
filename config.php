@@ -1126,13 +1126,18 @@ $rbPlugin = basename(__DIR__);
     }
 
     function renderScheduleResults(days) {
+        // table-sm's default cell padding is tight (0.3rem) - fine with a
+        // bare "Clear", but multiple stacked "H:MM AM/PM-H:MM AM/PM" times
+        // butt right up against the 1px table-bordered column dividers with
+        // 7 columns side by side. Explicit px-3 widens that horizontal gutter
+        // regardless of table-sm's own padding.
         var html = '<table class="table table-sm table-bordered"><tr>';
-        DAY_ORDER.forEach(function (d) { html += '<th>' + DAY_LABELS[d] + '</th>'; });
+        DAY_ORDER.forEach(function (d) { html += '<th class="px-3">' + DAY_LABELS[d] + '</th>'; });
         html += '</tr><tr>';
         DAY_ORDER.forEach(function (d) {
             var entries = days[d] || [];
             if (!entries.length) {
-                html += '<td class="table-success align-top"><small>Clear</small></td>';
+                html += '<td class="table-success align-top px-3"><small>Clear</small></td>';
                 return;
             }
             var cell = entries.map(function (e) {
@@ -1141,7 +1146,7 @@ $rbPlugin = basename(__DIR__);
                     formatTimeForDisplay(e.start) + '–' + formatTimeForDisplay(e.end) + '<br>' +
                     e.label.replace(/</g, '&lt;') + flag.tag + '</small></div>';
             }).join('');
-            html += '<td class="table-warning align-top py-2">' + cell + '</td>';
+            html += '<td class="table-warning align-top py-2 px-3">' + cell + '</td>';
         });
         html += '</tr></table>';
         document.getElementById('rb-scheduleResults').innerHTML = html;
