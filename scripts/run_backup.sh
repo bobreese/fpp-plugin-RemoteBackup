@@ -503,6 +503,27 @@ backup_one() {
                 rb_log "NOTE $id: destination '$DEST_ROOT' is inside /home/fpp/media (SD Card/System Storage fallback) - excluding '/${dest_rel}' from the Host's own backup so it doesn't copy its own destination folder into itself."
                 ;;
         esac
+
+        # This plugin's own operational state under its own data/ directory
+        # (also inside /home/fpp/media, regardless of which destination is
+        # picked) changes constantly *during the very same run* that's
+        # trying to read it: data/pids/<id>.pid is created when that
+        # remote's rsync starts and deleted the moment it finishes (see
+        # rb_prune_finished_pids()), data/*.lock/run_active.json/
+        # clone_active.json are live run-in-progress markers. None of that
+        # is meaningful backup content anyway - restoring an old run.lock or
+        # PID file onto a fresh system would be actively wrong, not just
+        # useless - and rsync legitimately reports "file has vanished"
+        # (exit code 24) for exactly this kind of source file disappearing
+        # mid-transfer, surfacing as a confusing "error" for a Host that
+        # backs up itself while other remotes' backups are still running
+        # concurrently. Excluded unconditionally, not just in the
+        # destination-inside-media case above.
+        if [ -n "$media_real" ]; then
+            local plugin_rel="${PLUGIN_DIR#"$media_real"/}"
+            host_exclude+=(--exclude="/${plugin_rel}/data/pids" --exclude="/${plugin_rel}/data/*.lock" \
+                --exclude="/${plugin_rel}/data/run_active.json" --exclude="/${plugin_rel}/data/clone_active.json")
+        fi
     fi
 
     if ! rb_dest_mounted; then
@@ -810,6 +831,20 @@ backup_one() {
     if [ "$rc" -eq 0 ]; then
         state="done"
         [ "$DRYRUN" = "1" ] && state="dry-run-complete"
+    elif [ "$rc" -eq 24 ]; then
+        # rsync's own documented meaning for exit code 24 is "Partial
+        # transfer due to vanished source files" - a source file that
+        # existed when the file list was built was gone by the time rsync
+        # tried to actually transfer it. Common and usually harmless (a
+        # temp/lock file, or - for a Host backing up itself - this very
+        # plugin's own data/pids/<id>.pid appearing and disappearing as
+        # OTHER remotes' rsync jobs start/finish during the same run;
+        # excluded from the Host's own backup above specifically because of
+        # this). Everything else in the run still transferred normally, so
+        # this is a distinct, less alarming state from a real error rather
+        # than lumped in with connection failures/permission problems.
+        state="done-with-warnings"
+        [ "$DRYRUN" = "1" ] && state="dry-run-complete"
     else
         state="error"
     fi
@@ -818,6 +853,10 @@ backup_one() {
     if [ "$state" = "error" ]; then
         error_detail=$(grep -iE 'rsync error|rsync:|@ERROR|ssh:|Connection refused|No route to host|Could not resolve|Permission denied|Host key verification failed' "$logfile" 2>/dev/null | tail -3 | tr '\n' ' | ')
         [ -z "$error_detail" ] && error_detail=$(tail -3 "$logfile" 2>/dev/null | tr '\n' ' | ')
+    elif [ "$state" = "done-with-warnings" ]; then
+        local vanished
+        vanished=$(grep '^file has vanished:' "$logfile" 2>/dev/null | sed 's/^file has vanished: //' | tr '\n' ' | ')
+        error_detail="Some source files vanished mid-transfer (rc=24) - everything else copied normally. ${vanished}"
     fi
 
     rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \

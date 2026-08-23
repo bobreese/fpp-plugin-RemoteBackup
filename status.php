@@ -124,6 +124,7 @@ $rbPlugin = basename(__DIR__);
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-download">Download</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-log-download-all">Download All Logs</button>
             <label class="ms-2"><input type="checkbox" id="rb-log-autotail"> Tail Follow</label>
+            <label class="ms-2"><input type="checkbox" id="rb-log-errors-only"> Errors/warnings only</label>
             <div><small id="rb-log-download-status" class="text-muted"></small></div>
             <div><small id="rb-log-path" class="text-muted"></small></div>
             <pre id="rb-log-content" class="bg-body-secondary border rounded" style="max-height:300px;overflow:auto;padding:6px;margin-top:6px;">(not loaded yet)</pre>
@@ -469,7 +470,8 @@ $rbPlugin = basename(__DIR__);
 
     var STATE_LABEL = {
         queued: 'Queued', running: 'Running', done: 'Done',
-        'dry-run-complete': 'Dry Run Complete', error: 'Error', skipped: 'Skipped (playing)'
+        'dry-run-complete': 'Dry Run Complete', error: 'Error', skipped: 'Skipped (playing)',
+        'done-with-warnings': 'Done (warnings)'
     };
 
     function updateLogOptions(remotes) {
@@ -510,14 +512,15 @@ $rbPlugin = basename(__DIR__);
             body.innerHTML = remotes.map(function (r) {
                 var label = STATE_LABEL[r.state] || r.state;
                 var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
-                var fileCell = (r.state === 'error' || r.state === 'skipped')
-                    ? '<span class="' + (r.state === 'skipped' ? 'text-warning' : 'text-danger') + '" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
+                var fileCell = (r.state === 'error' || r.state === 'skipped' || r.state === 'done-with-warnings')
+                    ? '<span class="' + (r.state === 'error' ? 'text-danger' : 'text-warning') + '" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
                     : (r.currentFile || '');
                 var progressCell = '';
                 if (r.percent != null) {
                     var barClass = 'progress-bar';
                     if (r.state === 'running') barClass += ' progress-bar-striped progress-bar-animated';
                     else if (r.state === 'error') barClass += ' bg-danger';
+                    else if (r.state === 'done-with-warnings') barClass += ' bg-warning';
                     else if (r.state === 'done' || r.state === 'dry-run-complete') barClass += ' bg-success';
                     progressCell = '<div class="progress" style="height:1.2em;min-width:90px;">' +
                         '<div class="' + barClass + '" role="progressbar" style="width:' + r.percent + '%;" ' +
@@ -780,6 +783,7 @@ $rbPlugin = basename(__DIR__);
 
     var logTailTimer = null;
     var AUTOTAIL_STORAGE_KEY = 'rb-log-autotail';
+    var ERRORS_ONLY_STORAGE_KEY = 'rb-log-errors-only';
 
     // Tail Follow used to always be checked on page load, polling the log
     // every 3s whether or not anyone was watching it. Persist the user's
@@ -800,6 +804,43 @@ $rbPlugin = basename(__DIR__);
             // ignore - just won't persist this session
         }
     }
+    function loadErrorsOnlyPref() {
+        try {
+            return localStorage.getItem(ERRORS_ONLY_STORAGE_KEY) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+    function saveErrorsOnlyPref(on) {
+        try {
+            localStorage.setItem(ERRORS_ONLY_STORAGE_KEY, on ? '1' : '0');
+        } catch (e) {
+            // ignore - just won't persist this session
+        }
+    }
+
+    // Matches this plugin's own log-line prefixes (ABORT/ERROR/WARN/FAIL,
+    // LOW SPACE, RECOVERED - see engine.log/ajax.log) plus the rsync/ssh
+    // failure text that shows up in a per-remote rsync log (rsync itself
+    // doesn't use any of those prefixes), and a non-zero "rc=" from a
+    // "finished rsync ..." line - covers a real failure (rc=1, 255, etc.)
+    // and the "done, but rsync flagged something" rc=24 case alike, without
+    // needing every log's format to agree on one convention. Client-side
+    // only: filters whatever was already fetched, so toggling this doesn't
+    // need a fresh request.
+    var LOG_PROBLEM_RE = /abort|error|warn|fail|vanished|low space|recovered|connection refused|no route to host|permission denied|host key verification failed|rc=(?!0\b)\d+/i;
+
+    var lastLogContent = '';
+
+    function renderLogContent() {
+        var pre = document.getElementById('rb-log-content');
+        if (!document.getElementById('rb-log-errors-only').checked) {
+            pre.textContent = lastLogContent || '(empty)';
+            return;
+        }
+        var lines = lastLogContent.split('\n').filter(function (l) { return LOG_PROBLEM_RE.test(l); });
+        pre.textContent = lines.length ? lines.join('\n') : '(no errors/warnings found in this log)';
+    }
 
     function loadLog(silent) {
         var which = document.getElementById('rb-log-which').value;
@@ -818,9 +859,11 @@ $rbPlugin = basename(__DIR__);
                     pathText += '  (showing last ' + data.shownLines + ' of ' + data.totalLines + ' lines)';
                 }
                 document.getElementById('rb-log-path').textContent = pathText;
-                pre.textContent = data.content || '(empty)';
+                lastLogContent = data.content || '';
+                renderLogContent();
                 if (wasAtBottom || !silent) pre.scrollTop = pre.scrollHeight;
             } else {
+                lastLogContent = '';
                 pre.textContent = 'Error: ' + data.error;
             }
         }).catch(function (err) {
@@ -903,8 +946,13 @@ $rbPlugin = basename(__DIR__);
         saveAutotailPref(e.target.checked);
         scheduleLogTail();
     });
+    document.getElementById('rb-log-errors-only').addEventListener('change', function (e) {
+        saveErrorsOnlyPref(e.target.checked);
+        renderLogContent();
+    });
 
     document.getElementById('rb-log-autotail').checked = loadAutotailPref();
+    document.getElementById('rb-log-errors-only').checked = loadErrorsOnlyPref();
     loadLog(false);
     scheduleLogTail();
 
