@@ -130,9 +130,22 @@ fi
 ADDED_FSTAB=false
 if [ "$ADD_FSTAB" = "1" ] && [ -n "$UUID" ]; then
     if ! grep -q "UUID=${UUID}" /etc/fstab 2>/dev/null; then
-        FSTAB_OPTS="nofail,x-systemd.device-timeout=10,uid=fpp,gid=fpp"
+        # uid=/gid=/umask= are only valid mount options for the FAT family
+        # (no on-disk Unix ownership - see the MOUNT_OPTS comment above,
+        # which gates the live mount the exact same way). ext4 and other
+        # native-Unix filesystems don't understand them at all - `mount -o
+        # uid=...,gid=...` on an ext4 filesystem fails outright ("wrong fs
+        # type, bad option, bad superblock"), confirmed against a real
+        # ext4 loopback mount. This fstab line used to include them
+        # unconditionally, which the live mount path above never did: a
+        # freshly-mounted ext4 drive worked fine (via the plain `mount` +
+        # `chown fpp:fpp` below), but that same drive's fstab entry would
+        # fail on the next boot's `mount -a` - nofail keeps that from
+        # hanging boot, but the drive would just silently stay unmounted
+        # until someone opened Config and clicked Mount again.
+        FSTAB_OPTS="nofail,x-systemd.device-timeout=10"
         case "$FSTYPE" in
-            vfat|fat|fat32|exfat|ntfs|ntfs3) FSTAB_OPTS="${FSTAB_OPTS},umask=000" ;;
+            vfat|fat|fat32|exfat|ntfs|ntfs3) FSTAB_OPTS="${FSTAB_OPTS},uid=fpp,gid=fpp,umask=000" ;;
         esac
         echo "UUID=${UUID} ${MOUNT_POINT} auto ${FSTAB_OPTS} 0 0" | sudo tee -a /etc/fstab >/dev/null
         ADDED_FSTAB=true

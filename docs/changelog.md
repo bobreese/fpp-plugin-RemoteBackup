@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** an ext4-formatted backup drive's `/etc/fstab` entry could fail to mount on
+  the next reboot. `mount_usb.sh` was writing `uid=fpp,gid=fpp` into every fstab entry
+  unconditionally, but those are only valid mount options for FAT-family filesystems
+  (vfat/exfat/ntfs, which have no on-disk Unix ownership of their own) - ext4 has real
+  ownership and doesn't understand `uid=`/`gid=` as mount options at all. Confirmed
+  against a real ext4 loopback mount: `mount -o uid=...,gid=...` fails outright ("wrong
+  fs type, bad option, bad superblock"), while the exact same mount without those
+  options succeeds. `nofail` kept this from hanging boot, but the drive would just sit
+  unmounted after a reboot until someone opened Config and clicked Mount again - which
+  worked, since the *live* mount path already correctly skipped these options for ext4
+  (relying on a plain `chown fpp:fpp` instead); only the persisted fstab line had the
+  mismatch. Now gated the same way the live mount already is: ext4 gets a plain
+  `nofail,x-systemd.device-timeout=10` fstab entry; FAT-family filesystems keep
+  `uid=fpp,gid=fpp,umask=000` exactly as before.
+
 - **Fixed:** a Host backing up itself could sweep every other selected remote's full
   backup content into its own backup, if the SD Card/System Storage fallback had ever
   been used as the destination in the past. The `/home/fpp/media/backups` exclude
