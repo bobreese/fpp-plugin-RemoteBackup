@@ -20,7 +20,13 @@ The dropdown there covers everything this plugin writes:
 - `clone.log` - the most recent "Clone Backups to a Second Drive" run
 
 Pick one, click "Refresh Log" (or check "Tail Follow" to poll it every few seconds while
-watching a run live), same page for all of them - no SSH or file browser needed.
+watching a run live), same page for all of them - no SSH or file browser needed. Check
+**"Errors/warnings only"** to filter whichever log is currently loaded down to just the
+lines that matter - this plugin's own `ABORT`/`ERROR`/`WARN`/`FAIL`/`LOW SPACE`/
+`RECOVERED` lines, rsync/ssh failure text, or a non-zero `rc=` on a "finished rsync"
+line - instead of scrolling past every routine start/finish/progress line to find the
+one that isn't. Filters whatever was already loaded, so toggling it is instant; no
+separate error log to keep in sync.
 
 **Download** saves the selected log to your browser as a plain text file; **Download All
 Logs** zips everything currently under `data/logs/` into one archive instead - handy for

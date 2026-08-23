@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added** an "Errors/warnings only" checkbox to the Status page's Diagnostic Log
+  viewer. Filters whatever log is currently loaded (engine.log, ajax.log, clone.log, or
+  any individual remote's rsync log) down to lines matching this plugin's own
+  ABORT/ERROR/WARN/FAIL/LOW SPACE/RECOVERED prefixes, rsync/ssh failure text (vanished,
+  Connection refused, Permission denied, etc.), or a non-zero `rc=` from a "finished
+  rsync" line - client-side only, so toggling it re-filters instantly without a fresh
+  request, and persists like Tail Follow. Considered a dedicated `error.log` instead,
+  but `engine.log` already records every run's outcome (`rc=$rc` on every finish line);
+  a separate file would have meant maintaining two logs in sync plus its own pruning,
+  for the same information this already surfaces once you can filter to it.
 - **Fixed:** a Host that backs up itself (selected as one of its own "remotes") could
   show a false "Error" with a confusing detail line that was actually just rsync's own
   transfer-stats summary (e.g. `sent 469.81M bytes  received 13.13K bytes  ...`).
