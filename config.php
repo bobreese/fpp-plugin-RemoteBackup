@@ -1113,6 +1113,18 @@ $rbPlugin = basename(__DIR__);
         return h2 + ':' + m2 + ':00';
     }
 
+    // One tag/class per entry - unparsed (can't understand the time at
+    // all) beats sun-relative (real but unresolved to a clock time) beats
+    // dateParity (real clock time, but only runs on alternating calendar
+    // days so which weekday it lands on isn't fixed) - each is a
+    // different reason the same "verify manually" caution applies.
+    function scheduleEntryFlag(e) {
+        if (e.unparsed) return { cls: 'text-danger', tag: ' (unrecognized time - verify manually)' };
+        if (e.sunRelative) return { cls: 'text-warning', tag: ' (approximate - sun-relative)' };
+        if (e.dateParity) return { cls: 'text-info', tag: ' (' + e.dateParity + ' calendar days only - verify manually)' };
+        return { cls: '', tag: '' };
+    }
+
     function renderScheduleResults(days) {
         var html = '<table class="table table-sm table-bordered"><tr>';
         DAY_ORDER.forEach(function (d) { html += '<th>' + DAY_LABELS[d] + '</th>'; });
@@ -1120,16 +1132,16 @@ $rbPlugin = basename(__DIR__);
         DAY_ORDER.forEach(function (d) {
             var entries = days[d] || [];
             if (!entries.length) {
-                html += '<td class="table-success"><small>Clear</small></td>';
+                html += '<td class="table-success align-top"><small>Clear</small></td>';
                 return;
             }
             var cell = entries.map(function (e) {
-                var cls = e.unparsed ? 'text-danger' : (e.sunRelative ? 'text-warning' : '');
-                var tag = e.unparsed ? ' (unrecognized time - verify manually)' : (e.sunRelative ? ' (approximate - sun-relative)' : '');
-                return '<div class="' + cls + '"><small>' + formatTimeForDisplay(e.start) + '–' + formatTimeForDisplay(e.end) + '<br>' +
-                    e.label.replace(/</g, '&lt;') + tag + '</small></div>';
-            }).join('<hr class="my-1">');
-            html += '<td class="table-warning">' + cell + '</td>';
+                var flag = scheduleEntryFlag(e);
+                return '<div class="' + flag.cls + ' mb-2 pb-2 border-bottom"><small>' +
+                    formatTimeForDisplay(e.start) + '–' + formatTimeForDisplay(e.end) + '<br>' +
+                    e.label.replace(/</g, '&lt;') + flag.tag + '</small></div>';
+            }).join('');
+            html += '<td class="table-warning align-top py-2">' + cell + '</td>';
         });
         html += '</tr></table>';
         document.getElementById('rb-scheduleResults').innerHTML = html;
@@ -1164,15 +1176,22 @@ $rbPlugin = basename(__DIR__);
         var day = document.getElementById('rb-scheduleCheckDay').value;
         var checkTime = getCheckTime24();
         var entries = scheduleData[day] || [];
-        var hit = null, approximate = false;
+        var hit = null, parityHit = null, approximate = false;
         entries.forEach(function (e) {
             if (e.sunRelative || e.unparsed) { approximate = true; return; }
-            // Literal HH:MM:SS strings compare correctly as plain strings.
-            if (checkTime >= e.start && checkTime < e.end) hit = e;
+            // Literal HH:MM:SS strings compare correctly as plain strings -
+            // true for a dateParity entry too, its start/end are real clock
+            // times, just not tied to a fixed weekday.
+            var inRange = (checkTime >= e.start && checkTime < e.end);
+            if (e.dateParity) { if (inRange) parityHit = e; return; }
+            if (inRange) hit = e;
         });
         if (hit) {
             resultEl.className = 'ms-2 text-danger';
             resultEl.textContent = 'Conflicts with "' + hit.label + '" (' + formatTimeForDisplay(hit.start) + '–' + formatTimeForDisplay(hit.end) + ')';
+        } else if (parityHit) {
+            resultEl.className = 'ms-2 text-warning';
+            resultEl.textContent = 'Would conflict with "' + parityHit.label + '" (' + formatTimeForDisplay(parityHit.start) + '–' + formatTimeForDisplay(parityHit.end) + ') on ' + parityHit.dateParity + ' calendar days - verify manually.';
         } else if (approximate) {
             resultEl.className = 'ms-2 text-warning';
             resultEl.textContent = 'No exact conflict, but ' + DAY_LABELS[day] + ' has a sun-relative or unrecognized entry - verify manually.';

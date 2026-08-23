@@ -41,11 +41,18 @@ A few concrete reasons this can't be a hard guarantee, and why the panel says so
 - **Only entries that are `enabled` and not already expired (`endDate` in the past) are
   shown.** A schedule with a lot of old seasonal entries (a prior year's Christmas show,
   for instance) won't clutter the picture with dead schedule data.
-- **Day-of-week codes** (FPP's `0`-`6` = Sunday-Saturday, `7` = every day, `8` = weekdays,
-  `9` = weekends) follow documented FPP convention and match every real schedule pulled
-  during development, but haven't been verified against every FPP version. Any code this
-  plugin doesn't recognize is treated as "every day" rather than silently ignored - a false
-  "this looks clear" is a worse outcome than an overly cautious one.
+- **Day-of-week codes** match every option in FPP Scheduler's own Day dropdown, taken
+  straight from FPP's own `src/ScheduleEntry.h` (`0`-`6` Sunday-Saturday, `7` Everyday,
+  `8` Mon-Fri, `9` Sat/Sun, `10` Mon/Wed/Fri, `11` Tues/Thurs, `12` Sun-Thurs, `13` Fri/Sat,
+  and the "Day Mask" custom-day-set option). Any code this plugin doesn't recognize is
+  treated as "every day" rather than silently ignored - a false "this looks clear" is a
+  worse outcome than an overly cautious one.
+- **"Odd"/"Even" day entries** run on alternating calendar days of the month (the 1st,
+  3rd, 5th... or the 2nd, 4th, 6th...), not a fixed weekday - which weekday they land on
+  shifts every time. These show up under every day of the week with a blue "odd/even
+  calendar days only" tag rather than a plain time, and the specific-time checker below
+  answers "would conflict... on odd/even calendar days - verify manually" instead of a
+  flat conflict or a false Clear.
 - **`SunSet`/`SunRise`-anchored entries are shown as-is, not resolved to an exact time.**
   A schedule entry like `startTime: "12:00:00"`, `endTime: "SunSet"` is extremely common
   for a seasonal light show (run from midday/afternoon until dusk) - but sunset itself

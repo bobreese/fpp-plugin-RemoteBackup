@@ -5,6 +5,23 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed** the Show Schedule Conflict Check panel's results table to space entries out
+  more (each entry in a multi-entry day cell now gets its own bottom margin/divider instead
+  of a thin `<hr>`), and to recognize every day-of-week option in FPP Scheduler's own Day
+  dropdown - previously anything other than a single day, Everyday, Weekdays, or Weekend
+  fell back to "every day." Added `10` Mon/Wed/Fri, `11` Tues/Thurs, `12` Sun-Thurs, `13`
+  Fri/Sat, and the "Day Mask" custom-day-set option (a bitmask read via FPP's own
+  `INX_DAY_MASK_*` bit values), all taken directly from FPP's `src/ScheduleEntry.h` rather
+  than inferred from observed behavior. `14` Odd day and `15` Even day (which run on
+  alternating calendar days of the month, not a fixed weekday) now show under every day
+  with a distinct "odd/even calendar days only - verify manually" tag instead of being
+  silently folded into a plain time slot; the "Check a specific time" answer for these is
+  now "Would conflict with ... on odd/even calendar days - verify manually" rather than a
+  flat conflict or a false Clear. See [Show Schedule Conflict Check](schedule-conflict-check.md).
+- **Documented** an abbreviated version of the Show Schedule Conflict Check panel in the
+  in-app Help page's Scheduling section (`help/help.php`), matching the callout style
+  already used for the fresh-SD-card note in Restoring a Backup, with a link out to
+  [Show Schedule Conflict Check](schedule-conflict-check.md) for the full version.
 - **Changed** the Show Schedule Conflict Check panel to display times in whichever format
   the master itself is actually configured to use, instead of the master's own raw
   `HH:MM:SS` strings. Read from that same master's `GET /api/settings/TimeFormat` (a
