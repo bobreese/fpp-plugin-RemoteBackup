@@ -16,6 +16,7 @@
 - [Remote Playing a Sequence](#remote-playing-a-sequence)
 - [Settings Reset to Defaults](#settings-reset-to-defaults)
 - [A USB/SSD Drive Shows Two Partitions](#a-usbssd-drive-shows-two-partitions)
+- [FPP's Own Restore/File Manager Can't See This Plugin's Backups](#fpps-own-restorefile-manager-cant-see-this-plugins-backups)
 
 ## SSH key failures
 
@@ -191,7 +192,11 @@ be open:
   the estimated transfer, right from the popup.
 - **Use Failover** - switch to SD Card / System Storage (always available, no drive
   required).
-- **Cancel** - leave it refused. Nothing runs again until you come back and pick one of
+- **Stop Backup** - leave it refused, and make sure nothing is left running. In the
+  normal case there's nothing to stop - this refusal always happens before the run is
+  ever marked active or any file is transferred - but it also kills any tracked
+  per-remote process and clears the active-run flag, the same as the Status page's own
+  Stop button, as a safety net. Nothing runs again until you come back and pick one of
   the above, or fix the space situation yourself and try again.
 
 Picking Start Anyway, Replace Destination, or Use Failover automatically retries the
@@ -285,6 +290,17 @@ settings.json from ...` line naming which of the two it recovered from. Only if 
 backups are found broken at the same time does it fall back to plain defaults and persist
 those, rather than continuing to fail (and re-log the same warning) on every single request.
 
+**If this keeps happening, the backups are a safety net, not a cure.** Two occurrences
+inside about an hour have been observed on one real system, each with the exact same
+signature: a multi-minute total gap in `ajax.log` (no requests logged at all, not a
+slowdown), then the very next request finding `settings.json` already broken. That pattern
+- especially recurring within the same session rather than a one-off - points at something
+scheduled on the system itself (a cron job, an unattended-upgrade, some other maintenance
+task) repeatedly touching this plugin's `data/` directory, not a rare fluke. This plugin has
+no visibility into what that is; if it keeps happening, it's worth checking `syslog`/
+`journalctl` (or whatever your FPP build uses) for anything scheduled around the times it
+occurs.
+
 [↑ Back to top](#troubleshooting)
 
 ## A USB/SSD Drive Shows Two Partitions
@@ -310,13 +326,50 @@ do it if there's nothing there worth keeping (or back it up elsewhere first).
 
 [↑ Back to top](#troubleshooting)
 
-**If this keeps happening, the backups are a safety net, not a cure.** Two occurrences
-inside about an hour have been observed on one real system, each with the exact same
-signature: a multi-minute total gap in `ajax.log` (no requests logged at all, not a
-slowdown), then the very next request finding `settings.json` already broken. That pattern
-- especially recurring within the same session rather than a one-off - points at something
-scheduled on the system itself (a cron job, an unattended-upgrade, some other maintenance
-task) repeatedly touching this plugin's `data/` directory, not a rare fluke. This plugin has
-no visibility into what that is; if it keeps happening, it's worth checking `syslog`/
-`journalctl` (or whatever your FPP build uses) for anything scheduled around the times it
-occurs.
+## FPP's Own Restore/File Manager Can't See This Plugin's Backups
+
+FPP's own **File Manager** ("Backups" tab) and **File Copy Backup/Restore** page
+("Restore From Remote FPP Backups Directory" with "Remote Storage: Default FPP Storage,"
+or the local "Restore From USB/Local Drive" device picker) are built into FPP itself,
+not this plugin - and neither has any concept of wherever this plugin's actual
+destination drive happens to be mounted. Looked at FPP's own source to confirm exactly
+what each one does, rather than guess:
+
+- **File Manager's "Backups" tab always reads exactly one fixed local path** -
+  `<mediaDirectory>/backups` (normally `/home/fpp/media/backups`) on whichever system
+  you're looking at - with no device picker and no way to point it anywhere else. If
+  you're using **SD Card / System Storage** as this plugin's destination, that happens
+  to be the *exact same path* this plugin falls back to, so your backups show up there
+  automatically. If you're using a **real NVMe/SSD/USB drive** (anything Config's
+  storage list shows mounted at its own mountpoint), File Manager's Backups tab will
+  never show it, at any drive size - there's no workaround for this specific view, it
+  simply isn't looking in the right place.
+- **File Copy Backup/Restore is different: it has a device picker**, so it *can* reach
+  a real drive - but only one FPP can see as available, and FPP's own device-scan
+  (`CheckIfDeviceIsUsable`) skips anything already mounted by something else, which is
+  exactly what this plugin's destination drive is during normal operation. That's true
+  both for the local USB device dropdown and for "Remote Storage" when restoring from a
+  remote host over the network - either way, while this plugin still has the drive
+  mounted, FPP only ever offers "Default FPP Storage" (the same fixed
+  `<mediaDirectory>/backups` path above), never the drive itself.
+
+**To restore from a real drive through FPP's own File Copy Backup/Restore, unmount it on
+Config first** - the same first step [Restoring a Backup](restoring-a-backup.md) already
+documents for physically moving the drive to another system, except here the drive can
+stay right where it is:
+
+- **Network restore** (drive stays on the Host): on the system you're restoring to, open
+  its own File Copy Backup/Restore, "Restore From Remote FPP Backups Directory," and
+  point "Remote Host" at the Host. With the drive unmounted there, it should now appear
+  as a *Remote Storage* option (its raw device name, e.g. `sda1`) instead of only
+  "Default FPP Storage" - pick it, then browse into the remote's own
+  `<Hostname>-<YYYYMMDD>` folder.
+- **Local restore** (drive physically moved): plug it into the target system and pick it
+  from that system's own local USB device dropdown - the full walkthrough is in
+  [Restoring a Backup](restoring-a-backup.md).
+
+Either way, **mount the drive again on the Host's Config page once you're done** - the
+next backup run needs it mounted, and leaving it unmounted trips [Backup Destination
+Missing](#backup-destination-missing) on the next scheduled run.
+
+[↑ Back to top](#troubleshooting)

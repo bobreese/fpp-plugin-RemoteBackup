@@ -5,6 +5,35 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented** why FPP's own File Manager ("Backups" tab) and File Copy Backup/Restore
+  never show this plugin's backups when a real NVMe/SSD/USB drive is the destination -
+  traced through FPP's own source rather than guessed: File Manager's Backups tab always
+  reads a fixed local `<mediaDirectory>/backups` path with no way to point it anywhere
+  else, and File Copy Backup/Restore's device picker (local or, over the network,
+  "Remote Storage") skips any drive already mounted by something else - exactly what this
+  plugin's destination drive is during normal operation. Corrected
+  [Restoring a Backup](restoring-a-backup.md)'s network-restore method, which previously
+  (incorrectly) said the drive could stay mounted; it needs to be unmounted on the Host's
+  Config page first so it appears as a selectable Remote Storage device instead of only
+  "Default FPP Storage." Added a matching new
+  [Troubleshooting](troubleshooting.md#fpps-own-restorefile-manager-cant-see-this-plugins-backups)
+  section. Also fixed a copy-paste duplication in troubleshooting.md where the "Settings
+  Reset to Defaults" section's closing paragraph had ended up appended after the
+  unrelated "Two Partitions" section instead - no content changed, just moved back to
+  where it belongs.
+- **Changed** the "Backup Space Insufficient" popup's **Cancel** button to **Stop Backup**,
+  on both the Status and Config pages. This refusal always happens in `run_backup.sh`'s
+  pre-flight space check, before the run is ever marked active or any file is transferred
+  - so in the normal case there's nothing actually running - but the new button now also
+  calls the same `stop` action the Status page's own Stop button uses (kills any tracked
+  per-remote process, clears the active-run flag) as a safety net, rather than just
+  dismissing the popup. See
+  [Troubleshooting](troubleshooting.md#backup-space-insufficient).
+- **Changed** the Show Schedule Conflict Check panel's results table to add horizontal
+  padding (`px-3`) to both the header and day cells - with 7 day columns side by side,
+  `table-sm`'s tight default padding meant a time range like `3:00 PM-9:00 PM` butted
+  right up against the 1px column borders. See
+  [Show Schedule Conflict Check](schedule-conflict-check.md).
 - **Changed** the Show Schedule Conflict Check panel's results table to space entries out
   more (each entry in a multi-entry day cell now gets its own bottom margin/divider instead
   of a thin `<hr>`), and to recognize every day-of-week option in FPP Scheduler's own Day

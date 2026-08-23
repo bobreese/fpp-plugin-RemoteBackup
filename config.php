@@ -286,7 +286,22 @@ $rbPlugin = basename(__DIR__);
             backdrop: true,
             body: bodyHtml,
             buttons: {
-                Cancel: function () { CloseModalDialog(modalId); },
+                'Stop Backup': {
+                    class: 'btn-outline-danger',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        // Same reasoning as status.php's copy of this modal:
+                        // this refusal always happens before run_active.json
+                        // is ever set true or any rsync starts, so there's
+                        // normally nothing running - calling 'stop' anyway
+                        // is a harmless no-op then, and a real safety net if
+                        // an earlier run is still finishing in the
+                        // background.
+                        api('stop', { body: {} }).then(function (res) {
+                            $.jGrowl(res.ok ? 'Backup stopped.' : ('Could not stop backup: ' + (res.error || 'unknown error')), { themeState: res.ok ? 'info' : 'danger' });
+                        });
+                    }
+                },
                 'Start Anyway': {
                     class: 'btn-danger',
                     click: function () {

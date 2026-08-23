@@ -134,8 +134,8 @@
   compares it to free space right at that moment. If it won't fit, the run is refused
   before anything is copied and a **"Backup Space Insufficient"** popup offers **Start
   Anyway**, **Replace Destination** (pick any other currently-mounted drive with enough
-  room), **Use Failover** (SD Card / System Storage), or **Cancel** - picking any of the
-  first three automatically retries the backup. A scheduled run applies a fixed policy
+  room), **Use Failover** (SD Card / System Storage), or **Stop Backup** - picking any of
+  the first three automatically retries the backup. A scheduled run applies a fixed policy
   instead (refuse and log, or auto-failover if turned on in Backup Options), since there's
   nobody there to answer a popup. See
   [Troubleshooting](troubleshooting.md#backup-space-insufficient) for the full
