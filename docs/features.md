@@ -220,10 +220,14 @@ dedicated USB/NVMe/SSD drive where running it down to the last byte only breaks 
 the system. A run that would leave less than 500MB free there is refused the same way as one
 that flat-out doesn't fit. This also applies when a scheduled run auto-fails-over to SD
 Card - it's re-checked against the SD card's own free space (with the same reserve) rather
-than just assumed to have room.
+than just assumed to have room. "SD Card" here means whatever the OS is actually booted
+from - **onboard eMMC on boards that use it as the boot/root device carries the exact same
+risk and the exact same 500MB reserve**, not just a physical SD card.
 
 See [Troubleshooting](troubleshooting.md#backup-space-insufficient) for the full
-walkthrough.
+walkthrough, including the eMMC-as-auxiliary-storage case (some boards can boot from SD
+and expose eMMC as separate, non-root storage instead) and why this plugin doesn't
+currently detect a non-root eMMC as its own selectable destination.
 
 [↑ Back to Safe Guards list](#safe-guards)
 

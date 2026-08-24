@@ -197,6 +197,24 @@ scheduled run's destination to SD Card automatically (see below) - it's re-check
 the SD card's own free space (with the same 500MB reserve) rather than assumed to have
 room just because it was switched to.
 
+**This includes eMMC, not just a physical SD card.** Some FPP boards (several
+BeagleBone-family boards, some all-in-one controllers) boot from onboard eMMC storage
+instead of a removable SD card - as far as this plugin (and FPP itself) is concerned,
+that's the same "SD Card / System Storage" destination and carries exactly the same
+risk, for the same reason: it's still the filesystem the OS itself is running from,
+whichever physical media it happens to be. Everything above - the 500MB reserve, the
+`autoFailoverOnLowSpace` re-check, all of it - applies identically whether that storage
+is a physical SD card or onboard eMMC.
+
+This is specifically about eMMC acting as the **boot/root device** - some boards can
+instead boot from a physical SD card and expose onboard eMMC as separate, non-root
+storage (closer to how this plugin already treats a USB drive). An eMMC used that way
+doesn't carry the risk described above, since it isn't what the OS depends on to keep
+running - but this plugin's storage detection currently only recognizes NVMe, SATA/ATA,
+and USB-attached drives as selectable destinations alongside the SD Card/System Storage
+fallback; a non-root eMMC exposed as its own block device isn't one of those transport
+types, so it won't currently show up as a distinct option even in that configuration.
+
 - **Start Anyway** - proceeds despite the warning. Useful if the estimate looks stale
   (e.g. you just freed up space) - the transfer may still only partially complete if it
   genuinely doesn't fit, same as before this check existed.

@@ -5,6 +5,19 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** clarified that "SD Card / System Storage" - and everything that comes
+  with it (the 500MB free-space reserve, the `autoFailoverOnLowSpace` re-check, the
+  general "this is the same filesystem FPP itself depends on" risk) - applies equally to
+  onboard eMMC on boards that boot from it instead of a removable SD card, not just a
+  physical SD card. Also documented, honestly rather than silently: some boards can
+  instead boot from SD and expose eMMC as separate, non-root storage (closer to a USB
+  drive) - that configuration doesn't carry the same risk, but this plugin's storage
+  detection (`probe_storage.sh`) currently only recognizes NVMe/SATA/ATA/USB-attached
+  drives as selectable destinations, so a non-root eMMC exposed as its own block device
+  isn't offered as a distinct option today. See
+  [Troubleshooting](troubleshooting.md#backup-space-insufficient) and
+  [Features & Safe Guards](features.md#pre-flight-space-check-with-a-safety-margin-on-sd-card-storage).
+
 - **Fixed:** the "withdraw the restore bind mount during active runs" safeguard added
   immediately below could get stuck withdrawn *forever*, with no backup actually
   running - turning the toggle on would show nothing in File Manager or a remote's own
