@@ -83,6 +83,17 @@ A few things worth knowing before turning it on:
 - Unmounting (or reformatting) the drive here still works exactly as before - it's undone
   automatically first, every time, so you never need to remember to turn the checkbox off
   before unplugging.
+- **Built-in safeguard against a restore reading corrupted/incoherent data:** it's
+  automatically paused for the entire duration of every backup run (started manually,
+  scheduled, or via a Command) and restored the instant the run finishes - not just when
+  you happen to click something. While a run is in progress, FPP's native restore (and
+  MultiSync's own File Copy Backup/Restore on any remote) simply can't see this drive's
+  content at all through this path, so there's no window where it could pull a
+  partially-written, torn snapshot instead of a real one. This is deliberate, not a bug:
+  the Config page shows "Temporarily paused - a backup run is in progress" during that
+  window rather than the usual "Currently active on..." line. A crash or an unclean stop
+  mid-run can't leave it stuck paused either - the next backup attempt (or a settings
+  save) reconciles it back to normal automatically.
 
 ## Cloning backups to a second drive
 

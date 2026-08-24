@@ -36,7 +36,11 @@ $rbPlugin = basename(__DIR__);
                     destination above), its contents are made visible at FPP's normal backups path automatically -
                     no more choosing between "leave it mounted for backups" and "unmount it so restores can see it."
                     Turning this off (or switching the destination away from this drive) reverts to the previous
-                    behavior immediately - unmount the drive here first if you want FPP's restore to see it. See
+                    behavior immediately - unmount the drive here first if you want FPP's restore to see it.
+                    <strong>Built-in safeguard:</strong> it's automatically paused for the duration of every backup
+                    run and restored the moment the run finishes, so FPP's native restore can never read an
+                    in-progress, partly-written backup off this drive - only ever a complete one from before the
+                    current run started. See
                     <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/usb-drive-setup.md" target="_blank" rel="noopener">USB Drive Setup</a> for details.</small>
                 <div id="rb-bindMountStatus" class="mt-1"></div>
             </div>
@@ -209,9 +213,9 @@ $rbPlugin = basename(__DIR__);
     // unmounting" bind mount is actually live on right now - reads from the
     // most recent 'status' poll response (state.lastStatus) plus the
     // checkbox's own current value, so it reflects reality (drive mounted +
-    // it's the saved destination) rather than just whether the box is
-    // checked. Called after every status poll, after settings load, and
-    // right after a successful Save Settings.
+    // it's the saved destination + no run in progress) rather than just
+    // whether the box is checked. Called after every status poll, after
+    // settings load, and right after a successful Save Settings.
     function renderBindMountStatus() {
         var el = document.getElementById('rb-bindMountStatus');
         if (!el) return;
@@ -224,6 +228,12 @@ $rbPlugin = basename(__DIR__);
             var labelHtml = d.label ? ' (volume label "' + d.label + '")' : '';
             el.innerHTML = '<span class="text-success">&#10003; Currently active on <code>' + d.mountpoint + '</code>' +
                 labelHtml + ' &mdash; ' + humanBytes(d.freeBytes) + ' free of ' + humanBytes(d.totalBytes) + '</span>';
+        } else if (res.active) {
+            // Deliberately withdrawn for the duration of this run, not a
+            // misconfiguration - see the safeguard note above the checkbox.
+            el.innerHTML = '<span class="text-muted">Temporarily paused &mdash; a backup run is in progress. ' +
+                'This is expected: it keeps FPP\'s native restore from reading an in-progress backup. ' +
+                'Resumes automatically once the run finishes.</span>';
         } else {
             el.innerHTML = '<span class="text-muted">Not currently active - the drive at <code>/mnt/Backups</code> ' +
                 'must be mounted and saved as the destination above for this to take effect.</span>';
