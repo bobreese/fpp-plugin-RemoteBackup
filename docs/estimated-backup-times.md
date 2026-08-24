@@ -46,7 +46,7 @@ becomes the limiting factor instead of the network.
 
 ## Concurrency
 
-The default 2-concurrent-remote queue (see [Features](features.md)) means two transfers
+The default 2-concurrent-remote queue (see [Features & Safe Guards](features.md)) means two transfers
 share whatever the actual bottleneck is - the Host's network link, or the destination
 drive's write bus - so backing up several remotes at once won't be twice as fast if
 either of those is already saturated by a single transfer.

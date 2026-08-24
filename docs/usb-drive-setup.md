@@ -53,7 +53,7 @@ A few related things:
   This detaches it and removes the `/etc/fstab` entry; the backups on it are untouched,
   and you'll need to Mount it again before the next backup run.
 - **Using the drive with FPP's own File Copy Backup/Restore** (e.g. to restore from it, see
-  [Features](features.md)): Unmount it here first. FPP's own device pickers never list a
+  [Features & Safe Guards](features.md)): Unmount it here first. FPP's own device pickers never list a
   drive this plugin still has mounted - **unless** you turn on "Let remotes and FPP's own
   File Copy Backup/Restore see current backups on this drive without unmounting it first"
   below, in which case FPP's restore (with **Remote Storage** left on its default "None -

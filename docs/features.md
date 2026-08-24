@@ -1,6 +1,8 @@
-# Features
+# Features & Safe Guards
 
 [← Back to README](../README.md)
+
+## Features
 
 - **One Host, many remotes.** Designate a single FPP system as the Host. The install
   script and Config page both warn that only one system should ever have Host Mode enabled.
@@ -45,14 +47,6 @@
   runs, so it is safe to run repeatedly with no side effects.
 - **Delete handling.** Optional `rsync --delete` so the host backup mirrors deletions made
   on the remote, or leave it off to only ever accumulate files.
-- **Won't start while a show is running (configurable).** Before a manual or scheduled run
-  touches anything, every selected remote's own FPP API is checked; if any of them are
-  currently playing a sequence, by default the whole run is refused (not just that remote)
-  rather than risking stutters/dropped frames from reading the same SD card fppd is
-  actively playing off of - Config's Backup Options can instead have it skip just the busy
-  remote(s) and back up everything else. A remote that can't be reached is treated as
-  unknown, not playing, so it doesn't block backing up everything else. See "Configurable
-  response to a remote playing a sequence" below for the full picture.
 - **Dated, per-remote backups.** Each remote's backup folder is named
   `<Hostname>-<YYYYMMDD>` (e.g. `Pi5-20260803`) and remotes are never mixed together.
   By default this is a single rolling "current" backup (renamed to today's date and
@@ -77,9 +71,10 @@
   The only way to stop one mid-run is the explicit **Stop**/**Stop Clone** button; there's no
   timeout tied to the page being open. Expect a real delay between clicking and the Backup
   Status table showing anything, scaling with how many remotes are selected - Dry Run and
-  Start Backup both run the pre-flight space check (see below) sequentially, one remote at a
-  time, before any of them show as queued/running, so the more remotes selected, the longer
-  that initial wait. This is expected, not a hang.
+  Start Backup both run the pre-flight space check (see
+  [Safe Guards](#pre-flight-space-check-with-a-safety-margin-on-sd-card-storage) below)
+  sequentially, one remote at a time, before any of them show as queued/running, so the
+  more remotes selected, the longer that initial wait. This is expected, not a hang.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
@@ -115,58 +110,23 @@
   Settings > Storage dropdown and in File Copy Backup/Restore's "Remote Storage" device
   picker, not just in this plugin. Note that while this plugin has the drive mounted,
   FPP's own pickers still won't list it (FPP excludes anything already mounted) - Unmount
-  it first if you want to use it from FPP's native File Copy Restore. Drives formatted by
-  an older version of this plugin (filesystem directly on the raw disk, no partition table)
-  need to be re-formatted to pick this up; existing backups on them are unaffected until
-  you do.
-- **Missing-destination detection and failover.** If a configured USB/NVMe/SSD
-  destination stops being found mounted (unplugged, powered off, failed) while the Status
-  or Config page happens to be open, a popup offers two ways to respond: **Halt Backups**
-  refuses any manual or scheduled run with a clear reason until the drive reappears or a
-  new destination is saved, and **Use Failover** immediately switches the destination to
-  SD Card / System Storage (always available, no drive required) so scheduled backups keep
-  running. A halt clears itself automatically the moment the missing drive is seen mounted
-  again, or a different destination is saved. See
-  [Troubleshooting](troubleshooting.md#backup-destination-missing) for the full walkthrough.
-- **Pre-flight space check on every real run.** Before copying anything, estimates the
-  total transfer across every selected remote (the same `rsync --dry-run` pass a regular
-  Dry Run does, so it correctly credits files that already exist on the destination) and
-  compares it to free space right at that moment. If it won't fit, the run is refused
-  before anything is copied and a **"Backup Space Insufficient"** popup offers **Start
-  Anyway**, **Replace Destination** (pick any other currently-mounted drive with enough
-  room), **Use Failover** (SD Card / System Storage), or **Stop Backup** - picking any of
-  the first three automatically retries the backup. A scheduled run applies a fixed policy
-  instead (refuse and log, or auto-failover if turned on in Backup Options), since there's
-  nobody there to answer a popup. See
-  [Troubleshooting](troubleshooting.md#backup-space-insufficient) for the full
-  walkthrough.
-- **Configurable response to a remote playing a sequence.** Before a real run touches
-  anything, every selected remote is checked for active playback; Config's Backup Options
-  chooses what happens if one is found playing - **Stop the whole backup** (default,
-  refuses the entire run) or **Skip that remote and back up the others instead** (with a
-  warning that the other remotes' transfers still share the network with the live show). A
-  scheduled run applies whichever is selected with nobody to ask, and reports what it did
-  via a one-time popup the next time Status or Config is opened - a Skip also shows exactly
-  which device(s) were left out. See
-  [Troubleshooting](troubleshooting.md#remote-playing-a-sequence) for the full walkthrough.
+  it first if you want to use it from FPP's native File Copy Restore, or turn on the
+  restore-visibility toggle described under
+  [Safe Guards](#restore-visibility-automatically-paused-during-a-run) below instead. Drives
+  formatted by an older version of this plugin (filesystem directly on the raw disk, no
+  partition table) need to be re-formatted to pick this up; existing backups on them are
+  unaffected until you do.
 - **Show Schedule Conflict Check.** Config's own panel of the same name reads the
   configured schedule straight off whichever system you designate as the show master
   (`/api/schedule`, that system's own FPP API) and lays it out as a Sunday-through-Saturday
   table, plus a quick "does this day/time conflict" checker - a proactive complement to the
-  reactive "won't start while a show is running" check above, for picking a backup time in
-  the first place rather than reacting to one that's already live. Clearly marked as a
-  recommendation to verify, not a guarantee - see
+  reactive "won't start while a show is running" check under
+  [Safe Guards](#wont-start-while-a-remote-is-playing-a-sequence) below, for picking a
+  backup time in the first place rather than reacting to one that's already live. Clearly
+  marked as a recommendation to verify, not a guarantee - see
   [Show Schedule Conflict Check](schedule-conflict-check.md) for exactly why (expired/
   disabled entries filtered out, but day-of-week codes and `SunSet`/`SunRise`-anchored
   entries both carry real caveats worth reading before trusting it against a live show).
-- **Safety checks.** Both the primary and secondary/clone drive Format flows refuse to
-  touch the disk FPP itself is currently running from - resolved by asking the system for
-  the actual device backing the root filesystem (whatever it is: SD card, NVMe, or USB),
-  not by guessing from a device name pattern, so it works the same way no matter which
-  media FPP booted from. This also blocks any other partition on that same physical disk
-  (e.g. a boot partition sitting alongside the root partition), not just the exact root
-  partition itself. It's on top of, not a replacement for, the existing "type the device
-  path to confirm" step already required before either Format dialog's button unlocks.
 - **Logs and system config.** Each remote's own `logDirectory` setting is queried live
   (over its FPP API) and pulled if it has been moved off the media tree (a common tweak
   to spare SD card wear) - so logs are captured even when they are not sitting under
@@ -190,24 +150,151 @@
   format/mount a second USB drive on the Config page, then click "Start Clone" on the
   Status page to mirror everything on the primary destination onto it in one pass
   (`rsync --delete`, so it always exactly matches the primary - a backup you deleted there
-  is removed from the clone too), for an occasional off-site or rotating spare copy.
-  Refuses to run at the same time as a backup run, a primary-drive format, or another
-  clone, and refuses outright if the two drives turn out to be the same device or nested
-  inside one another. See [Setting up a USB backup drive / Cloning backups to a second
-  drive](usb-drive-setup.md) for the step-by-step.
+  is removed from the clone too), for an occasional off-site or rotating spare copy. See
+  [Setting up a USB backup drive / Cloning backups to a second
+  drive](usb-drive-setup.md) for the step-by-step, and
+  [Safe Guards](#clone-safety-checks) below for what stops it from running at the wrong
+  time or onto the wrong drive.
 - **Restoring a backup.** This plugin only handles the pull; it has no restore button of
   its own, by design - use FPP's own built-in **File Copy Backup/Restore** page instead,
   so recovery goes through FPP's own, well-tested restore path. See
   [Restoring a Backup](restoring-a-backup.md) for the full walkthrough, including why
   File Copy Restore's device browser shows a `/` and a `System Volume Information`
   folder, and why neither of those should ever be selected as the thing you're restoring.
-- **Self-healing plugin settings, backed up in two places.** `data/settings.json` is
-  mirrored on every successful write to both `data/settings.json.bak` and an external copy
-  at `/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak` - deliberately outside `data/`
-  (and outside this plugin's own directory entirely), since a real incident proved a single
-  in-directory backup isn't independent protection against whatever's actually causing this
-  (something outside this plugin, entirely outside its control, wiping the whole `data/`
-  directory - not just one file in it - on some systems). If the live file is ever found
-  empty or unreadable, it's restored automatically from whichever backup is still good the
-  next time anything touches it, instead of silently running on defaults indefinitely. See
-  [Troubleshooting](troubleshooting.md#settings-reset-to-defaults) for the full story.
+
+## Safe Guards
+
+Everything below exists to stop this plugin from doing something destructive or
+misleading - erasing the wrong drive, running out of space mid-backup, two things writing
+to the same place at once, or a restore reading data that isn't actually finished yet.
+Plain-language summary first; click anything to jump straight to the full explanation.
+
+- [Won't start while a remote is playing a sequence](#wont-start-while-a-remote-is-playing-a-sequence)
+- [If the backup drive goes missing, backups pause instead of failing blind](#missing-destination-detection-and-failover)
+- [Backups refuse to start without enough room - and always leave a cushion on the SD card](#pre-flight-space-check-with-a-safety-margin-on-sd-card-storage)
+- [Formatting a drive has extra safeguards against erasing the wrong one](#format-safety-checks)
+- [Cloning to a second drive can't overwrite the wrong drive either](#clone-safety-checks)
+- [Only one backup can run at a time](#only-one-backup-run-at-a-time)
+- [Plugin settings repair themselves automatically if they ever get corrupted](#self-healing-plugin-settings)
+- [While a backup is running, restores are automatically paused](#restore-visibility-automatically-paused-during-a-run)
+
+### Won't start while a remote is playing a sequence
+
+Before a manual or scheduled run touches anything, every selected remote's own FPP API is
+checked; if any of them are currently playing a sequence, by default the whole run is
+refused (not just that remote) rather than risking stutters/dropped frames from reading the
+same SD card fppd is actively playing off of - Config's Backup Options can instead have it
+skip just the busy remote(s) and back up everything else. A remote that can't be reached is
+treated as unknown, not playing, so it doesn't block backing up everything else. See
+[Troubleshooting](troubleshooting.md#remote-playing-a-sequence) for the full walkthrough.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Missing-destination detection and failover
+
+If a configured USB/NVMe/SSD destination stops being found mounted (unplugged, powered
+off, failed) while the Status or Config page happens to be open, a popup offers two ways
+to respond: **Halt Backups** refuses any manual or scheduled run with a clear reason until
+the drive reappears or a new destination is saved, and **Use Failover** immediately
+switches the destination to SD Card / System Storage (always available, no drive required)
+so scheduled backups keep running. A halt clears itself automatically the moment the
+missing drive is seen mounted again, or a different destination is saved. See
+[Troubleshooting](troubleshooting.md#backup-destination-missing) for the full walkthrough.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Pre-flight space check, with a safety margin on SD Card storage
+
+Before copying anything, every real run estimates the total transfer across every selected
+remote (the same `rsync --dry-run` pass a regular Dry Run does, so it correctly credits
+files that already exist on the destination) and compares it to free space right at that
+moment. If it won't fit, the run is refused before anything is copied and a **"Backup Space
+Insufficient"** popup offers **Start Anyway**, **Replace Destination**, **Use Failover**, or
+**Stop Backup**. A scheduled run applies a fixed policy instead (refuse and log, or
+auto-failover if turned on), since there's nobody there to answer a popup.
+
+When the destination is **SD Card / System Storage** specifically, this check always keeps
+back 500MB, not configurable - that's the one destination sharing its filesystem with FPP
+itself (its logs, its database, and whatever sequence is actively playing), unlike a
+dedicated USB/NVMe/SSD drive where running it down to the last byte only breaks backups, not
+the system. A run that would leave less than 500MB free there is refused the same way as one
+that flat-out doesn't fit. This also applies when a scheduled run auto-fails-over to SD
+Card - it's re-checked against the SD card's own free space (with the same reserve) rather
+than just assumed to have room.
+
+See [Troubleshooting](troubleshooting.md#backup-space-insufficient) for the full
+walkthrough.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Format safety checks
+
+Both the primary and secondary/clone drive Format flows refuse to touch the disk FPP
+itself is currently running from - resolved by asking the system for the actual device
+backing the root filesystem (whatever it is: SD card, NVMe, or USB), not by guessing from a
+device name pattern, so it works the same way no matter which media FPP booted from. This
+also blocks any other partition on that same physical disk (e.g. a boot partition sitting
+alongside the root partition), not just the exact root partition itself. On top of that,
+every Format dialog's button stays disabled until you type the exact device path shown
+(e.g. `/dev/sda`) into a confirm box - a deliberate extra step before anything that erases a
+drive, not just a single "are you sure?" click.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Clone safety checks
+
+Cloning to a second drive refuses to run at the same time as a backup run or a primary-drive
+format (it reads from the same destination those write to), and the reverse is also true -
+you can't start a backup, or format/unmount the primary drive, while a clone is running.
+It also refuses outright if the primary and secondary turn out to be the same physical
+drive, or one is nested inside the other's mountpoint - mirroring a directory into itself
+(or its own parent) with `rsync --delete` could otherwise corrupt or wipe every backup on
+the primary.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Only one backup run at a time
+
+A real, kernel-enforced lock file (`data/run.lock`, held via `flock` for the entire duration
+of a run) guarantees only one backup can be running at once, no matter how it was started -
+a manual click, a Scheduler entry, a Playlist/Event Command, or a direct command-line
+invocation. A second attempt while one is already running is refused outright with a clear
+reason, rather than letting two runs write to the same destination, log files, and per-remote
+status at the same time. Unlike a hand-rolled "is something running" flag, this kind of lock
+can never get stuck "held" by a process that crashed, was killed, or lost power mid-run - it
+releases automatically the instant that process stops running, for any reason, so a bad exit
+can never require manually clearing a stuck lock before the next backup can start.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Self-healing plugin settings
+
+`data/settings.json` is mirrored on every successful write to both `data/settings.json.bak`
+and an external copy at `/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak` -
+deliberately outside `data/` (and outside this plugin's own directory entirely), since a
+real incident proved a single in-directory backup isn't independent protection against
+whatever's actually causing this (something outside this plugin, entirely outside its
+control, wiping the whole `data/` directory - not just one file in it - on some systems). If
+the live file is ever found empty or unreadable, it's restored automatically from whichever
+backup is still good the next time anything touches it, instead of silently running on
+defaults indefinitely. See [Troubleshooting](troubleshooting.md#settings-reset-to-defaults)
+for the full story.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Restore visibility automatically paused during a run
+
+The optional "see current backups without unmounting" toggle (Config > Backup Destination
+Storage - see [Setting up a USB backup
+drive](usb-drive-setup.md#seeing-current-backups-without-unmounting-the-drive)) makes a
+mounted drive's current contents visible to FPP's native restore without unmounting it
+first. That visibility is automatically paused for the entire duration of every backup run
+- manual, scheduled, or Command-triggered - and restored the instant the run finishes, so
+FPP's native restore (or a remote's own File Copy Backup/Restore) can never read a
+partially-written, in-progress backup through this path. This is expected behavior, not a
+malfunction: the Config page shows "Temporarily paused - a backup run is in progress"
+during that window instead of the usual "active" status. A crash, a kill, or power loss
+mid-run can't leave it stuck paused either - it's guaranteed to reconcile back to normal
+automatically, whether that run finished cleanly or not.
+
+[↑ Back to Safe Guards list](#safe-guards)
