@@ -38,6 +38,7 @@ $rbPlugin = basename(__DIR__);
                     Turning this off (or switching the destination away from this drive) reverts to the previous
                     behavior immediately - unmount the drive here first if you want FPP's restore to see it. See
                     <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/usb-drive-setup.md" target="_blank" rel="noopener">USB Drive Setup</a> for details.</small>
+                <div id="rb-bindMountStatus" class="mt-1"></div>
             </div>
         </div>
     </fieldset>
@@ -199,6 +200,31 @@ $rbPlugin = basename(__DIR__);
         var i = 0;
         while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
         return n.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+    }
+
+    // Shows which storage device (if any) the "see current backups without
+    // unmounting" bind mount is actually live on right now - reads from the
+    // most recent 'status' poll response (state.lastStatus) plus the
+    // checkbox's own current value, so it reflects reality (drive mounted +
+    // it's the saved destination) rather than just whether the box is
+    // checked. Called after every status poll, after settings load, and
+    // right after a successful Save Settings.
+    function renderBindMountStatus() {
+        var el = document.getElementById('rb-bindMountStatus');
+        if (!el) return;
+        var enabled = document.getElementById('rb-enableRestoreBindMount').checked;
+        if (!enabled) { el.innerHTML = ''; return; }
+        var res = state.lastStatus;
+        if (!res || !res.ok) { el.innerHTML = ''; return; }
+        if (res.bindMountActive && res.destStorage) {
+            var d = res.destStorage;
+            var labelHtml = d.label ? ' (volume label "' + d.label + '")' : '';
+            el.innerHTML = '<span class="text-success">&#10003; Currently active on <code>' + d.mountpoint + '</code>' +
+                labelHtml + ' &mdash; ' + humanBytes(d.freeBytes) + ' free of ' + humanBytes(d.totalBytes) + '</span>';
+        } else {
+            el.innerHTML = '<span class="text-muted">Not currently active - the drive at <code>/mnt/Backups</code> ' +
+                'must be mounted and saved as the destination above for this to take effect.</span>';
+        }
     }
 
     // "Backup destination missing" popup - a self-contained mirror of the
@@ -465,11 +491,13 @@ $rbPlugin = basename(__DIR__);
             rbHandleDestinationStatus(res);
             rbHandleLowSpaceStatus(res);
             rbHandlePlayOutcomeStatus(res);
+            state.lastStatus = res;
+            renderBindMountStatus();
             setTimeout(rbPollDestination, RB_DEST_POLL_MS);
         });
     }
 
-    var state = { settings: null, storage: null, remotes: [], hostInfo: null };
+    var state = { settings: null, storage: null, remotes: [], hostInfo: null, lastStatus: null };
 
     // isHostRemote: true if the given remote entry (from state.remotes) is
     // actually this Host itself - e.g. MultiSync's own system list can
@@ -1325,6 +1353,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-autoFailoverOnLowSpace').checked = !!state.settings.autoFailoverOnLowSpace;
             document.getElementById('rb-enableRestoreBindMount').checked = !!state.settings.enableRestoreBindMount;
+            renderBindMountStatus();
             var playPolicy = state.settings.remotePlayingPolicy === 'skip' ? 'skip' : 'stop';
             document.getElementById('rb-playPolicy-' + playPolicy).checked = true;
             document.getElementById('rb-maxConcurrent').value = state.settings.maxConcurrent || 2;
@@ -1352,6 +1381,13 @@ $rbPlugin = basename(__DIR__);
             }
         });
     }
+
+    // Live-updates the "currently active on ..." line the instant the box is
+    // toggled - it still reads real mount/destination state from the last
+    // status poll (not just this checkbox), so unchecking shows "not
+    // currently active" right away, and checking it shows the true state
+    // (which only actually changes once this is saved).
+    document.getElementById('rb-enableRestoreBindMount').addEventListener('change', renderBindMountStatus);
 
     document.getElementById('rb-refreshStorage').addEventListener('click', function () {
         setScanning('rb-storageList');
@@ -1446,6 +1482,12 @@ $rbPlugin = basename(__DIR__);
                 msg.textContent = 'Saved.';
                 msg.className = 'ms-2 text-success';
                 $.jGrowl('Remote Backup settings saved.', { life: 6000, themeState: 'success' });
+                // Don't wait for the next 15s poll to reflect a just-saved
+                // destinationMount/enableRestoreBindMount change - the
+                // server already reconciled the bind mount as part of
+                // saveSettings itself (see ajax.php), so this fetch picks
+                // up the real result right away.
+                api('status').then(function (sres) { state.lastStatus = sres; renderBindMountStatus(); });
             } else {
                 msg.textContent = 'Error: ' + (res.error || 'unknown');
                 msg.className = 'ms-2 text-danger';
