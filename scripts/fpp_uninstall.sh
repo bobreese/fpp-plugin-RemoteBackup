@@ -58,11 +58,27 @@ if [ -f "$EXTERNAL_SETTINGS_BACKUP" ]; then
     rm -f "$EXTERNAL_SETTINGS_BACKUP"
 fi
 
+# --- Tear down the optional restore-visibility bind mount, if active ----
+# The "see current backups without unmounting" toggle (see lib_common.sh's
+# rb_bindmount_backups_ensure()) bind-mounts /mnt/Backups onto
+# /home/fpp/media/backups while it's on. That's kernel mount-table state
+# outside this plugin's own directory, so it's this uninstall script's job
+# to undo it - not sourcing lib_common.sh for one function (it has
+# unrelated side effects at source time, like recreating data/ dirs FPP is
+# about to delete anyway), just the same plain check-and-unmount directly.
+if mountpoint -q /home/fpp/media/backups 2>/dev/null; then
+    echo "Un-binding /home/fpp/media/backups (restore-visibility bind mount)"
+    umount /home/fpp/media/backups 2>/dev/null \
+        || echo "WARNING: could not un-bind /home/fpp/media/backups automatically - unmount it yourself if still bound"
+fi
+
 # --- Remove the /etc/fstab entry for the USB backup drive, if present ---
 if [ -f /etc/fstab ] && grep -q "/mnt/Backups" /etc/fstab 2>/dev/null; then
     echo "Removing /mnt/Backups entry from /etc/fstab"
     echo "(the drive stays mounted until you unmount/reboot; files untouched)"
-    sudo sed -i.rb-uninstall-bak '\#/mnt/Backups#d' /etc/fstab 2>/dev/null \
+    # No sudo here - uninstall scripts already run as root (FPP's own
+    # lifecycle), so sudo would just be redundant indirection.
+    sed -i.rb-uninstall-bak '\#/mnt/Backups#d' /etc/fstab 2>/dev/null \
         || echo "WARNING: could not edit /etc/fstab automatically - remove the /mnt/Backups line yourself"
 fi
 

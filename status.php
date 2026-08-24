@@ -57,7 +57,7 @@ $rbPlugin = basename(__DIR__);
             </div>
         </div>
         <div class="p-2 text-muted" id="rb-dest-storage" style="font-size:0.9em;">Host storage: (loading...)</div>
-        <div class="p-2" id="rb-backedup-info" style="display:none; border-top:1px solid #ddd; margin-top:4px;"></div>
+        <div class="p-2 border-top" id="rb-backedup-info" style="display:none; margin-top:4px;"></div>
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2" id="rb-dryrun-panel" style="display:none;">

@@ -93,6 +93,20 @@ if [ ! -f "$KEYFILE" ]; then
     chmod 600 "$KEYFILE" 2>/dev/null || true
 fi
 
+# --- Ask FPP to restart so the "Run Remote Backup"/"Run Remote Backup Dry
+# Run" commands (commands/descriptions.json) actually become selectable in
+# the Scheduler/Playlist/Event command pickers. This plugin has no
+# callbacks script (nothing hooks show start/stop), and per PLUGIN_GUIDELINES.md
+# install/uninstall only reload commands live for a plugin that HAS one -
+# without it, the live-reload path skips this plugin entirely, so the flag
+# is what makes a fresh install actually usable without a separate manual
+# restart nobody would otherwise know to do.
+if command -v setSetting >/dev/null 2>&1; then
+    setSetting restartFlag 1
+else
+    echo "WARNING: setSetting not available (${FPPDIR}/scripts/common missing?) - restart FPP manually so the Run Remote Backup commands appear in the Scheduler."
+fi
+
 echo ""
 echo "=================================================================="
 echo " IMPORTANT - Remote Backup plugin"

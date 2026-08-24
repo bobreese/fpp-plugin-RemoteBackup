@@ -72,7 +72,7 @@ function rb_json_body() {
 // Run a shell command with a hard timeout, capturing stdout separately
 // from stderr so JSON-producing scripts can't get corrupted by stray
 // warnings, while still logging exactly what happened for diagnostics.
-function rb_run($scriptPath, $args = [], $timeoutSec = 20) {
+function rb_run($scriptPath, $args = [], $timeoutSec = 20, $redact = []) {
     global $LOG_DIR;
     $cmd = 'timeout --kill-after=5 ' . intval($timeoutSec) . ' ' . escapeshellcmd($scriptPath);
     foreach ($args as $a) {
@@ -99,12 +99,25 @@ function rb_run($scriptPath, $args = [], $timeoutSec = 20) {
         $return_value = 255;
     }
 
+    // Build a redacted copy for logging only - $cmd itself (used above to
+    // actually run the script) is never touched. $redact is a list of raw
+    // argument VALUES (not positions - robust to call sites adding/
+    // reordering args later) that must never reach ajax.log, e.g. an SSH
+    // password passed straight through from pushSshKey. Matched against
+    // the same escapeshellarg() form used to build $cmd, so it catches the
+    // value exactly as it appears there.
+    $logCmd = $cmd;
+    foreach ($redact as $secret) {
+        if ($secret === '' || $secret === null) continue;
+        $logCmd = str_replace(escapeshellarg((string)$secret), escapeshellarg('***REDACTED***'), $logCmd);
+    }
+
     if ($out === null || trim((string)$out) === '') {
-        rb_log_line("RUN EMPTY OUTPUT cmd=$cmd stderr=" . substr((string)$stderr, 0, 500));
+        rb_log_line("RUN EMPTY OUTPUT cmd=$logCmd stderr=" . substr((string)$stderr, 0, 500));
     } elseif (!empty($stderr)) {
-        rb_log_line("RUN cmd=$cmd (rc=$return_value) stderr=" . substr($stderr, 0, 500));
+        rb_log_line("RUN cmd=$logCmd (rc=$return_value) stderr=" . substr($stderr, 0, 500));
     } else {
-        rb_log_line("RUN OK cmd=$cmd rc=$return_value");
+        rb_log_line("RUN OK cmd=$logCmd rc=$return_value");
     }
     return $out;
 }
@@ -887,7 +900,9 @@ switch ($action) {
         }
         if (!$address) rb_fail('address required');
 
-        $out = rb_run("$SCRIPTS_DIR/ssh_setup.sh", [$address, $user, (string)$port, $password], 20);
+        // $redact: keep the SSH password out of ajax.log's "RUN cmd=..."
+        // line - see rb_run()'s $redact parameter.
+        $out = rb_run("$SCRIPTS_DIR/ssh_setup.sh", [$address, $user, (string)$port, $password], 20, [$password]);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'message' => 'No response from ssh_setup.sh - see data/logs/ajax.log'];
         echo json_encode($data);
