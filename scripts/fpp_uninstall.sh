@@ -6,9 +6,12 @@
 # script runs, so none of that needs handling here. This script's job
 # is everything the plugin created OUTSIDE its own directory:
 #   - the dedicated SSH keypair under ~fpp/.ssh
-#   - the /etc/fstab entry added when a USB drive was mounted via the
+#   - the external settings.json backup under /home/fpp/media
+#   - the optional restore-visibility bind mount, if currently active
+#   - the /etc/fstab entries added when a USB drive was mounted via the
 #     Config page's "Mount as Backups" / "Format & Mount" buttons
-#   - any backup still actively running
+#     (primary destination and/or secondary/clone drive)
+#   - any backup, or clone-to-second-drive, still actively running
 #
 # Backed-up files on your destination storage are left in place by
 # default - uninstalling a backup tool should never be how you lose
@@ -35,6 +38,21 @@ if [ -d "${PLUGINDIR}/data/pids" ]; then
     done
 fi
 pkill -f "${PLUGINDIR}/scripts/run_backup.sh" 2>/dev/null || true
+
+# clone_backups.sh tracks its own PID at data/clone.pid, deliberately kept
+# out of data/pids/ (see its own comment - out of the generic per-remote
+# 'stop' action's glob), so it needs its own check here too - otherwise an
+# uninstall mid-clone would leave that process orphaned once FPP deletes
+# the plugin's script files out from under it moments later.
+CLONE_PID_FILE="${PLUGINDIR}/data/clone.pid"
+if [ -f "$CLONE_PID_FILE" ]; then
+    clone_pid=$(cat "$CLONE_PID_FILE" 2>/dev/null)
+    if [ -n "$clone_pid" ] && kill -0 "$clone_pid" 2>/dev/null; then
+        echo "Stopping in-progress clone (pid $clone_pid)"
+        kill "$clone_pid" 2>/dev/null || true
+    fi
+fi
+pkill -f "${PLUGINDIR}/scripts/clone_backups.sh" 2>/dev/null || true
 
 # --- Remove the dedicated SSH keypair created at install ----------------
 KEYFILE="/home/fpp/.ssh/id_rsa_remotebackup"
@@ -72,15 +90,30 @@ if mountpoint -q /home/fpp/media/backups 2>/dev/null; then
         || echo "WARNING: could not un-bind /home/fpp/media/backups automatically - unmount it yourself if still bound"
 fi
 
-# --- Remove the /etc/fstab entry for the USB backup drive, if present ---
-if [ -f /etc/fstab ] && grep -q "/mnt/Backups" /etc/fstab 2>/dev/null; then
-    echo "Removing /mnt/Backups entry from /etc/fstab"
-    echo "(the drive stays mounted until you unmount/reboot; files untouched)"
-    # No sudo here - uninstall scripts already run as root (FPP's own
-    # lifecycle), so sudo would just be redundant indirection.
-    sed -i.rb-uninstall-bak '\#/mnt/Backups#d' /etc/fstab 2>/dev/null \
-        || echo "WARNING: could not edit /etc/fstab automatically - remove the /mnt/Backups line yourself"
-fi
+# --- Remove the /etc/fstab entries for both backup drives, if present ---
+# Primary (/mnt/Backups) and secondary/clone (/mnt/BackupsCopy) each get
+# their own fstab line from mount_usb.sh - handled explicitly as two
+# separate mountpoints, each matched as a whole whitespace-delimited field
+# (anchored on both sides), not a bare substring: "/mnt/Backups" is itself
+# a substring of "/mnt/BackupsCopy", so an unanchored match on the primary
+# would also silently delete the secondary's line in the same pass (and
+# vice versa isn't a risk, but relying on that accident either way is
+# fragile - this stays correct even if either path's naming ever changes
+# independently of the other).
+for MP in /mnt/Backups /mnt/BackupsCopy; do
+    if [ -f /etc/fstab ] && grep -qE "(^|[[:space:]])${MP}([[:space:]]|$)" /etc/fstab 2>/dev/null; then
+        echo "Removing $MP entry from /etc/fstab"
+        echo "(the drive stays mounted until you unmount/reboot; files untouched)"
+        # No sudo here - uninstall scripts already run as root (FPP's own
+        # lifecycle), so sudo would just be redundant indirection.
+        # \#pattern#d (not the usual /pattern/d) - $MP itself contains "/",
+        # which would otherwise collide with "/" as the address delimiter
+        # and break the command (confirmed by hitting exactly that while
+        # testing this).
+        sed -i.rb-uninstall-bak -E "\\#(^|[[:space:]])${MP}([[:space:]]|\$)#d" /etc/fstab 2>/dev/null \
+            || echo "WARNING: could not edit /etc/fstab automatically - remove the $MP line yourself"
+    fi
+done
 
 # --- Figure out where backups live before settings.json disappears -----
 DEST_MOUNT=""
@@ -104,32 +137,53 @@ fi
 # look like one of our backups: same <id>-<date> naming pattern used by
 # list_backups.sh/delete_backup.sh, covering both rolling (direct child
 # of the mount) and snapshot mode (nested one level under <id>/).
+#
+# Covers BOTH the primary destination AND the secondary/clone drive
+# (/mnt/BackupsCopy, always fixed - never a settings.json value) - the
+# clone feature keeps its own full copy of every backup, so a
+# --purge-backups run that only touched the primary would silently leave
+# a complete second copy behind on the clone drive, defeating the point
+# of --purge-backups in the first place.
+NAME_RE='^.+-[0-9]{8}$'
+rb_scan_backup_dirs() {
+    local root="$1"
+    [ -n "$root" ] && [ -d "$root" ] || return 0
+    local d
+    while IFS= read -r d; do
+        [ -n "$d" ] && [[ "$(basename "$d")" =~ $NAME_RE ]] && BACKUP_DIRS+=("$d")
+    done < <(find "$root" -maxdepth 1 -mindepth 1 -type d 2>/dev/null)
+    while IFS= read -r d; do
+        [ -n "$d" ] && [[ "$(basename "$d")" =~ $NAME_RE ]] && BACKUP_DIRS+=("$d")
+    done < <(find "$root" -maxdepth 2 -mindepth 2 -type d 2>/dev/null)
+}
 BACKUP_DIRS=()
-if [ -n "$DEST_MOUNT" ] && [ -d "$DEST_MOUNT" ]; then
-    NAME_RE='^.+-[0-9]{8}$'
-    while IFS= read -r d; do
-        [ -n "$d" ] && [[ "$(basename "$d")" =~ $NAME_RE ]] && BACKUP_DIRS+=("$d")
-    done < <(find "$DEST_MOUNT" -maxdepth 1 -mindepth 1 -type d 2>/dev/null)
-    while IFS= read -r d; do
-        [ -n "$d" ] && [[ "$(basename "$d")" =~ $NAME_RE ]] && BACKUP_DIRS+=("$d")
-    done < <(find "$DEST_MOUNT" -maxdepth 2 -mindepth 2 -type d 2>/dev/null)
+rb_scan_backup_dirs "$DEST_MOUNT"
+# Clone-safety-checks elsewhere in this plugin already refuse to let the
+# two destinations be the same drive or nested in one another, but skip
+# re-scanning here too on the off chance $DEST_MOUNT already IS
+# /mnt/BackupsCopy (e.g. an unusual manual settings.json edit) - cheap
+# insurance against double-counting/double-deleting the same folder.
+if [ "$DEST_MOUNT" != "/mnt/BackupsCopy" ]; then
+    rb_scan_backup_dirs "/mnt/BackupsCopy"
 fi
 
 if [ "$PURGE_BACKUPS" = "1" ] && [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
-    echo "!! --purge-backups given: deleting ${#BACKUP_DIRS[@]} backup folder(s) under $DEST_MOUNT"
+    echo "!! --purge-backups given: deleting ${#BACKUP_DIRS[@]} backup folder(s) (primary destination and, if present, the secondary/clone drive)"
     for d in "${BACKUP_DIRS[@]}"; do
         echo "   rm -rf $d"
         rm -rf "$d"
         # Snapshot mode leaves an empty "<id>/" parent behind once its
-        # last dated snapshot is gone - clean that up too if so.
+        # last dated snapshot is gone - clean that up too if so, but never
+        # the destination root itself.
         p=$(dirname "$d")
-        if [ "$p" != "$DEST_MOUNT" ] && [ -d "$p" ] && [ -z "$(ls -A "$p" 2>/dev/null)" ]; then
+        if [ "$p" != "$DEST_MOUNT" ] && [ "$p" != "/mnt/BackupsCopy" ] && [ -d "$p" ] && [ -z "$(ls -A "$p" 2>/dev/null)" ]; then
             rmdir "$p" 2>/dev/null || true
         fi
     done
 elif [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
     echo "------------------------------------------------------------------"
-    echo " Your backed-up files were left in place and were NOT deleted:"
+    echo " Your backed-up files were left in place and were NOT deleted"
+    echo " (primary destination and, if present, the secondary/clone drive):"
     for d in "${BACKUP_DIRS[@]}"; do
         echo "   $d"
     done
@@ -155,7 +209,8 @@ for pkg in rsync jq openssh-client sshpass curl parted zip exfatprogs; do
         echo "  $pkg: not installed on this system (either never installed, or removed by you separately - not by this uninstall)"
     fi
 done
-echo "The /mnt/Backups mount point itself was also left alone."
+echo "The /mnt/Backups and /mnt/BackupsCopy mount points themselves were also left alone -"
+echo "only their /etc/fstab persistence entries were removed above, if present."
 echo ""
 echo "If any FPP Playlist/Schedule/Event used this plugin's 'Run Remote"
 echo "Backup' or 'Run Remote Backup Dry Run' commands, remove those"
