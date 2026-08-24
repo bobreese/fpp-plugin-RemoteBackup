@@ -413,10 +413,38 @@ if [ "$DRYRUN" != "1" ] && [ "$SKIP_SPACE_CHECK" != "1" ]; then
     done < "$ESTIMATE_LIST"
     rm -f "$ESTIMATE_LIST"
 
-    AVAILABLE_NOW=$(df -B1 --output=avail "$DEST_MOUNT" 2>/dev/null | tail -1 | tr -d ' ')
-    [ -z "$AVAILABLE_NOW" ] && AVAILABLE_NOW=0
+    # rb_check_dest_space: (re)reads AVAILABLE_NOW/MARGIN for whatever
+    # $DEST_MOUNT currently is. A margin only ever applies to "/" (SD Card/
+    # System Storage) - that's the one destination sharing its filesystem
+    # with FPP itself (logs, database, whatever sequence is actively
+    # playing), unlike a dedicated USB/NVMe/SSD backup drive, where running
+    # it down to the last byte only breaks backups, not the system. Called
+    # again after an auto-failover switch below, since landing on "/"
+    # doesn't by itself guarantee the estimate actually fits there.
+    rb_check_dest_space() {
+        AVAILABLE_NOW=$(df -B1 --output=avail "$DEST_MOUNT" 2>/dev/null | tail -1 | tr -d ' ')
+        [ -z "$AVAILABLE_NOW" ] && AVAILABLE_NOW=0
+        MARGIN=0
+        [ "$DEST_MOUNT" = "/" ] && MARGIN=$RB_SDCARD_MIN_FREE_BYTES
+    }
 
-    if [ "$ESTIMATE_TOTAL" -gt "$AVAILABLE_NOW" ]; then
+    # rb_refuse_low_space <extra reason detail>: logs, persists lowSpaceReason
+    # (surfaces the "Backup Space Insufficient" popup on Status/Config), and
+    # exits. Shared by both refusal points below so the reason text/fields
+    # stay in sync no matter which one fires.
+    rb_refuse_low_space() {
+        local detail="$1"
+        local reason="estimated transfer (~$(rb_human_bytes "$ESTIMATE_TOTAL")) exceeds free space on '$DEST_MOUNT' (~$(rb_human_bytes "$AVAILABLE_NOW") available$detail)"
+        rb_log "ABORT: refusing to start - $reason"
+        rb_set_setting '.lowSpaceReason' "$reason"
+        jq --argjson e "$ESTIMATE_TOTAL" --argjson a "$AVAILABLE_NOW" '.lowSpaceEstimatedBytes = $e | .lowSpaceAvailableBytes = $a' \
+            "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp_lowspace" 2>/dev/null && mv "${SETTINGS_FILE}.tmp_lowspace" "$SETTINGS_FILE"
+        echo "A Remote Backup run was refused: $reason" >&2
+        exit 1
+    }
+
+    rb_check_dest_space
+    if [ "$((ESTIMATE_TOTAL + MARGIN))" -gt "$AVAILABLE_NOW" ]; then
         AUTO_FAILOVER=$(rb_setting '.autoFailoverOnLowSpace' 'false')
         if [ "$AUTO_FAILOVER" = "true" ] && [ "$DEST_MOUNT" != "/" ]; then
             rb_log "LOW SPACE: estimated $(rb_human_bytes "$ESTIMATE_TOTAL") needed, $(rb_human_bytes "$AVAILABLE_NOW") available on '$DEST_MOUNT' - autoFailoverOnLowSpace is on, switching destination to SD Card / System Storage ('/') and continuing"
@@ -424,14 +452,18 @@ if [ "$DRYRUN" != "1" ] && [ "$SKIP_SPACE_CHECK" != "1" ]; then
             DEST_MOUNT="/"
             DEST_ROOT="$(rb_dest_root "$DEST_MOUNT")"
             mkdir -p "$DEST_ROOT"
+            # Switching destinations doesn't guarantee the estimate actually
+            # fits on the SD card either - re-check against ITS free space
+            # (now with the 500MB margin, since MARGIN is recomputed for the
+            # new $DEST_MOUNT) instead of assuming it has room.
+            rb_check_dest_space
+            if [ "$((ESTIMATE_TOTAL + MARGIN))" -gt "$AVAILABLE_NOW" ]; then
+                rb_refuse_low_space ", after auto-failover, 500MB reserved for system stability"
+            fi
         else
-            reason="estimated transfer (~$(rb_human_bytes "$ESTIMATE_TOTAL")) exceeds free space on '$DEST_MOUNT' (~$(rb_human_bytes "$AVAILABLE_NOW") available)"
-            rb_log "ABORT: refusing to start - $reason"
-            rb_set_setting '.lowSpaceReason' "$reason"
-            jq --argjson e "$ESTIMATE_TOTAL" --argjson a "$AVAILABLE_NOW" '.lowSpaceEstimatedBytes = $e | .lowSpaceAvailableBytes = $a' \
-                "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp_lowspace" 2>/dev/null && mv "${SETTINGS_FILE}.tmp_lowspace" "$SETTINGS_FILE"
-            echo "A Remote Backup run was refused: $reason" >&2
-            exit 1
+            detail=""
+            [ "$MARGIN" -gt 0 ] && detail=", 500MB reserved for system stability"
+            rb_refuse_low_space "$detail"
         fi
     elif [ -n "$(rb_setting '.lowSpaceReason')" ]; then
         # This attempt has enough room - clear a stale refusal from an

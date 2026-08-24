@@ -184,6 +184,19 @@ what's actually free, the run is refused before anything is copied, and a **"Bac
 Space Insufficient"** popup appears on whichever of the Status or Config page happens to
 be open:
 
+**Destination is SD Card / System Storage: a 500MB reserve is always kept back.**
+Every other destination (a dedicated USB/NVMe/SSD backup drive) can legitimately be
+filled right up to the last byte - worst case, backups just fail until something's freed
+up. SD Card/System Storage is different: it's the same filesystem FPP itself, its logs,
+its database, and whatever sequence is actively playing all depend on, so running it down
+to a few KB free risks the *system* misbehaving, not just backups. The pre-flight check
+reserves 500MB there unconditionally (not configurable) - so on this destination, the
+popup can appear even when the estimate technically "fits," if fitting would leave less
+than 500MB free afterward. This also applies when **autoFailoverOnLowSpace** switches a
+scheduled run's destination to SD Card automatically (see below) - it's re-checked against
+the SD card's own free space (with the same 500MB reserve) rather than assumed to have
+room just because it was switched to.
+
 - **Start Anyway** - proceeds despite the warning. Useful if the estimate looks stale
   (e.g. you just freed up space) - the transfer may still only partially complete if it
   genuinely doesn't fit, same as before this check existed.
