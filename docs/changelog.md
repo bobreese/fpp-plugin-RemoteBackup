@@ -5,6 +5,26 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the "withdraw the restore bind mount during active runs" safeguard added
+  immediately below could get stuck withdrawn *forever*, with no backup actually
+  running - turning the toggle on would show nothing in File Manager or a remote's own
+  restore list, indefinitely, even though the drive was mounted and correctly selected
+  as the destination. Cause: the new check trusted `run_active.json`'s `active` flag with
+  no staleness/liveness check at all - that file is just a display flag (see
+  `run_backup.sh`'s own comment on why `run.lock`, not this file, is the *authoritative*
+  "is a run really happening" signal), so a run that was killed, crashed, lost power, or
+  simply predated this safeguard's existence could leave it stuck showing `active: true`
+  with nothing left to ever flip it back except a brand-new run completing normally or a
+  Stop click. `rb_real_run_active()` in `lib_common.sh` now corroborates the flag against
+  `run.lock`'s actual hold state (a non-blocking probe on a throwaway file descriptor)
+  before trusting it - if nobody genuinely holds the lock, the flag is stale and is now
+  correctly ignored. Verified against the exact reported scenario (a stale `active: true`
+  with no process holding `run.lock`) plus every previously-verified case to confirm no
+  regression: a genuinely active real run still withdraws, a dry run still doesn't, the
+  bind mount still re-establishes once a run actually ends, and - the trickiest part -
+  calling this from *within* `run_backup.sh`'s own still-running process (which holds the
+  lock itself) still correctly reports "active," not falsely "stale."
+
 - **Added:** a safeguard against FPP's native restore (or a remote's own File Copy
   Backup/Restore, with Remote Storage on "None") reading a partially-written backup
   through the optional "see current backups without unmounting" bind mount added

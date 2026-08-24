@@ -230,13 +230,46 @@ rb_bindmount_is_active() {
 # shows on Status/Config as "a run is active". A dry run never writes
 # anything to the destination at all, so it's deliberately excluded here -
 # there's nothing for a concurrent restore to read incoherently during one.
+#
+# run_active.json's "active" flag alone has no staleness/liveness check -
+# it's just a display flag (see run_backup.sh's own comment on why run.lock,
+# not this file, is the authoritative "is a run really happening" signal).
+# A run that was killed, crashed, or lost power before this safeguard
+# existed (or before some future edge case the exit trap doesn't cover) can
+# leave it stuck showing "active" forever - which, once this flag started
+# also gating the bind mount, would otherwise leave a real restore
+# permanently and silently blocked, not just temporarily paused. Bug
+# reported in the wild: enabling the toggle showed nothing in File Manager
+# or a remote's restore list, with no backup actually running.
+#
+# Corroborate against run.lock's actual hold state before trusting the
+# flag: try to acquire it ourselves, non-blocking, on a throwaway fd. If we
+# succeed, nobody real holds it - the flag is stale; release immediately
+# (this is a probe, not a real acquisition) and report "not active"
+# regardless of what the JSON says. Safe to call from within run_backup.sh
+# itself too: while it holds the lock on fd 9, this probe on fd 8 always
+# fails to acquire (flock treats a second open file description on the
+# same path, even from the same process, as a separate lock attempt), so
+# it correctly reports "active" for its own in-progress run - the flag
+# only ever gets trusted as "false" from run_backup.sh's own writes, which
+# are never stale to begin with (it's writing about itself, live).
 rb_real_run_active() {
     local f="${DATA_DIR}/run_active.json"
     [ -f "$f" ] || return 1
     local active dry
     active=$(jq -r '.active // false' "$f" 2>/dev/null)
+    [ "$active" = "true" ] || return 1
     dry=$(jq -r '.dryRun // false' "$f" 2>/dev/null)
-    [ "$active" = "true" ] && [ "$dry" != "true" ]
+    [ "$dry" = "true" ] && return 1
+
+    exec 8>"${DATA_DIR}/run.lock" 2>/dev/null
+    if flock -n 8 2>/dev/null; then
+        flock -u 8 2>/dev/null
+        exec 8>&- 2>/dev/null
+        return 1
+    fi
+    exec 8>&- 2>/dev/null
+    return 0
 }
 
 # rb_bindmount_backups_ensure: (re)establishes the bind mount if the safety
