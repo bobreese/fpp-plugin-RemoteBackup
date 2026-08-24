@@ -194,15 +194,25 @@ RB_SDCARD_MIN_FREE_BYTES=524288000
 #
 # Safety invariant this all depends on: the bind mount must exist if and
 # only if (a) the toggle is on, (b) RB_BIND_SOURCE is the currently-SAVED
-# destinationMount, AND (c) RB_BIND_SOURCE is actually mounted right now.
-# Getting this wrong the dangerous way round - leaving the bind mount up
-# after the destination was switched away from RB_BIND_SOURCE (e.g. to SD
-# Card fallback, which is RB_SDCARD_FALLBACK_DIR too) - would make an SD-
-# card-fallback backup silently write into the external drive instead,
-# since both would resolve to the exact same path. rb_bindmount_backups_ensure
-# re-checks all three every time rather than trusting any cached state, and
-# every call site that changes destinationMount or the toggle (ajax.php's
-# saveSettings/useFailover/useDestination) calls it again afterward.
+# destinationMount, (c) RB_BIND_SOURCE is actually mounted right now, AND
+# (d) no REAL backup run is currently writing into it. Getting (a)-(c)
+# wrong the dangerous way round - leaving the bind mount up after the
+# destination was switched away from RB_BIND_SOURCE (e.g. to SD Card
+# fallback, which is RB_SDCARD_FALLBACK_DIR too) - would make an SD-card-
+# fallback backup silently write into the external drive instead, since
+# both would resolve to the exact same path. Getting (d) wrong - leaving it
+# up WHILE a run is actively writing - would let FPP's native restore (or a
+# remote's own File Copy Backup/Restore) read a torn, mid-write snapshot of
+# the backup content: rsync's own per-file temp-then-rename means no single
+# file is ever seen half-written, but the directory as a whole can still
+# show a mix of this run's and the previous run's files depending on
+# exactly when it's read - this is the actual, concrete way a restore could
+# read something the backup process didn't intend, i.e. corrupt/incoherent
+# data reaching the restore target. rb_bindmount_backups_ensure re-checks
+# all four every time rather than trusting any cached state, and every call
+# site that changes destinationMount, the toggle, or run-active state
+# (ajax.php's saveSettings/useFailover/useDestination, and run_backup.sh's
+# own start/end/exit-trap below) calls it again afterward.
 RB_BIND_SOURCE="/mnt/Backups"
 RB_BIND_TARGET="$RB_SDCARD_FALLBACK_DIR"
 
@@ -215,15 +225,32 @@ rb_bindmount_is_active() {
     [ -n "$actual_mp" ] && [ "$actual_mp" = "$RB_BIND_TARGET" ]
 }
 
+# True only while a REAL (non-dry-run) backup run is actively writing -
+# read from run_active.json, the same flag ajax.php's status poll already
+# shows on Status/Config as "a run is active". A dry run never writes
+# anything to the destination at all, so it's deliberately excluded here -
+# there's nothing for a concurrent restore to read incoherently during one.
+rb_real_run_active() {
+    local f="${DATA_DIR}/run_active.json"
+    [ -f "$f" ] || return 1
+    local active dry
+    active=$(jq -r '.active // false' "$f" 2>/dev/null)
+    dry=$(jq -r '.dryRun // false' "$f" 2>/dev/null)
+    [ "$active" = "true" ] && [ "$dry" != "true" ]
+}
+
 # rb_bindmount_backups_ensure: (re)establishes the bind mount if the safety
-# invariant above holds, tears it down if it doesn't. Idempotent and safe
-# to call unconditionally any time settings or mount state might have
-# changed - does nothing if the bind mount is already in the correct state.
+# invariant above holds, tears it down if it doesn't - this is what makes
+# it double as a safeguard against a concurrent restore reading corrupt/
+# incoherent in-progress backup data, not just a destination-mismatch
+# guard. Idempotent and safe to call unconditionally any time settings,
+# mount state, or run-active state might have changed - does nothing if the
+# bind mount is already in the correct state.
 rb_bindmount_backups_ensure() {
     local enabled dest
     enabled=$(rb_setting '.enableRestoreBindMount' 'false')
     dest=$(rb_setting '.destinationMount' '')
-    if [ "$enabled" != "true" ] || [ "$dest" != "$RB_BIND_SOURCE" ] || ! mountpoint -q "$RB_BIND_SOURCE" 2>/dev/null; then
+    if [ "$enabled" != "true" ] || [ "$dest" != "$RB_BIND_SOURCE" ] || ! mountpoint -q "$RB_BIND_SOURCE" 2>/dev/null || rb_real_run_active; then
         rb_bindmount_backups_teardown
         return 0
     fi

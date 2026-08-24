@@ -70,6 +70,28 @@ if ! flock -n 9; then
     exit 1
 fi
 
+# Safety net: make sure run_active.json and the optional bind mount (see
+# rb_bindmount_backups_ensure() in lib_common.sh) can never get stuck
+# reflecting "a run is happening" after this script exits for ANY reason -
+# a clean finish, an early refusal below (halted/no destination/low space/
+# remote playing/etc), or this process itself being killed outright (a
+# service restart, a manual kill, an OOM kill, power loss). Note this is
+# distinct from the UI's Stop button, which only kills the tracked
+# per-remote rsync PIDs, not this script - those deaths just unblock the
+# `wait` calls below and this script keeps running its normal loop to its
+# own natural end, already covered without needing the trap for that case
+# specifically. Installed right after the lock above is acquired, so it
+# corresponds exactly to "this process currently holds run.lock" - by the
+# time it fires, no other run_backup.sh can be concurrently mid-run to race
+# with it (flock already serializes that). Without this, an unclean exit
+# could leave the bind mount withdrawn indefinitely - a real restore
+# permanently, silently blocked by the very safeguard meant to be temporary.
+rb_run_end_cleanup() {
+    echo '{"active": false}' > "${DATA_DIR}/run_active.json"
+    rb_bindmount_backups_ensure
+}
+trap rb_run_end_cleanup EXIT
+
 # One-time sweep of any tmp_extras_<id>_* scratch directory left behind
 # by an earlier run - this run hasn't created one yet (that happens
 # per-remote, further below), so anything matching here is leftover debris.
@@ -484,7 +506,13 @@ echo "$REMOTES_JSON" | jq -c '.[]' | while read -r r; do
     rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" --arg run "$RUN_ID" --arg dryrun "$DRYRUN" --arg t "$(rb_now_iso)" \
         '{id:$id, hostname:$hostname, address:$address, state:"queued", dryRun:($dryrun=="1"), runId:$run, queuedAt:$t}')"
 done
-echo '{"active": true}' > "${DATA_DIR}/run_active.json"
+jq -n --arg dry "$DRYRUN" '{active: true, dryRun: ($dry == "1")}' > "${DATA_DIR}/run_active.json"
+# Withdraw the optional bind mount (if it's currently up) for the duration
+# of a REAL run - see rb_real_run_active()/rb_bindmount_backups_ensure() in
+# lib_common.sh. This is the actual safeguard against a concurrent restore
+# reading a torn/incoherent in-progress snapshot; a dry run is excluded
+# there since it never writes anything.
+rb_bindmount_backups_ensure
 
 backup_one() {
     local remote_json="$1"
@@ -948,4 +976,8 @@ wait
 rm -f "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 
 echo '{"active": false}' > "${DATA_DIR}/run_active.json"
+# Re-establish the bind mount (if the toggle/destination still call for it)
+# right away rather than waiting for the EXIT trap above to also do this -
+# same idempotent call either way, just prompter on the normal happy path.
+rb_bindmount_backups_ensure
 rb_log "=== run complete (runId=$RUN_ID) ==="

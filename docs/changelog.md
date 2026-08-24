@@ -5,6 +5,28 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a safeguard against FPP's native restore (or a remote's own File Copy
+  Backup/Restore, with Remote Storage on "None") reading a partially-written backup
+  through the optional "see current backups without unmounting" bind mount added
+  previously - it's now automatically paused for the entire duration of every backup
+  run (manual, scheduled, or Command-triggered) and restored the instant the run
+  finishes, instead of staying up the whole time regardless of what's actively being
+  written underneath it. rsync's own per-file temp-then-rename already guarantees no
+  single file is ever readable half-written, but the backups directory as a whole could
+  still show a torn mix of this run's and the previous run's files depending on exactly
+  when it was read mid-run - this closes that window entirely rather than narrowing it,
+  since there's now no window where the path is exposed at all while a real (non-dry-run)
+  backup is writing to it. `run_backup.sh` withdraws the bind mount the moment a run
+  starts and re-establishes it the moment it ends; a `trap ... EXIT` also covers a crash,
+  a kill, or power loss mid-run, so it can never get stuck withdrawn - confirmed with a
+  real loopback-mount test that sends `SIGTERM` (the same signal a service restart or an
+  unclean stop would use) to a running instance and verifies both `run_active.json` and
+  the bind mount self-heal correctly. A dry run is deliberately excluded, since it never
+  writes to the destination and there's nothing for a concurrent restore to read
+  incoherently. The Config page's status line now also distinguishes "temporarily paused
+  - a backup run is in progress" (expected, self-resolving) from "not currently active"
+  (a real configuration mismatch), so a mid-run pause never reads as something broken.
+
 - **Fixed:** the pre-flight "Backup Space Insufficient" check had no safety margin at
   all - it only refused a run when the estimated transfer strictly exceeded free space,
   so a run could legitimately leave the destination with almost nothing free (observed in
