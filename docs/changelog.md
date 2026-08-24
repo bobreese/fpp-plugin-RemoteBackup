@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** confirmed on real hardware (a BeagleBone Black Industrial, booted from
+  a physical SD card with its onboard eMMC present but unmounted) that a non-root eMMC
+  currently can't be used as a backup destination at all - `lsblk` reports the identical
+  `TRAN` value (`"mmc"`) for both the SD card and the eMMC, so this plugin's storage
+  detection (which only recognizes NVMe/SATA/ATA/USB-attached drives alongside the SD
+  Card/System Storage fallback) can't tell them apart and a non-root eMMC never appears
+  as a selectable destination. Previously documented as a suspected limitation reasoned
+  from code alone; now confirmed and written up precisely in
+  [Troubleshooting](troubleshooting.md#backup-space-insufficient). Being raised with FPP's
+  developers to find out whether there's a deliberate reason eMMC wasn't included
+  alongside NVMe/SATA/USB.
+
 - **Documented:** clarified that "SD Card / System Storage" - and everything that comes
   with it (the 500MB free-space reserve, the `autoFailoverOnLowSpace` re-check, the
   general "this is the same filesystem FPP itself depends on" risk) - applies equally to

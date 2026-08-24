@@ -210,10 +210,20 @@ This is specifically about eMMC acting as the **boot/root device** - some boards
 instead boot from a physical SD card and expose onboard eMMC as separate, non-root
 storage (closer to how this plugin already treats a USB drive). An eMMC used that way
 doesn't carry the risk described above, since it isn't what the OS depends on to keep
-running - but this plugin's storage detection currently only recognizes NVMe, SATA/ATA,
-and USB-attached drives as selectable destinations alongside the SD Card/System Storage
-fallback; a non-root eMMC exposed as its own block device isn't one of those transport
-types, so it won't currently show up as a distinct option even in that configuration.
+running.
+
+**Confirmed on real hardware: this plugin currently can't use a non-root eMMC as a
+backup destination at all.** Verified on a BeagleBone Black Industrial booted from a
+physical SD card, with its onboard eMMC present but unmounted: `lsblk` reports the same
+`TRAN` value, `"mmc"`, for both the SD card and the eMMC - Linux's MMC/SD controller
+stack doesn't distinguish "SD card" from "eMMC" at that layer at all. This plugin's
+storage detection only recognizes NVMe, SATA/ATA, and USB-attached drives as selectable
+destinations alongside the SD Card/System Storage fallback, so a non-root eMMC - reporting
+the same transport type as the SD card it's sitting next to, while also not being the
+root disk - matches none of those rules and doesn't appear as an option, mounted or not.
+This is a real, current limitation, not a hypothetical one. It's being raised with FPP's
+developers to understand whether there's a deliberate reason NVMe/SATA/USB were the ones
+supported and eMMC wasn't - this note will be updated once that's resolved either way.
 
 - **Start Anyway** - proceeds despite the warning. Useful if the estimate looks stale
   (e.g. you just freed up space) - the transfer may still only partially complete if it
