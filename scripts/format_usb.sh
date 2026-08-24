@@ -69,6 +69,12 @@ CURRENT_MP=$(lsblk -no MOUNTPOINT "$DEVICE" 2>/dev/null | grep -v '^[[:space:]]*
 if [ -n "$CURRENT_MP" ]; then
     if [ "$CURRENT_MP" = "$MOUNT_POINT" ]; then
         rb_log "format_usb: re-formatting already-mounted $DEVICE, unmounting $MOUNT_POINT first"
+        # Tear down the optional bind mount (see lib_common.sh) first,
+        # unconditionally, so it never outlives the device it points at -
+        # only relevant for the primary destination. The mount_usb.sh
+        # handoff at the end of this script re-establishes it automatically
+        # once the freshly-formatted drive is remounted.
+        [ "$MOUNT_POINT" = "/mnt/Backups" ] && rb_bindmount_backups_teardown
         sudo umount "$MOUNT_POINT" 2>/tmp/rb_umount_err_$$
         if [ $? -ne 0 ]; then
             ERR=$(cat /tmp/rb_umount_err_$$ 2>/dev/null); rm -f /tmp/rb_umount_err_$$

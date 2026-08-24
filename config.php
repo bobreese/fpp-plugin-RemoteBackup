@@ -27,6 +27,18 @@ $rbPlugin = basename(__DIR__);
             <div id="rb-storageList" class="mt-2 fpp-backup-action-loading">Scanning...</div>
             <small>NVMe/SSD storage is recommended and listed first when found. If none is present,
             attach a USB flash drive, or fall back to remaining space on the SD card.</small>
+            <hr>
+            <label><input type="checkbox" id="rb-enableRestoreBindMount">
+                Let remotes and FPP's own File Copy Backup/Restore see current backups on this drive
+                <strong>without unmounting it first</strong></label>
+            <div class="ms-3">
+                <small class="text-muted">Off by default. When on (and this drive is mounted and selected as the
+                    destination above), its contents are made visible at FPP's normal backups path automatically -
+                    no more choosing between "leave it mounted for backups" and "unmount it so restores can see it."
+                    Turning this off (or switching the destination away from this drive) reverts to the previous
+                    behavior immediately - unmount the drive here first if you want FPP's restore to see it. See
+                    <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/usb-drive-setup.md" target="_blank" rel="noopener">USB Drive Setup</a> for details.</small>
+            </div>
         </div>
     </fieldset>
 
@@ -1312,6 +1324,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-autoFailoverOnLowSpace').checked = !!state.settings.autoFailoverOnLowSpace;
+            document.getElementById('rb-enableRestoreBindMount').checked = !!state.settings.enableRestoreBindMount;
             var playPolicy = state.settings.remotePlayingPolicy === 'skip' ? 'skip' : 'stop';
             document.getElementById('rb-playPolicy-' + playPolicy).checked = true;
             document.getElementById('rb-maxConcurrent').value = state.settings.maxConcurrent || 2;
@@ -1409,6 +1422,7 @@ $rbPlugin = basename(__DIR__);
             snapshotMode: document.getElementById('rb-snapshotMode').checked,
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
+            enableRestoreBindMount: document.getElementById('rb-enableRestoreBindMount').checked,
             remotePlayingPolicy: document.getElementById('rb-playPolicy-skip').checked ? 'skip' : 'stop',
             scheduleMasterAddress: currentScheduleMasterAddress(),
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,

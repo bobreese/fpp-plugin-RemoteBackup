@@ -54,7 +54,35 @@ A few related things:
   and you'll need to Mount it again before the next backup run.
 - **Using the drive with FPP's own File Copy Backup/Restore** (e.g. to restore from it, see
   [Features](features.md)): Unmount it here first. FPP's own device pickers never list a
-  drive this plugin still has mounted.
+  drive this plugin still has mounted - **unless** you turn on "Let remotes and FPP's own
+  File Copy Backup/Restore see current backups on this drive without unmounting it first"
+  below, in which case FPP's restore (with **Remote Storage** left on its default "None -
+  FPP Storage") sees the drive's current contents without any of that.
+
+### Seeing current backups without unmounting the drive
+
+Turning on the checkbox under Backup Destination Storage makes the drive's content
+visible at FPP's own fixed backups path *while it stays mounted here* - so a remote can
+still be backed up to it and FPP's own File Copy Backup/Restore (or another remote pulling
+a restore, with **Remote Storage** left on "None") can see the current contents, at the
+same time, without you unmounting anything in between. Off by default.
+
+A few things worth knowing before turning it on:
+
+- It only ever applies to **this drive** (the primary destination) - the second, clone
+  drive above is unaffected.
+- It only takes effect while this drive is both mounted **and** currently selected as the
+  destination (i.e. saved, not just picked). Switching the destination to something else -
+  including SD Card/System Storage fallback - or turning the checkbox back off reverts to
+  the previous behavior immediately; nothing further to undo.
+- It works by bind-mounting the drive onto FPP's normal backups folder, not by adding a
+  shortcut/symlink to it - if you've ever tried rigging this up yourself with `ln -s`, that
+  approach looks like it works (the backups show up in listings) but silently fails every
+  actual restore transfer, while FPP's own UI still reports "BACKUP COMPLETE... successfully
+  copied." This setting exists specifically so nobody needs to reach for that.
+- Unmounting (or reformatting) the drive here still works exactly as before - it's undone
+  automatically first, every time, so you never need to remember to turn the checkbox off
+  before unplugging.
 
 ## Cloning backups to a second drive
 

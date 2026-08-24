@@ -310,7 +310,18 @@ function rb_default_settings() {
         // than reusing a remote selection. Purely advisory/read-only: this
         // is never consulted by run_backup.sh or any run guard, only by
         // that one Config panel when a human clicks "Check Schedule."
-        'scheduleMasterAddress' => ''
+        'scheduleMasterAddress' => '',
+        // Opt-in, default off: bind-mounts the primary destination drive's
+        // content onto FPP's own fixed backups path while it's mounted AND
+        // it's the saved destinationMount, so remotes/File Manager can see
+        // current backups on it without unmounting first. See
+        // rb_bindmount_backups_ensure() in lib_common.sh for the mechanics
+        // and the safety invariant it depends on. Reconciled (bound/unbound
+        // as needed) by bindmount_backups.sh, called after every settings
+        // change that could affect it (saveSettings/useFailover/
+        // useDestination below) and after every primary-drive mount/
+        // unmount/format.
+        'enableRestoreBindMount' => false
     ];
 }
 
@@ -639,7 +650,7 @@ switch ($action) {
         $settings = rb_load_settings($SETTINGS_FILE);
         $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
 
-        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace'] as $k) {
+        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword', 'scheduleMasterAddress'] as $k) {
@@ -718,6 +729,12 @@ switch ($action) {
         // the settings save itself.
         rb_run("$SCRIPTS_DIR/prune_logs.sh", [], 15);
 
+        // Reconcile the optional bind mount - destinationMount and/or
+        // enableRestoreBindMount may have just changed, either of which can
+        // mean binding, unbinding, or leaving it as-is. Best-effort - a
+        // hiccup here should never fail the settings save itself.
+        rb_run("$SCRIPTS_DIR/bindmount_backups.sh", ['reconcile'], 15);
+
         echo json_encode(['ok' => true, 'data' => $settings]);
         break;
     }
@@ -756,6 +773,11 @@ switch ($action) {
             rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
         }
         rb_log_line("FAILOVER activated: destinationMount switched to '/' (SD Card/System Storage)");
+        // destinationMount just changed away from the drive (if it was on
+        // it) - reconcile the optional bind mount so it doesn't linger and
+        // silently misdirect SD-card-fallback backups onto the drive. See
+        // rb_bindmount_backups_ensure() in lib_common.sh.
+        rb_run("$SCRIPTS_DIR/bindmount_backups.sh", ['reconcile'], 15);
         echo json_encode(['ok' => true, 'data' => $settings]);
         break;
     }
@@ -783,6 +805,10 @@ switch ($action) {
             rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
         }
         rb_log_line("DESTINATION REPLACED: destinationMount switched to '$mountpoint'");
+        // destinationMount just changed - reconcile the optional bind mount
+        // (see rb_bindmount_backups_ensure() in lib_common.sh) so it never
+        // stays bound to a drive that's no longer the active destination.
+        rb_run("$SCRIPTS_DIR/bindmount_backups.sh", ['reconcile'], 15);
         echo json_encode(['ok' => true, 'data' => $settings]);
         break;
     }

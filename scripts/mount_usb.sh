@@ -20,6 +20,12 @@ ADD_FSTAB=1
 [ "$2" = "--no-fstab" ] && ADD_FSTAB=0
 MOUNT_POINT="${3:-/mnt/Backups}"
 
+# The optional bind mount (see lib_common.sh) only ever applies to the
+# primary destination, never the secondary clone-target drive - it's tied
+# to destinationMount, which is only ever /mnt/Backups.
+IS_PRIMARY=false
+[ "$MOUNT_POINT" = "/mnt/Backups" ] && IS_PRIMARY=true
+
 json_err() {
     printf '{"ok":false,"error":%s}\n' "$(printf '%s' "$1" | jq -Rs .)"
 }
@@ -58,6 +64,7 @@ if [ -n "$CURRENT_MP" ]; then
         TESTFILE="${MOUNT_POINT}/.rb_write_test_$$"
         if sudo -u fpp touch "$TESTFILE" 2>/dev/null; then
             sudo -u fpp rm -f "$TESTFILE" 2>/dev/null
+            [ "$IS_PRIMARY" = "true" ] && rb_bindmount_backups_ensure
             jq -n --arg mp "$MOUNT_POINT" --arg fs "$FSTYPE" '{ok:true, mountpoint:$mp, fstype:$fs, alreadyMounted:true, writableByFpp:true}'
             exit 0
         fi
@@ -72,6 +79,7 @@ if [ -n "$CURRENT_MP" ]; then
             sudo -u fpp rm -f "$TESTFILE" 2>/dev/null
             rm -f /tmp/rb_mount_err_$$
             rb_log "mount_usb: remount fixed write access at $MOUNT_POINT"
+            [ "$IS_PRIMARY" = "true" ] && rb_bindmount_backups_ensure
             jq -n --arg mp "$MOUNT_POINT" --arg fs "$FSTYPE" '{ok:true, mountpoint:$mp, fstype:$fs, alreadyMounted:true, writableByFpp:true, remounted:true}'
             exit 0
         fi
@@ -174,5 +182,6 @@ if [ "$WRITABLE" != "true" ]; then
 fi
 
 rb_log "mount_usb: mounted $DEVICE ($FSTYPE) at $MOUNT_POINT (fstab=$ADDED_FSTAB, writable=true)"
+[ "$IS_PRIMARY" = "true" ] && rb_bindmount_backups_ensure
 jq -n --arg mp "$MOUNT_POINT" --arg fs "$FSTYPE" --argjson fstab "$ADDED_FSTAB" \
     '{ok:true, mountpoint:$mp, fstype:$fs, addedFstab:$fstab, writableByFpp:true}'

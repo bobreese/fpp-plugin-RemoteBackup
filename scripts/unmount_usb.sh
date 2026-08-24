@@ -31,6 +31,11 @@ fi
 
 DEVICE=$(findmnt -n -o SOURCE "$MOUNT_POINT" 2>/dev/null || echo "")
 
+# Tear down the optional bind mount (see lib_common.sh) first, unconditionally,
+# so it never outlives the device it points at - only relevant for the primary
+# destination (the secondary clone-target drive never has one).
+[ "$MOUNT_POINT" = "/mnt/Backups" ] && rb_bindmount_backups_teardown
+
 if ! sudo umount "$MOUNT_POINT" 2>/tmp/rb_umount_err_$$; then
     ERR=$(cat /tmp/rb_umount_err_$$ 2>/dev/null)
     rm -f /tmp/rb_umount_err_$$

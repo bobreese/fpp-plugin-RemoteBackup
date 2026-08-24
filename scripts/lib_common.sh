@@ -164,6 +164,84 @@ rb_dest_root() {
     fi
 }
 
+# --- Optional bind mount: let remotes/File Manager see current backups on
+# the primary drive without unmounting it - opt-in via the
+# "enableRestoreBindMount" setting (default off). ---
+#
+# FPP's own restore ("Default FPP Storage", no specific remote device
+# picked) pulls over rsync's daemon protocol from the Host's fixed
+# media/backups path (RB_SDCARD_FALLBACK_DIR above) - a restricted/jailed
+# module that can traverse a bind mount transparently but refuses to follow
+# a symlink escaping its root (confirmed against a real restore failure - a
+# symlink there looked fine in listings but silently failed every actual
+# transfer). A bind mount doesn't have that problem: it makes
+# RB_BIND_TARGET literally be the same underlying storage as
+# RB_BIND_SOURCE, not a path that resolves elsewhere.
+#
+# Safety invariant this all depends on: the bind mount must exist if and
+# only if (a) the toggle is on, (b) RB_BIND_SOURCE is the currently-SAVED
+# destinationMount, AND (c) RB_BIND_SOURCE is actually mounted right now.
+# Getting this wrong the dangerous way round - leaving the bind mount up
+# after the destination was switched away from RB_BIND_SOURCE (e.g. to SD
+# Card fallback, which is RB_SDCARD_FALLBACK_DIR too) - would make an SD-
+# card-fallback backup silently write into the external drive instead,
+# since both would resolve to the exact same path. rb_bindmount_backups_ensure
+# re-checks all three every time rather than trusting any cached state, and
+# every call site that changes destinationMount or the toggle (ajax.php's
+# saveSettings/useFailover/useDestination) calls it again afterward.
+RB_BIND_SOURCE="/mnt/Backups"
+RB_BIND_TARGET="$RB_SDCARD_FALLBACK_DIR"
+
+# True only if RB_BIND_TARGET itself (not some ancestor directory) is
+# currently a mountpoint - i.e. our bind mount (or something else's) is
+# actively bound there right now.
+rb_bindmount_is_active() {
+    local actual_mp
+    actual_mp=$(findmnt -n -o TARGET --target "$RB_BIND_TARGET" 2>/dev/null)
+    [ -n "$actual_mp" ] && [ "$actual_mp" = "$RB_BIND_TARGET" ]
+}
+
+# rb_bindmount_backups_ensure: (re)establishes the bind mount if the safety
+# invariant above holds, tears it down if it doesn't. Idempotent and safe
+# to call unconditionally any time settings or mount state might have
+# changed - does nothing if the bind mount is already in the correct state.
+rb_bindmount_backups_ensure() {
+    local enabled dest
+    enabled=$(rb_setting '.enableRestoreBindMount' 'false')
+    dest=$(rb_setting '.destinationMount' '')
+    if [ "$enabled" != "true" ] || [ "$dest" != "$RB_BIND_SOURCE" ] || ! mountpoint -q "$RB_BIND_SOURCE" 2>/dev/null; then
+        rb_bindmount_backups_teardown
+        return 0
+    fi
+    if rb_bindmount_is_active; then
+        return 0
+    fi
+    sudo mkdir -p "$RB_BIND_TARGET" 2>/dev/null
+    if sudo mount --bind "$RB_BIND_SOURCE" "$RB_BIND_TARGET" 2>/tmp/rb_bindmount_err_$$; then
+        rm -f /tmp/rb_bindmount_err_$$
+        rb_log "bindmount: bound $RB_BIND_SOURCE -> $RB_BIND_TARGET"
+    else
+        rb_log "bindmount FAILED: $RB_BIND_SOURCE -> $RB_BIND_TARGET : $(cat /tmp/rb_bindmount_err_$$ 2>/dev/null)"
+        rm -f /tmp/rb_bindmount_err_$$
+    fi
+}
+
+# rb_bindmount_backups_teardown: unbinds RB_BIND_TARGET if (and only if)
+# it's currently bound - a no-op otherwise, regardless of the toggle. Called
+# unconditionally right before every real unmount/reformat of RB_BIND_SOURCE
+# so the bind mount never outlives the device it points at.
+rb_bindmount_backups_teardown() {
+    if rb_bindmount_is_active; then
+        if sudo umount "$RB_BIND_TARGET" 2>/tmp/rb_bindunmount_err_$$; then
+            rm -f /tmp/rb_bindunmount_err_$$
+            rb_log "bindmount: unbound $RB_BIND_TARGET"
+        else
+            rb_log "bindmount teardown FAILED for $RB_BIND_TARGET : $(cat /tmp/rb_bindunmount_err_$$ 2>/dev/null)"
+            rm -f /tmp/rb_bindunmount_err_$$
+        fi
+    fi
+}
+
 # rb_remote_status_name <address>: queries a remote's own FPP web API for
 # its current fppd status_name (e.g. "idle", "playing", "testing",
 # "paused") - the same GET /api/system/status endpoint FPP's own UI polls.
