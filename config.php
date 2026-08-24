@@ -81,7 +81,10 @@ $rbPlugin = basename(__DIR__);
                 &mdash; <strong>includes WiFi passwords and other credentials in plain text on the destination drive.</strong> Pulled via sudo on the remote, so it needs the same passwordless-sudo access this plugin already relies on for SSH key setup.</label><br>
             <label><input type="checkbox" id="rb-autoFailoverOnLowSpace">
                 If a <em>scheduled</em> run's destination doesn't have enough free space, switch automatically to SD Card / System Storage instead of refusing the run
-                &mdash; off by default, so a scheduled backup refuses (with a reason logged, and a popup here/on Status) rather than silently landing somewhere unexpected. A manual Start Backup always shows the popup either way, regardless of this setting.</label><br>
+                &mdash; off by default, so a scheduled backup refuses (with a reason logged, and a popup here/on Status) rather than silently landing somewhere unexpected. A manual Start Backup always shows the popup either way, regardless of this setting.
+                Landing on SD Card / System Storage this way is re-checked against its own free space too (reserving 500MB for
+                system stability, same as any other run there - see <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/troubleshooting.md#backup-space-insufficient" target="_blank" rel="noopener">Backup Space Insufficient</a>)
+                rather than just assumed to fit - it refuses instead of proceeding if it turns out not to.</label><br>
             <br>
             <strong>If a selected remote is playing a sequence when a backup starts:</strong><br>
             <label class="ms-3"><input type="radio" name="rb-playPolicy-choice" id="rb-playPolicy-stop" value="stop">
