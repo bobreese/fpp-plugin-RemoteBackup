@@ -31,6 +31,14 @@ If FPP's Plugin Manager does not list the Remote Backup plugin, you can paste
 `https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/pluginInfo.json` into
 the "Find a Plugin" search bar.
 
+`fpp_install.sh` sets FPP's `restartFlag` at the end of a fresh install, so FPP restarts
+itself (sequenced safely around anything already running, same as any other flagged
+change) and the "Run Remote Backup" / "Run Remote Backup Dry Run" commands become
+selectable in the Scheduler/Playlist/Event pickers right away. This plugin has no
+callbacks script (nothing hooks show start/stop), and FPP's install/uninstall
+live-reload only re-registers commands for a plugin that has one - without the flag,
+those commands wouldn't appear until something else happened to restart FPP.
+
 **Be aware this is considered a Beta Test version. Use with care.**
 
 ## Uninstall
