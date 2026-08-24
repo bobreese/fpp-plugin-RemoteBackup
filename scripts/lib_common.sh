@@ -164,6 +164,20 @@ rb_dest_root() {
     fi
 }
 
+# Minimum free space (bytes) run_backup.sh's pre-flight space check always
+# reserves when the destination is SD Card/System Storage ("/") - the one
+# destination that shares its filesystem with FPP itself (its logs,
+# database, and whatever sequence is actively playing), unlike a dedicated
+# USB/NVMe/SSD backup drive. The plain "does the estimate fit in what's
+# free" check that pre-flight otherwise does has no margin at all - right
+# down to the last byte is fair game - which is fine for a dedicated drive
+# (worst case, backups fail later) but is a real stability risk for the
+# system's own root filesystem (observed in the wild: a run left the SD
+# card with only ~10KB free). 500MB is deliberately not configurable -
+# small enough to leave real backup capacity on any card FPP is actually
+# supported on, without ever being tunable down to "none" by mistake.
+RB_SDCARD_MIN_FREE_BYTES=524288000
+
 # --- Optional bind mount: let remotes/File Manager see current backups on
 # the primary drive without unmounting it - opt-in via the
 # "enableRestoreBindMount" setting (default off). ---

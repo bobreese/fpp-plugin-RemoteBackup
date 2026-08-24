@@ -5,6 +5,24 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the pre-flight "Backup Space Insufficient" check had no safety margin at
+  all - it only refused a run when the estimated transfer strictly exceeded free space,
+  so a run could legitimately leave the destination with almost nothing free (observed in
+  the wild: ~10KB left on SD Card/System Storage). Harmless on a dedicated USB/NVMe/SSD
+  backup drive (worst case, backups just fail later), but genuinely risky when the
+  destination is SD Card/System Storage - that's the same filesystem FPP itself, its logs,
+  its database, and whatever sequence is actively playing all depend on, so running it
+  down to near-zero risks the system misbehaving, not just backups. The check now reserves
+  500MB whenever the destination is SD Card/System Storage specifically (not configurable,
+  and unchanged for every other destination) - both in `run_backup.sh`'s actual enforcement
+  and in the Status/Config page's own "sufficient" indicator, so the two never disagree.
+  Also fixed a related gap: `autoFailoverOnLowSpace` switching a scheduled run's
+  destination to SD Card previously did so with no space check at all against the new
+  destination - it's now re-checked (with the same 500MB reserve) instead of just assumed
+  to have room. "Start Anyway" still bypasses this entirely, same as before - a human who's
+  explicitly clicked past the warning is making a deliberate call, not something this
+  reserve should override.
+
 - **Added:** an opt-in "Let remotes and FPP's own File Copy Backup/Restore see current
   backups on this drive without unmounting it first" checkbox under Config's Backup
   Destination Storage - off by default. Previously, restoring from the primary backup

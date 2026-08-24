@@ -153,6 +153,13 @@ function rb_is_mounted($path) {
 define('RB_BIND_SOURCE', '/mnt/Backups');
 define('RB_BIND_TARGET', '/home/fpp/media/backups');
 
+// Mirrors RB_SDCARD_MIN_FREE_BYTES in scripts/lib_common.sh - must stay in
+// sync with it. Used only to make this action's 'sufficient' indicator
+// agree with what run_backup.sh's own pre-flight check will actually do,
+// not to enforce anything here - see the matching comment there for why a
+// margin exists at all only for the SD Card/System Storage fallback.
+define('RB_SDCARD_MIN_FREE_BYTES', 524288000);
+
 // True if RB_BIND_TARGET is currently our bind mount of RB_BIND_SOURCE -
 // both mounted, with the same underlying device. A bind mount shares its
 // source's device field in /proc/mounts (e.g. both show /dev/sda1), which
@@ -1130,10 +1137,15 @@ switch ($action) {
                 $estTotal += isset($r['transferredBytes']) ? intval($r['transferredBytes']) : 0;
             }
             $avail = $destStorage ? $destStorage['freeBytes'] : null;
+            // Same 500MB reserve run_backup.sh's own pre-flight check
+            // applies for the SD Card/System Storage fallback (see
+            // RB_SDCARD_MIN_FREE_BYTES above) - without it, this indicator
+            // could say "sufficient" right up until the real run refuses.
+            $margin = (isset($settings['destinationMount']) && $settings['destinationMount'] === '/') ? RB_SDCARD_MIN_FREE_BYTES : 0;
             $summary = [
                 'estimatedTotalBytes' => $estTotal,
                 'availableBytes' => $avail,
-                'sufficient' => ($avail === null) ? null : ($avail > $estTotal)
+                'sufficient' => ($avail === null) ? null : ($avail > $estTotal + $margin)
             ];
         }
 
