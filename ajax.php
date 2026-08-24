@@ -145,6 +145,34 @@ function rb_is_mounted($path) {
     return false;
 }
 
+// RB_BIND_SOURCE/RB_BIND_TARGET: the optional bind mount's fixed endpoints
+// (see rb_bindmount_backups_ensure() in scripts/lib_common.sh, which is
+// what actually establishes/tears it down - these two constants must stay
+// in sync with that function's RB_BIND_SOURCE/RB_BIND_TARGET). Only used
+// here read-only, to report status.
+define('RB_BIND_SOURCE', '/mnt/Backups');
+define('RB_BIND_TARGET', '/home/fpp/media/backups');
+
+// True if RB_BIND_TARGET is currently our bind mount of RB_BIND_SOURCE -
+// both mounted, with the same underlying device. A bind mount shares its
+// source's device field in /proc/mounts (e.g. both show /dev/sda1), which
+// is the cheap way to confirm "these are the same live mount" here without
+// shelling out to findmnt on every status poll, same reasoning as
+// rb_is_mounted() above.
+function rb_bindmount_is_active() {
+    $mounts = @file('/proc/mounts');
+    if (!$mounts) return false;
+    $srcDev = null;
+    $tgtDev = null;
+    foreach ($mounts as $line) {
+        $parts = preg_split('/\s+/', trim($line));
+        if (!isset($parts[0], $parts[1])) continue;
+        if ($parts[1] === RB_BIND_SOURCE) $srcDev = $parts[0];
+        if ($parts[1] === RB_BIND_TARGET) $tgtDev = $parts[0];
+    }
+    return $srcDev !== null && $tgtDev !== null && $srcDev === $tgtDev;
+}
+
 // Sanitizes a user-supplied filesystem volume label before it ever
 // reaches a shell command: strips anything but alphanumerics/space/
 // hyphen/underscore (mkfs.exfat/mkfs.ext4 both reject or mangle some
@@ -1133,6 +1161,15 @@ switch ($action) {
             'dryRunSummary' => $summary, 'destStorage' => $destStorage,
             'destinationMount' => isset($settings['destinationMount']) ? $settings['destinationMount'] : null,
             'destinationMissing' => $destinationMissing,
+            // Whether the optional "see current backups without unmounting"
+            // bind mount (see rb_bindmount_backups_ensure() in
+            // lib_common.sh) is actually bound right now - not just whether
+            // the setting is enabled, since it also depends on the drive
+            // being mounted and being the saved destination. When true,
+            // $destStorage above already describes the exact same drive
+            // (RB_BIND_SOURCE is only ever bound while it IS
+            // destinationMount).
+            'bindMountActive' => rb_bindmount_is_active(),
             'haltedReason' => isset($settings['haltedReason']) ? $settings['haltedReason'] : null,
             'lowSpaceReason' => isset($settings['lowSpaceReason']) ? $settings['lowSpaceReason'] : null,
             'lowSpaceEstimatedBytes' => isset($settings['lowSpaceEstimatedBytes']) ? $settings['lowSpaceEstimatedBytes'] : null,
