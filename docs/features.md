@@ -4,6 +4,8 @@
 
 ## Features
 
+[↓ Jump to Safe Guards](#safe-guards)
+
 - **One Host, many remotes.** Designate a single FPP system as the Host. The install
   script and Config page both warn that only one system should ever have Host Mode enabled.
 - **Storage auto-detection.** Probes local block devices via `lsblk`/`df` and prefers
