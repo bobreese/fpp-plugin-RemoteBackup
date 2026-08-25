@@ -13,5 +13,14 @@ if [ -f "${DATA_DIR}/run_active.json" ] && [ "$(jq -r '.active // false' "${DATA
     exit 1
 fi
 
+# Same best-effort early-out as the run_active.json check above - the
+# authoritative check lives in run_backup.sh itself (see its own comment),
+# this just gives an honest answer in FPP's own command output instead of
+# always claiming "started" regardless.
+if [ "$(rb_setting '.hostModeEnabled' 'false')" != "true" ]; then
+    echo "Remote Backup NOT started: this system does not have Host Mode enabled (Config > Backup Host Mode)."
+    exit 1
+fi
+
 nohup "${PLUGINDIR}/scripts/run_backup.sh" --scheduled > /dev/null 2>&1 &
 echo "Remote Backup started"

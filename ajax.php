@@ -914,6 +914,21 @@ switch ($action) {
         $body = rb_json_body();
         $dryRun = isset($body['dryRun']) && $body['dryRun'];
         $ids = isset($body['remotes']) && is_array($body['remotes']) ? $body['remotes'] : [];
+        // Best-effort check so a real (non-dry) Start Backup refuses right
+        // here with a clear toast instead of always claiming "started" and
+        // only failing later in engine.log. run_backup.sh has the
+        // authoritative check (it's also the only guard for a Scheduler-
+        // triggered or manual/cron run that never goes through this
+        // endpoint at all) - this is purely about giving an honest,
+        // immediate answer from the UI. Dry Run is deliberately exempt,
+        // same reasoning as run_backup.sh's own check.
+        if (!$dryRun) {
+            $hostSettings = rb_load_settings($SETTINGS_FILE);
+            if (empty($hostSettings['hostModeEnabled'])) {
+                rb_fail('This system does not have Host Mode enabled (Config > Backup Host Mode). Dry Run still works either way.', 409);
+            }
+        }
+
         // Set when the user already saw the "Backup Space Insufficient"
         // popup and explicitly chose "Start Anyway" - passed through to
         // run_backup.sh so its own pre-flight check doesn't just refuse

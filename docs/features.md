@@ -186,6 +186,7 @@ Plain-language summary first; click anything to jump straight to the full explan
 - [Plugin settings repair themselves automatically if they ever get corrupted](#self-healing-plugin-settings)
 - [While a backup is running, restores are automatically paused](#restore-visibility-automatically-paused-during-a-run)
 - [Deleting a backup requires an explicit confirmation](#deleting-a-backup-requires-an-explicit-confirmation)
+- [A real backup refuses to run unless Host Mode is enabled](#a-real-backup-refuses-to-run-unless-host-mode-is-enabled)
 
 ### Won't start while a remote is playing a sequence
 
@@ -324,5 +325,20 @@ there in the dialog, so retyping it doesn't add a real extra safety check the sa
 deliberate read-and-tick already provides. There's no undo and nothing kept in a trash -
 once confirmed, the folder is gone, so this confirmation step is the only thing standing
 between a click and losing that backup.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### A real backup refuses to run unless Host Mode is enabled
+
+Config's **"Enable this system as the Remote Backup Host"** checkbox now actually gates
+whether a real backup can run - a manual Start Backup, a Scheduler command, or a bare
+CLI/cron invocation of `run_backup.sh` all refuse outright if this system's own
+`hostModeEnabled` setting is off, with a clear error either way (an immediate toast from
+the Status page, or a plain line in the Scheduler's own command output/`engine.log`).
+`run_backup.sh` is the authoritative check, so nothing can route around it by adding a new
+way to trigger a run - the Status page and Scheduler command just add an earlier, friendlier
+refusal in front of it. **Dry Run is deliberately exempt** and always works regardless of
+this setting: it never writes anything to any destination, so there's nothing unsafe about
+running one to sanity-check a system before flipping Host Mode on for the first time.
 
 [↑ Back to Safe Guards list](#safe-guards)
