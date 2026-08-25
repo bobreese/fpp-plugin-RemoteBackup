@@ -369,7 +369,28 @@ function rb_default_settings() {
         // change that could affect it (saveSettings/useFailover/
         // useDestination below) and after every primary-drive mount/
         // unmount/format.
-        'enableRestoreBindMount' => false
+        'enableRestoreBindMount' => false,
+        // Gates the first-run Config page walkthrough (config.php's tour
+        // engine). Deliberately defaults to true HERE, not false - this
+        // default is what array_merge() backfills into every EXISTING
+        // settings.json missing the key (see rb_load_settings() below),
+        // which on this plugin means every install predating this
+        // feature. Defaulting true means an upgrade never surprises an
+        // already-configured system with an unsolicited tour popup the
+        // next time Config loads. fpp_install.sh's settings.json seed
+        // overrides this to false explicitly for a genuinely fresh
+        // install only - that's the one case the tour should actually
+        // auto-show for. Set true by the 'markOnboardingSeen' action once
+        // the tour is dismissed/completed, or by a manual replay via the
+        // "?" button (which always shows it regardless of this flag).
+        'onboardingSeen' => true,
+        // User-facing on/off switch (Config's own checkbox) for whether
+        // the tour is allowed to auto-show at all - separate from
+        // onboardingSeen so someone who doesn't want it can turn it off
+        // permanently rather than just dismissing it once. The "?" replay
+        // button ignores this - it's an explicit request, not an
+        // auto-trigger, so it always works either way.
+        'onboardingTourEnabled' => true
     ];
 }
 
@@ -692,13 +713,31 @@ switch ($action) {
         break;
     }
 
+    // Marks the Config page walkthrough seen/dismissed, independent of the
+    // main Save Settings flow - the tour shouldn't reappear on the next
+    // page load just because the user closed it without also saving
+    // unrelated settings changes. Mirrors acknowledgePlayOutcome's pattern
+    // (a small, immediate settings mutation outside saveSettings).
+    case 'markOnboardingSeen': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $settings = rb_load_settings($SETTINGS_FILE);
+        if (empty($settings['onboardingSeen'])) {
+            $settings['onboardingSeen'] = true;
+            if (!rb_save_settings($SETTINGS_FILE, $settings)) {
+                rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
+            }
+        }
+        echo json_encode(['ok' => true]);
+        break;
+    }
+
     case 'saveSettings': {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();
         $settings = rb_load_settings($SETTINGS_FILE);
         $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
 
-        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount'] as $k) {
+        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount', 'onboardingTourEnabled'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword', 'scheduleMasterAddress'] as $k) {
