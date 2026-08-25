@@ -79,12 +79,17 @@ property of the image you flashed, not something any backup/restore tool (this p
 or FPP's own File Copy Restore) touches. A couple of things worth doing around that,
 specifically because you're starting from a fresh image rather than upgrading in place:
 
-- **Flash the latest FPP nightly build**, not an older release image you happen to have
-  sitting around. Whatever image you flash ships with whichever FPP version was current
-  when that image was built, and FPP only catches itself up from there via its own
-  updater - the older the image, the more individual updates stand between it and
-  current. Starting from the latest nightly minimizes that gap. This applies to any FPP
-  system being rebuilt from an image, whether or not you use this plugin at all.
+- **Flash the latest official FPP release** - via [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+  (search for "FPP" under Choose OS) or directly from
+  [FPP's GitHub releases](https://github.com/FalconChristmas/fpp/releases) - not an older
+  release image you happen to have sitting around, and **not a nightly build**. Whatever
+  image you flash ships with whichever FPP version was current when that image was built,
+  and FPP only catches itself up from there via its own updater - the older the image, the
+  more individual updates stand between it and current, so starting from the latest
+  release minimizes that gap. Nightly builds are worth avoiding here specifically (even
+  though they're newer): they come up in Master mode rather than Player mode, which isn't
+  what a from-scratch Player rebuild wants. This applies to any FPP system being rebuilt
+  from an image, whether or not you use this plugin at all.
 - **Update FPP itself first, then check for plugin updates separately** - FPP's home page
   shows its own warning/update indicator when FPP core is behind, but an installed
   plugin's own update state (this one included) is tracked separately from FPP core.

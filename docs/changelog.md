@@ -5,6 +5,14 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Corrected:** Restoring a Backup's "after a fresh SD card" advice used to say flash the
+  latest FPP *nightly* build. Nightly images come up in Master mode, not Player mode, which
+  isn't what a from-scratch Player rebuild wants. Changed to recommend the latest official
+  release instead - via Raspberry Pi Imager or
+  [FPP's GitHub releases](https://github.com/FalconChristmas/fpp/releases) - keeping the same
+  underlying reasoning (start from the newest image available to minimize how many
+  individual updates stand between it and current).
+
 - **Changed:** the Config page walkthrough's recall control used to be a separate "?"
   button next to an already-checked, easy-to-miss "Show this walkthrough automatically for
   a new install" checkbox - confusing on an already-configured system, where the box shows
