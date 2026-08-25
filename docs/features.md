@@ -143,9 +143,17 @@
   entries. This includes credentials (e.g. WiFi passwords) in plain text inside the
   archive on the destination drive, so turn it off if that is not something you want
   mirrored there.
-- **Browse and delete backups.** The Status page's "Backed Up" dropdown lists every backup
-  on the destination storage with size/file-count/contents, and can delete an individual
-  backup (type-to-confirm) if you want to reclaim space.
+- **Browse backups.** The Status page's "Backed Up" dropdown lists every backup on the
+  destination storage - both a rolling "current" backup and a dated snapshot-mode one are
+  listed the same way - as `<Hostname> - <date>`, sorted by remote first and date second
+  (not purely by most-recent-first). The ⟳ button next to it re-scans without a full page
+  reload. Selecting one shows its full path (e.g.
+  `/mnt/Backups/FPPBeagleBlack-20260824`), total size and file count, and a folder-structure
+  listing with each top-level item's own size - folders before files, each folder's size
+  rolled up as a whole rather than expanded item-by-item, so a quick look tells you where
+  the space actually went without walking the whole tree by hand. See
+  [Safe Guards](#deleting-a-backup-requires-an-explicit-confirmation) below for what stops
+  a delete from that same panel from being an accidental click.
 - **Clone backups to a second drive.** Optional and manual only (no Scheduler command) -
   format/mount a second USB drive on the Config page, then click "Start Clone" on the
   Status page to mirror everything on the primary destination onto it in one pass
@@ -177,6 +185,7 @@ Plain-language summary first; click anything to jump straight to the full explan
 - [Only one backup can run at a time](#only-one-backup-run-at-a-time)
 - [Plugin settings repair themselves automatically if they ever get corrupted](#self-healing-plugin-settings)
 - [While a backup is running, restores are automatically paused](#restore-visibility-automatically-paused-during-a-run)
+- [Deleting a backup requires an explicit confirmation](#deleting-a-backup-requires-an-explicit-confirmation)
 
 ### Won't start while a remote is playing a sequence
 
@@ -300,5 +309,20 @@ malfunction: the Config page shows "Temporarily paused - a backup run is in prog
 during that window instead of the usual "active" status. A crash, a kill, or power loss
 mid-run can't leave it stuck paused either - it's guaranteed to reconcile back to normal
 automatically, whether that run finished cleanly or not.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Deleting a backup requires an explicit confirmation
+
+Selecting **Delete This Backup** in the Status page's "Backed Up" panel opens a
+confirmation dialog naming the exact folder about to be deleted and its size, with a
+checkbox - **Confirm the backup folder being deleted** - that has to be ticked before the
+Delete button in that dialog does anything; leaving it unchecked and clicking Delete
+refuses with a toast instead of deleting anything. This is a checkbox, not a
+type-the-name-back field, deliberately: the folder being deleted is already shown right
+there in the dialog, so retyping it doesn't add a real extra safety check the same
+deliberate read-and-tick already provides. There's no undo and nothing kept in a trash -
+once confirmed, the folder is gone, so this confirmation step is the only thing standing
+between a click and losing that backup.
 
 [↑ Back to Safe Guards list](#safe-guards)
