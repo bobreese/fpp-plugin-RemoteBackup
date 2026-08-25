@@ -123,6 +123,21 @@ if [ -n "$HALTED_REASON" ]; then
     exit 1
 fi
 
+# --- Refuse a REAL run unless this system has Host Mode enabled -----------
+# Config's "Enable this system as the Remote Backup Host" checkbox saves
+# hostModeEnabled, but until now nothing ever read it back - a system with
+# it unchecked (e.g. demoted back to a plain remote, or never actually
+# meant to be the Host) would still run a real backup from a stray
+# Scheduler entry or a manual Start Backup click. Dry Run is deliberately
+# exempt: it writes nothing to any destination, so there's nothing unsafe
+# about running one to sanity-check things before flipping Host Mode on
+# for the first time.
+if [ "$DRYRUN" != "1" ] && [ "$(rb_setting '.hostModeEnabled' 'false')" != "true" ]; then
+    rb_log "ABORT: refusing to start - Host Mode is not enabled on this system (Config > Backup Host Mode)."
+    echo "Remote Backup NOT started: this system does not have Host Mode enabled (Config > Backup Host Mode). Dry Run still works either way." >&2
+    exit 1
+fi
+
 DEST_MOUNT=$(rb_setting '.destinationMount')
 if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
     echo "Destination storage is not configured or not mounted: '$DEST_MOUNT'" >&2

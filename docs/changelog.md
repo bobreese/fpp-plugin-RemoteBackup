@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** Config's "Enable this system as the Remote Backup Host" checkbox saved
+  `hostModeEnabled` but nothing ever read it back - a system with it unchecked would still
+  run a real backup from a manual Start Backup click, a Scheduler entry, or a bare CLI/cron
+  invocation. `run_backup.sh` now refuses a real run unless Host Mode is enabled (the
+  authoritative check, so nothing can route around it), with `ajax.php`'s `start` action and
+  `commands/run_remote_backup.sh` both adding an earlier, friendlier refusal in front of it.
+  Dry Run is deliberately left untouched and always works regardless of this setting - it
+  writes nothing to any destination, so there's no reason to block sanity-checking a system
+  before flipping Host Mode on for the first time.
+
 - **Documented:** Directory Layout was missing 8 of the 19 scripts under `scripts/` -
   `check_master_schedule.sh`, `format_usb.sh`, `mount_usb.sh`, `unmount_usb.sh`,
   `bindmount_backups.sh`, `list_backups.sh`, `get_backup_info.sh`, and `delete_backup.sh`
