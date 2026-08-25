@@ -8,6 +8,16 @@
 
 - **One Host, many remotes.** Designate a single FPP system as the Host. The install
   script and Config page both warn that only one system should ever have Host Mode enabled.
+- **First-run Config walkthrough.** A brand-new install shows a one-time, click-through tour
+  of the Config page - a spotlight and arrow step through each fieldset top to bottom with a
+  short plain-language explanation, advancing on "Next" or on a click anywhere in the
+  highlighted setting itself. The three sections whose contents are found by a scan (storage
+  drives, remotes) say so explicitly rather than pretending to show you what's there, since
+  nothing's been discovered yet the moment the page first loads. A "?" button next to the
+  toggle above Backup Host Mode replays it anytime; the toggle itself ("Show this walkthrough
+  automatically for a new install") turns off the automatic first-run popup for good if you'd
+  rather it never appear - existing installs upgrading to this version never see it
+  unsolicited either way, since it's only wired to trigger on a genuinely fresh install.
 - **Storage auto-detection.** Probes local block devices via `lsblk`/`df` and prefers
   NVMe/SSD; if none is found it offers a USB flash drive or free space on the SD card. The
   SD-card/system-storage fallback reports the true filesystem root (`/`) for free-space

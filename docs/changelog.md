@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a one-time, click-through walkthrough of the Config page for a brand-new
+  install - a spotlight/arrow steps through each fieldset top to bottom with a short
+  explanation, advancing on "Next" or a click on the highlighted setting itself. The
+  storage/remote sections that only fill in after a scan say so explicitly instead of
+  pointing at nothing. A "?" button replays it anytime; a Config toggle turns off the
+  automatic popup for good. Backfills `onboardingSeen: true` for every existing
+  settings.json via the usual self-healing defaults, so an upgrade never triggers it
+  unsolicited on an already-configured system - only `fpp_install.sh`'s fresh-install seed
+  sets it to `false`.
+
 - **Fixed:** Config's "Enable this system as the Remote Backup Host" checkbox saved
   `hostModeEnabled` but nothing ever read it back - a system with it unchecked would still
   run a real backup from a manual Start Backup click, a Scheduler entry, or a bare CLI/cron

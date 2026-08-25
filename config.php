@@ -7,7 +7,48 @@
 $rbPlugin = basename(__DIR__);
 ?>
 <div class="mt-2" id="rb-config">
-    <fieldset class="border rounded p-2">
+    <style>
+        /* Config page walkthrough (see the "rb-tour" JS below). Only the
+           spotlight/arrow need custom styling - the popup text box itself
+           is plain Bootstrap (.card) so it follows FPP's own light/dark
+           theme instead of a hardcoded color here. */
+        #rb-tour-highlight {
+            position: fixed;
+            z-index: 2000;
+            border: 2px solid #0d6efd;
+            border-radius: 6px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+            pointer-events: none;
+            transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+        }
+        #rb-tour-popup {
+            position: fixed;
+            z-index: 2001;
+            width: 320px;
+            max-width: calc(100vw - 16px);
+        }
+        #rb-tour-arrow {
+            position: fixed;
+            z-index: 2001;
+            width: 0;
+            height: 0;
+            border-left: 9px solid transparent;
+            border-right: 9px solid transparent;
+        }
+        #rb-tour-arrow.rb-tour-arrow-above { border-top: 9px solid #0d6efd; }
+        #rb-tour-arrow.rb-tour-arrow-below { border-bottom: 9px solid #0d6efd; }
+    </style>
+
+    <div class="d-flex justify-content-end align-items-center mb-2">
+        <label class="me-3 small text-muted mb-0">
+            <input type="checkbox" id="rb-onboardingTourEnabled">
+            Show this walkthrough automatically for a new install
+        </label>
+        <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="rb-replayTour"
+            title="Replay the setup walkthrough" style="width:1.8em;height:1.8em;padding:0;line-height:1;">?</button>
+    </div>
+
+    <fieldset class="border rounded p-2" id="rb-fieldset-hostmode">
         <legend>Backup Host Mode</legend>
         <div class="p-2">
             <div class="callout callout-warning">
@@ -20,7 +61,7 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-storage">
         <legend>Backup Destination Storage</legend>
         <div class="p-2">
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshStorage">Rescan Storage Devices</button>
@@ -47,7 +88,7 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-clone">
         <legend>Clone Backups to a Second Drive</legend>
         <div class="p-2">
             <small class="text-muted">Optional - format/mount a second USB drive here, then use "Start Clone" on
@@ -59,7 +100,7 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-remotes">
         <legend>Remote Systems to Back Up</legend>
         <div class="p-2">
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshRemotes">Rescan MultiSync Remotes</button>
@@ -73,7 +114,7 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-options">
         <legend>Backup Options</legend>
         <div class="p-2">
             <label><input type="checkbox" id="rb-deleteExtra">
@@ -121,7 +162,7 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
-    <fieldset class="border rounded p-2 mt-2">
+    <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-schedule">
         <legend>Show Schedule Conflict Check</legend>
         <div class="p-2">
             <div class="callout callout-warning mb-2">
@@ -1375,10 +1416,18 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-sshPort').value = state.settings.sshPort || 22;
             document.getElementById('rb-sshPassword').value = state.settings.sshPassword || '';
             document.getElementById('rb-excludes').value = (state.settings.excludes || []).join('\n');
+            document.getElementById('rb-onboardingTourEnabled').checked = state.settings.onboardingTourEnabled !== false;
             state.remotes = state.settings.remotes || [];
             renderRemotes();
             renderStorage();
             renderScheduleMasterSelect();
+            // Auto-show the walkthrough exactly once, only for an install
+            // that hasn't seen/dismissed it yet and hasn't had it turned
+            // off. The "?" button below always works regardless of both -
+            // this only gates the automatic, unsolicited popup.
+            if (!state.settings.onboardingSeen && state.settings.onboardingTourEnabled !== false) {
+                rbTourStart();
+            }
         });
         api('probeStorage').then(function (res) {
             if (res.ok) { state.storage = res.data; renderStorage(); }
@@ -1472,6 +1521,7 @@ $rbPlugin = basename(__DIR__);
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
             enableRestoreBindMount: document.getElementById('rb-enableRestoreBindMount').checked,
+            onboardingTourEnabled: document.getElementById('rb-onboardingTourEnabled').checked,
             remotePlayingPolicy: document.getElementById('rb-playPolicy-skip').checked ? 'skip' : 'stop',
             scheduleMasterAddress: currentScheduleMasterAddress(),
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
@@ -1509,6 +1559,185 @@ $rbPlugin = basename(__DIR__);
             setTimeout(function () { msg.textContent = ''; }, 4000);
         });
     });
+
+    // --- First-run Config page walkthrough --------------------------------
+    // Steps top to bottom through the page's own fieldsets, highlighting
+    // each with a spotlight box + arrow and a short plain-language blurb.
+    // Deliberately only targets elements that exist in the static page
+    // markup - the storage/remote lists below are filled in later by
+    // probeStorage/probeRemotes (see loadAllAfterHostInfo above), so
+    // those three steps explicitly say so and point at the section as a
+    // whole rather than pretending to show a specific drive/remote that
+    // may not have been discovered yet, or may not exist at all on a
+    // brand-new install.
+    var RB_TOUR_STEPS = [
+        {
+            selector: '#rb-fieldset-hostmode',
+            title: 'Backup Host Mode',
+            text: 'Check this box on the ONE system that should pull backups from your others. ' +
+                'Leave it unchecked on every other system - only one Host is supported at a time.'
+        },
+        {
+            selector: '#rb-fieldset-storage',
+            title: 'Backup Destination Storage',
+            text: 'This is where backups get written - NVMe/SSD, USB, or the SD card as a fallback. ' +
+                'The list of detected drives below fills in a moment after the page loads, so this tour ' +
+                'can\'t show you what\'s there yet - come back and pick your destination here once scanning finishes.'
+        },
+        {
+            selector: '#rb-fieldset-clone',
+            title: 'Clone Backups to a Second Drive',
+            text: 'Optional. Also fills in after a scan, same as Destination Storage above - review it ' +
+                'later if you want a second, redundant copy of your backups on another drive. Manual only; ' +
+                'nothing here runs on its own.'
+        },
+        {
+            selector: '#rb-fieldset-remotes',
+            title: 'Remote Systems to Back Up',
+            text: 'The systems this Host backs up. Discovered remotes fill in above after a scan, same as ' +
+                'the storage sections - review and select which ones to back up once that finishes. You can ' +
+                'also add one manually right here any time, scan or no scan.'
+        },
+        {
+            selector: '#rb-fieldset-options',
+            title: 'Backup Options',
+            text: 'Everything that controls how a backup actually runs - what happens if a remote is mid-show, ' +
+                'how many run at once, log retention, SSH credentials, and exclude patterns. Each field has its ' +
+                'own short description right below it.'
+        },
+        {
+            selector: '#rb-fieldset-schedule',
+            title: 'Show Schedule Conflict Check',
+            text: 'Optional. Checks a designated show master\'s schedule so you can pick a backup time that ' +
+                'won\'t land during a live show.'
+        },
+        {
+            selector: '#rb-save',
+            title: 'Save Settings',
+            text: 'Nothing above takes effect until you click here - including which storage/remotes are ' +
+                'actually used. That\'s it - you\'re done!'
+        }
+    ];
+    var rbTourIndex = -1;
+    var rbTourClickTarget = null;
+    var rbTourReposition = null;
+
+    function rbTourBuildDom() {
+        if (document.getElementById('rb-tour-popup')) return;
+        var hl = document.createElement('div');
+        hl.id = 'rb-tour-highlight';
+        var arrow = document.createElement('div');
+        arrow.id = 'rb-tour-arrow';
+        var popup = document.createElement('div');
+        popup.id = 'rb-tour-popup';
+        popup.className = 'card shadow-lg border-primary';
+        popup.innerHTML =
+            '<div class="card-body">' +
+            '<div class="small text-muted mb-1" id="rb-tour-step-of"></div>' +
+            '<div class="fw-bold mb-1" id="rb-tour-title"></div>' +
+            '<div class="mb-2" id="rb-tour-text"></div>' +
+            '<div class="d-flex justify-content-between">' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary" id="rb-tour-back">Back</button>' +
+            '<button type="button" class="btn btn-sm btn-link text-muted" id="rb-tour-skip">Skip Tour</button>' +
+            '<button type="button" class="btn btn-sm btn-primary" id="rb-tour-next">Next</button>' +
+            '</div></div>';
+        document.body.appendChild(hl);
+        document.body.appendChild(arrow);
+        document.body.appendChild(popup);
+        document.getElementById('rb-tour-back').addEventListener('click', function () { rbTourGo(rbTourIndex - 1); });
+        document.getElementById('rb-tour-next').addEventListener('click', function () { rbTourGo(rbTourIndex + 1); });
+        document.getElementById('rb-tour-skip').addEventListener('click', rbTourEnd);
+    }
+
+    function rbTourStart() {
+        rbTourBuildDom();
+        rbTourGo(0);
+    }
+
+    function rbTourGo(index) {
+        if (index < 0) return;
+        if (index >= RB_TOUR_STEPS.length) { rbTourEnd(); return; }
+        // Clicking the previous step's own highlighted setting also
+        // advances the tour (per spec) - drop that listener before moving
+        // on so it doesn't fire again later against a step it no longer
+        // applies to.
+        if (rbTourClickTarget) { rbTourClickTarget.removeEventListener('click', rbTourAdvanceFromClick); rbTourClickTarget = null; }
+        rbTourIndex = index;
+        var step = RB_TOUR_STEPS[index];
+        var target = document.querySelector(step.selector);
+        if (!target) { rbTourGo(index + 1); return; } // shouldn't happen for these static targets, but never get stuck
+        document.getElementById('rb-tour-step-of').textContent = 'Step ' + (index + 1) + ' of ' + RB_TOUR_STEPS.length;
+        document.getElementById('rb-tour-title').textContent = step.title;
+        document.getElementById('rb-tour-text').textContent = step.text;
+        document.getElementById('rb-tour-back').disabled = index === 0;
+        document.getElementById('rb-tour-next').textContent = (index === RB_TOUR_STEPS.length - 1) ? 'Finish' : 'Next';
+
+        rbTourClickTarget = target;
+        target.addEventListener('click', rbTourAdvanceFromClick);
+
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        clearTimeout(rbTourReposition);
+        rbTourReposition = setTimeout(rbTourPosition, 260);
+    }
+
+    function rbTourAdvanceFromClick() { rbTourGo(rbTourIndex + 1); }
+
+    function rbTourPosition() {
+        var step = RB_TOUR_STEPS[rbTourIndex];
+        var target = step && document.querySelector(step.selector);
+        if (!target) return;
+        var rect = target.getBoundingClientRect();
+        var pad = 6;
+        var hl = document.getElementById('rb-tour-highlight');
+        hl.style.top = (rect.top - pad) + 'px';
+        hl.style.left = (rect.left - pad) + 'px';
+        hl.style.width = (rect.width + pad * 2) + 'px';
+        hl.style.height = (rect.height + pad * 2) + 'px';
+
+        var popup = document.getElementById('rb-tour-popup');
+        var arrow = document.getElementById('rb-tour-arrow');
+        var popupW = popup.offsetWidth || 320;
+        var spaceBelow = window.innerHeight - rect.bottom;
+        var below = spaceBelow >= 170 || spaceBelow >= rect.top;
+        var left = Math.max(8, Math.min(rect.left, window.innerWidth - popupW - 8));
+        popup.style.left = left + 'px';
+        if (below) {
+            popup.style.top = (rect.bottom + pad + 12) + 'px';
+            popup.style.bottom = '';
+        } else {
+            popup.style.bottom = (window.innerHeight - rect.top + pad + 12) + 'px';
+            popup.style.top = '';
+        }
+        var arrowLeft = Math.max(left + 14, Math.min(rect.left + rect.width / 2 - 9, left + popupW - 26));
+        arrow.style.left = arrowLeft + 'px';
+        arrow.className = below ? 'rb-tour-arrow-above' : 'rb-tour-arrow-below';
+        if (below) { arrow.style.top = (rect.bottom + pad) + 'px'; arrow.style.bottom = ''; }
+        else { arrow.style.bottom = (window.innerHeight - rect.top + pad) + 'px'; arrow.style.top = ''; }
+    }
+
+    function rbTourEnd() {
+        if (rbTourClickTarget) { rbTourClickTarget.removeEventListener('click', rbTourAdvanceFromClick); rbTourClickTarget = null; }
+        rbTourIndex = -1;
+        ['rb-tour-highlight', 'rb-tour-arrow', 'rb-tour-popup'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.remove();
+        });
+        // state.settings can still be null here if "?" was clicked before
+        // the initial loadSettings call resolved - nothing to mark yet in
+        // that case, and the next real load will fill it in normally.
+        if (state.settings && !state.settings.onboardingSeen) {
+            state.settings.onboardingSeen = true;
+            api('markOnboardingSeen', { body: {} });
+        }
+    }
+
+    window.addEventListener('resize', function () { if (rbTourIndex >= 0) rbTourPosition(); });
+    window.addEventListener('scroll', function () { if (rbTourIndex >= 0) rbTourPosition(); }, true);
+
+    // Explicit recall - always runs regardless of onboardingSeen/
+    // onboardingTourEnabled, since clicking "?" is a deliberate request,
+    // not the automatic first-run trigger those two flags gate.
+    document.getElementById('rb-replayTour').addEventListener('click', rbTourStart);
 
     loadAll();
     rbPollDestination();

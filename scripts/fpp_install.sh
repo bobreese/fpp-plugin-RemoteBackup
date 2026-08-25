@@ -66,7 +66,9 @@ if [ ! -f "${PLUGINDIR}/data/settings.json" ]; then
     "sshPort": 22,
     "sshKeyPath": "/home/fpp/.ssh/id_rsa_remotebackup",
     "excludes": ["Logs/*", "logs/*", "tmp/*", "upload/*", "cache/*", "*.tmp"],
-    "remotes": []
+    "remotes": [],
+    "onboardingSeen": false,
+    "onboardingTourEnabled": true
 }
 SETTINGSEOF
 fi
