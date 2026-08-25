@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed:** the Config page walkthrough's recall control used to be a separate "?"
+  button next to an already-checked, easy-to-miss "Show this walkthrough automatically for
+  a new install" checkbox - confusing on an already-configured system, where the box shows
+  checked (its default for every install, new or existing) even though the walkthrough
+  won't actually pop up there. The checkbox is now the recall control itself: checking it
+  starts the walkthrough immediately, any time, on any system. It still doubles as the
+  on/off switch for the automatic first-run popup (unchecking it and saving stops that from
+  ever happening), and a "?" next to it now explains both jobs in one popover instead of a
+  bare, unlabeled icon.
+
 - **Added:** a one-time, click-through walkthrough of the Config page for a brand-new
   install - a spotlight/arrow steps through each fieldset top to bottom with a short
   explanation, advancing on "Next" or a click on the highlighted setting itself. The
