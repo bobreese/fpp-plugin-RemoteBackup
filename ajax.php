@@ -381,15 +381,15 @@ function rb_default_settings() {
         // overrides this to false explicitly for a genuinely fresh
         // install only - that's the one case the tour should actually
         // auto-show for. Set true by the 'markOnboardingSeen' action once
-        // the tour is dismissed/completed, or by a manual replay via the
-        // "?" button (which always shows it regardless of this flag).
+        // the tour is dismissed/completed, however it was started
+        // (automatically, or by checking the box below).
         'onboardingSeen' => true,
-        // User-facing on/off switch (Config's own checkbox) for whether
-        // the tour is allowed to auto-show at all - separate from
-        // onboardingSeen so someone who doesn't want it can turn it off
-        // permanently rather than just dismissing it once. The "?" replay
-        // button ignores this - it's an explicit request, not an
-        // auto-trigger, so it always works either way.
+        // Config's own checkbox - doubles as both a persisted on/off
+        // switch (whether the tour is allowed to auto-show for a future
+        // fresh install) AND the recall trigger itself: checking it starts
+        // the tour immediately in config.php's JS, independent of whether
+        // this saved value is true or false yet. The "?" next to it is
+        // just an explanatory popover, not a separate control.
         'onboardingTourEnabled' => true
     ];
 }

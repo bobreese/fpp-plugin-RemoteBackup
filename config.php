@@ -40,12 +40,22 @@ $rbPlugin = basename(__DIR__);
     </style>
 
     <div class="d-flex justify-content-end align-items-center mb-2">
-        <label class="me-3 small text-muted mb-0">
+        <label class="small text-muted mb-0">
             <input type="checkbox" id="rb-onboardingTourEnabled">
-            Show this walkthrough automatically for a new install
+            Show the setup walkthrough
         </label>
-        <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="rb-replayTour"
-            title="Replay the setup walkthrough" style="width:1.8em;height:1.8em;padding:0;line-height:1;">?</button>
+        <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-onboarding"
+            data-help-title="Show the setup walkthrough" style="font-size:0.8em; cursor:help;"></i>
+        <div id="rb-help-onboarding" class="d-none">
+            <div class="fpp-help-content">
+                <p class="mb-0">Checking this box starts the walkthrough right now, so you can step back through
+                    it anytime you want a refresher - checking it again later runs it again. It also keeps the
+                    walkthrough enabled to show automatically, once, the next time this plugin is installed fresh
+                    on a system that's never seen it. Unchecking it doesn't stop anything already on screen - after
+                    you Save Settings, it just means that automatic first-run popup won't happen on a future fresh
+                    install either.</p>
+            </div>
+        </div>
     </div>
 
     <fieldset class="border rounded p-2" id="rb-fieldset-hostmode">
@@ -1423,8 +1433,9 @@ $rbPlugin = basename(__DIR__);
             renderScheduleMasterSelect();
             // Auto-show the walkthrough exactly once, only for an install
             // that hasn't seen/dismissed it yet and hasn't had it turned
-            // off. The "?" button below always works regardless of both -
-            // this only gates the automatic, unsolicited popup.
+            // off. Checking the box below always starts it regardless of
+            // both - that's a deliberate click, not this automatic,
+            // unsolicited popup.
             if (!state.settings.onboardingSeen && state.settings.onboardingTourEnabled !== false) {
                 rbTourStart();
             }
@@ -1734,10 +1745,34 @@ $rbPlugin = basename(__DIR__);
     window.addEventListener('resize', function () { if (rbTourIndex >= 0) rbTourPosition(); });
     window.addEventListener('scroll', function () { if (rbTourIndex >= 0) rbTourPosition(); }, true);
 
-    // Explicit recall - always runs regardless of onboardingSeen/
-    // onboardingTourEnabled, since clicking "?" is a deliberate request,
-    // not the automatic first-run trigger those two flags gate.
-    document.getElementById('rb-replayTour').addEventListener('click', rbTourStart);
+    // Checking the box is the explicit recall action - it starts the tour
+    // immediately, every time it transitions to checked, regardless of
+    // onboardingSeen (that flag only gates the automatic first-run popup
+    // in loadAllAfterHostInfo above, not this deliberate click). Setting
+    // .checked programmatically (the loadAllAfterHostInfo init line) never
+    // fires 'change', so this only ever runs from a real user click, never
+    // from the page just loading with the box already checked.
+    document.getElementById('rb-onboardingTourEnabled').addEventListener('change', function () {
+        if (this.checked) rbTourStart();
+    });
+
+    // Same fpp-help-popover wiring status.php uses for its own "?" icons -
+    // Bootstrap popover sourced from the matching hidden #rb-help-* div.
+    // Scoped to #rb-config so this never touches an icon some other
+    // plugin/page adds with the same class.
+    document.querySelectorAll('#rb-config .fpp-help-popover').forEach(function (icon) {
+        var contentEl = document.getElementById(icon.dataset.helpContent);
+        if (contentEl && typeof bootstrap !== 'undefined' && bootstrap.Popover) {
+            new bootstrap.Popover(icon, {
+                title: icon.dataset.helpTitle || '',
+                content: contentEl.innerHTML,
+                html: true,
+                trigger: 'hover focus',
+                placement: 'bottom',
+                sanitize: false
+            });
+        }
+    });
 
     loadAll();
     rbPollDestination();
