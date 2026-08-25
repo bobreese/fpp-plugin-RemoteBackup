@@ -16,12 +16,20 @@ fpp-plugin-RemoteBackup/
     probe_storage.sh         NVMe/SSD/USB/SD detection
     probe_remotes.sh         MultiSync remote discovery
     check_remotes_playing.sh checks each remote's FPP status for active playback
+    check_master_schedule.sh fetches the show master's schedule for the Schedule Conflict Check panel
     host_info.sh             reports this Host's own hostname/IPs for the "Host" badge
     run_backup.sh            the rsync pull engine (concurrency, delete, snapshots)
     prune_logs.sh            applies logRetentionCount to every remote's logs immediately on save
     clone_backups.sh         mirrors the primary destination onto a second drive (manual only)
     zip_logs.sh               zips data/logs/ for the Status page's "Download All Logs" button
     ssh_setup.sh              pushes the backup SSH key to a remote
+    format_usb.sh             formats + mounts a USB device at /mnt/Backups or /mnt/BackupsCopy
+    mount_usb.sh              mounts an already-formatted device and persists it in /etc/fstab
+    unmount_usb.sh            unmounts a destination drive and drops its /etc/fstab entry
+    bindmount_backups.sh      bind-mounts the primary drive onto FPP's own backups path (opt-in restore visibility)
+    list_backups.sh           enumerates existing backups for the Status page's "Backed Up" dropdown
+    get_backup_info.sh        size/file-count/contents for one backup selected from that dropdown
+    delete_backup.sh          deletes one specific backup folder, with its own independent safety checks
   commands/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh
   data/                      created on install
