@@ -5,6 +5,17 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** expanded and corrected the "Backed Up" dropdown's documentation, which
+  had drifted from what the UI actually does - it previously said deleting a backup uses
+  "type-to-confirm," but the real dialog uses a checkbox confirmation instead (deliberately
+  - the folder being deleted is already shown on screen, so retyping it doesn't add a real
+  extra check). Also documented, for the first time, that selecting a backup shows its full
+  path (e.g. `/mnt/Backups/FPPBeagleBlack-20260824`), that both rolling and snapshot-mode
+  backups are listed the same way sorted by remote then date, and that the folder listing
+  is top-level only (each subfolder's size rolled up as a whole, not expanded further).
+  Split the delete-confirmation checkbox out into its own Safe Guards entry, matching how
+  Format/Clone safety checks are already covered there.
+
 - **Documented:** confirmed on real hardware (a BeagleBone Black Industrial, booted from
   a physical SD card with its onboard eMMC present but unmounted) that a non-root eMMC
   currently can't be used as a backup destination at all - `lsblk` reports the identical
