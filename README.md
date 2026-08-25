@@ -1,7 +1,14 @@
 # Remote Backup (fpp-plugin-RemoteBackup)
 
-An FPP plugin that turns one Falcon Player system into a **Backup Host** which pulls
-`rsync` backups of one or more MultiSync remotes onto local NVMe/SSD, USB, or SD storage.
+An FPP plugin that turns one Falcon Player system into a **Backup Host**, automatically
+pulling backups from one or more of your other FPP systems onto local storage.
+
+- Preview how much space a backup needs before it runs.
+- Schedule backups to happen on their own, or run one manually anytime.
+- Optionally keep a second copy on another drive for extra safety.
+- Won't back up a system while it's playing a show, so playback is never put at risk.
+- Built-in safeguards keep backups from overwriting the wrong drive, running two at once,
+  or leaving things in a broken state.
 
 ## Documentation
 
