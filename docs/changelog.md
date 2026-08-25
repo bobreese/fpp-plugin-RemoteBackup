@@ -5,6 +5,12 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** Directory Layout was missing 8 of the 19 scripts under `scripts/` -
+  `check_master_schedule.sh`, `format_usb.sh`, `mount_usb.sh`, `unmount_usb.sh`,
+  `bindmount_backups.sh`, `list_backups.sh`, `get_backup_info.sh`, and `delete_backup.sh`
+  had all been added since that tree was last written and never made it in. Added all
+  eight with a one-line description each, in the same style as the existing entries.
+
 - **Documented:** expanded and corrected the "Backed Up" dropdown's documentation, which
   had drifted from what the UI actually does - it previously said deleting a backup uses
   "type-to-confirm," but the real dialog uses a checkbox confirmation instead (deliberately
