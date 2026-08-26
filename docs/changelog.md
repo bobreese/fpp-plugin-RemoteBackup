@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the "Push SSH Key" password prompt showed a genuinely empty box for anyone
+  who hadn't set a custom Default SSH Password in Config - `defaultSshPassword()` (the
+  function that pre-fills it) returns `null` in that case, which is fine for the silent
+  auto-push-on-select path (the server falls back to FPP's factory default `falcon` on its
+  own), but looked broken here: nothing suggested that leaving the box blank and clicking
+  Ok would still work, so a user with no custom default configured had no way to know what
+  to type and would cancel or guess wrong - while the auto-push path, going through the
+  same server-side fallback without ever showing this box, quietly succeeded. The prompt
+  now pre-fills `falcon` itself when nothing else is configured, so what's shown always
+  matches what will actually be tried, plus a short explanation of where that value came
+  from.
+
 - **Added:** a short "FPP Backup vs. Remote Backup" doc - a simple, plain-language
   comparison of what FPP's own File Copy Backup does vs. what this plugin adds (multi-device
   runs, scheduling, a pre-flight space check, playback awareness), for anyone who wants the

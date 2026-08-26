@@ -986,9 +986,20 @@ $rbPlugin = basename(__DIR__);
 
     function promptSshPassword(addr, cb) {
         var modalId = 'rb-sshpw-modal';
+        // defaultSshPassword() returns null when nothing's configured -
+        // fine for the auto-push path (the server does its own 'falcon'
+        // fallback), but showing this box truly empty here just looks
+        // broken: there's no visual sign that leaving it blank still
+        // works, so a user with no custom default configured sees an
+        // empty field and either cancels or guesses instead of clicking
+        // Ok. Mirror the server's own final fallback here so what's shown
+        // (as dots) always matches what will actually be tried.
+        var pw = defaultSshPassword() || 'falcon';
         var bodyHtml = '<div class="mb-2">SSH password for <code>fpp@' + addr + '</code>:</div>' +
             '<input type="password" id="rb-sshpw-input" class="form-control form-control-sm" value="' +
-            (defaultSshPassword() || '').replace(/"/g, '&quot;') + '" autocomplete="off">';
+            pw.replace(/"/g, '&quot;') + '" autocomplete="off">' +
+            '<small class="text-muted">Pre-filled with the configured default (or FPP\'s factory default,' +
+            ' <code>falcon</code>, if none is set) - change it here if this remote uses a different one.</small>';
         DoModalDialog({
             id: modalId,
             title: 'SSH Password',
