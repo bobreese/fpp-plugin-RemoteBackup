@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Config page walkthrough didn't auto-show on a real fresh SD card install -
+  confirmed in the wild: `data/settings.json` simply didn't exist yet, meaning
+  `fpp_install.sh`'s seed (which sets `onboardingSeen: false` for exactly this case) never
+  got written. Every load then fell back to the in-memory default, which is deliberately
+  `onboardingSeen: true` (so an *existing*, already-configured install upgrading to this
+  version never gets an unsolicited popup) - the same default that's correct for an upgrade
+  silently suppressed the tour for a genuinely fresh, never-seeded install too. `loadSettings`
+  now also reports whether `settings.json` existed on disk before that load; the walkthrough
+  auto-shows if it didn't, regardless of what the in-memory `onboardingSeen` default says -
+  a stronger, install-script-independent signal than relying solely on the seed having run.
+  Also fixed a related bug this surfaced: dismissing the tour used to skip writing anything
+  if `onboardingSeen` already read `true` (the in-memory default in this same no-file
+  scenario), so a genuinely fresh install could dismiss the tour and still never get a real
+  `settings.json` - `markOnboardingSeen` now always persists unconditionally.
+
 - **Fixed:** the "Push SSH Key" password prompt showed a genuinely empty box for anyone
   who hadn't set a custom Default SSH Password in Config - `defaultSshPassword()` (the
   function that pre-fills it) returns `null` in that case, which is fine for the silent

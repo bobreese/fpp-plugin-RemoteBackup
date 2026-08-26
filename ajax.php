@@ -709,7 +709,24 @@ switch ($action) {
     }
 
     case 'loadSettings': {
-        echo json_encode(['ok' => true, 'data' => rb_load_settings($SETTINGS_FILE)]);
+        // settingsFileExisted: whether settings.json was already on disk
+        // BEFORE this load - the most reliable "has this install ever
+        // been configured/seeded" signal there is, independent of
+        // fpp_install.sh actually having run. rb_load_settings() returns
+        // rb_default_settings() in memory without writing anything when
+        // the file is missing (onboardingSeen defaults true there, since
+        // that same in-memory default is also what an EXISTING install's
+        // settings.json gets merged against for any key it predates - see
+        // rb_default_settings()'s own comment). Config's JS uses this flag
+        // to auto-show the walkthrough whenever the file never existed at
+        // all, rather than trusting fpp_install.sh's fresh-install seed as
+        // the only path to onboardingSeen ever being false - a real report
+        // in the wild: a genuinely fresh SD card install where the seed
+        // never got written (data/settings.json simply didn't exist), so
+        // every load fell back to the upgrade-safe default and the tour
+        // never fired for what should have shown it automatically.
+        $settingsFileExisted = file_exists($SETTINGS_FILE);
+        echo json_encode(['ok' => true, 'data' => rb_load_settings($SETTINGS_FILE), 'settingsFileExisted' => $settingsFileExisted]);
         break;
     }
 
@@ -718,14 +735,18 @@ switch ($action) {
     // page load just because the user closed it without also saving
     // unrelated settings changes. Mirrors acknowledgePlayOutcome's pattern
     // (a small, immediate settings mutation outside saveSettings).
+    // Always writes, unconditionally - deliberately not guarded behind
+    // "only if not already true": when settings.json never existed, the
+    // in-memory default already reports onboardingSeen as true, so a
+    // guarded write would see nothing to do and never actually create a
+    // real settings.json - leaving the tour to auto-fire again on every
+    // future page load despite having just been dismissed.
     case 'markOnboardingSeen': {
         if ($method !== 'POST') rb_fail('POST required');
         $settings = rb_load_settings($SETTINGS_FILE);
-        if (empty($settings['onboardingSeen'])) {
-            $settings['onboardingSeen'] = true;
-            if (!rb_save_settings($SETTINGS_FILE, $settings)) {
-                rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
-            }
+        $settings['onboardingSeen'] = true;
+        if (!rb_save_settings($SETTINGS_FILE, $settings)) {
+            rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
         }
         echo json_encode(['ok' => true]);
         break;

@@ -1447,7 +1447,18 @@ $rbPlugin = basename(__DIR__);
             // off. Checking the box below always starts it regardless of
             // both - that's a deliberate click, not this automatic,
             // unsolicited popup.
-            if (!state.settings.onboardingSeen && state.settings.onboardingTourEnabled !== false) {
+            //
+            // !res.settingsFileExisted also triggers it, independent of
+            // onboardingSeen: that flag's in-memory default is true
+            // (deliberately, to protect an upgrade - see rb_default_
+            // settings()' comment), so a genuinely fresh install where
+            // fpp_install.sh's seed never actually got written would
+            // otherwise silently inherit that "already seen" default and
+            // never show the tour at all. A missing settings.json is a
+            // stronger, install-script-independent signal that this
+            // install has never been configured.
+            var neverSeeded = !res.settingsFileExisted;
+            if ((neverSeeded || !state.settings.onboardingSeen) && state.settings.onboardingTourEnabled !== false) {
                 rbTourStart();
             }
         });
@@ -1744,10 +1755,18 @@ $rbPlugin = basename(__DIR__);
             var el = document.getElementById(id);
             if (el) el.remove();
         });
-        // state.settings can still be null here if "?" was clicked before
-        // the initial loadSettings call resolved - nothing to mark yet in
-        // that case, and the next real load will fill it in normally.
-        if (state.settings && !state.settings.onboardingSeen) {
+        // state.settings can still be null here if the checkbox was
+        // checked before the initial loadSettings call resolved - nothing
+        // to mark yet in that case, and the next real load will fill it in
+        // normally. Otherwise always persist, unconditionally - not
+        // guarded behind "only if not already true": state.settings.
+        // onboardingSeen can already read true from the in-memory default
+        // even when this tour run was the neverSeeded auto-trigger (see
+        // loadAllAfterHostInfo), so a guarded call here would skip writing
+        // and leave settings.json still missing/unseeded, exactly the gap
+        // this is meant to close. markOnboardingSeen itself is cheap and
+        // idempotent either way.
+        if (state.settings) {
             state.settings.onboardingSeen = true;
             api('markOnboardingSeen', { body: {} });
         }
