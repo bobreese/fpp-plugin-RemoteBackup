@@ -5,6 +5,12 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a short "FPP Backup vs. Remote Backup" doc - a simple, plain-language
+  comparison of what FPP's own File Copy Backup does vs. what this plugin adds (multi-device
+  runs, scheduling, a pre-flight space check, playback awareness), for anyone who wants the
+  short version instead of piecing it together from the rest of the documentation. Linked
+  from the README right after Notes / assumptions and License.
+
 - **Corrected:** Restoring a Backup's "after a fresh SD card" advice used to say flash the
   latest FPP *nightly* build. Nightly images come up in Master mode, not Player mode, which
   isn't what a from-scratch Player rebuild wants. Changed to recommend the latest official

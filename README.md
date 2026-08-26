@@ -13,6 +13,7 @@ pulling backups from one or more of your other FPP systems onto local storage.
 ## Documentation
 
 - [Notes / assumptions and License](docs/notes-and-license.md)
+- [FPP Backup vs. Remote Backup](docs/fpp-vs-remote-backup.md)
 - [How Remote Backup Works](docs/how-it-works.md)
 - [Features & Safe Guards](docs/features.md)
 - [Requirements, Install, and Uninstall (incl. Known minor gaps)](docs/requirements-install-uninstall.md)
