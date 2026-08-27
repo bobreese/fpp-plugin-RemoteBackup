@@ -180,7 +180,7 @@ on dialogs/toasts/alerts, not every inline `style=`. Replaced with Bootstrap's
 theme-aware `border-top` utility class; a full sweep of every `style="..."` in the plugin
 found no other hex/named/`rgb()` colors anywhere.
 
-### Open: several fixed-pixel widths, not yet visually verified
+### Open: several fixed-pixel widths, partially verified on real devices
 
 The same sweep found a handful of fixed-pixel dimensions in inline styles:
 `config.php`'s manual-remote-add fields (`width:180px`/`width:150px`, side by side - the
@@ -190,7 +190,7 @@ in `status.php` (a storage-device select, a couple of truncating table/progress
 containers, and the log viewer's scroll box). Not fixed as part of this pass: a `max-width`
 or `max-height` cap doesn't force overflow the way a plain fixed `width` or a `min-width`
 floor can, so these aren't uniformly equally risky, and getting a responsive-layout change
-right needs actually looking at it on a real ~320px viewport in both themes - something
+right needs actually looking at it on a real narrow viewport in both themes - something
 this pass didn't have a way to do safely without risking a change that reads fine in the
 diff but breaks visually. Left as a concrete, scoped to-do rather than guessed at blind.
 
@@ -198,6 +198,13 @@ Re-checked against new UI added since: the Config page walkthrough's popup uses 
 320px` but pairs it with `max-width: calc(100vw - 16px)`, so it shrinks to fit rather than
 forcing overflow - same reasoning as the `max-width`/`max-height` values above, not a new
 instance of the riskier bare-fixed-width pattern.
+
+**Real-device check in progress:** confirmed looking correct on an iPad. Worth being
+precise about what that does and doesn't cover, though - an iPad's portrait CSS width
+(roughly 768-820px) is well above the ~320-375px phone width this finding specifically
+named as the actual risk, so an iPad pass is good news but doesn't yet verify the narrow
+case the two fixed-width manual-add fields could realistically overflow on. iPhone
+checking is still pending and is the one that actually tests that.
 
 ### Open: extensive use of `sudo` outside the install/uninstall lifecycle
 

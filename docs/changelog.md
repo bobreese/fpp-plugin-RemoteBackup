@@ -5,6 +5,11 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** real-device progress on the fixed-pixel-widths Open finding in Plugin
+  Guidelines Compliance - confirmed looking correct on an iPad, with a note that an iPad's
+  portrait width doesn't actually test the narrow ~320-375px phone case the finding is
+  about; iPhone checking is still pending.
+
 - **Fixed:** re-ran the Pre-submission Checklist / Plugin Guidelines Compliance audit
   against the live guidelines and current codebase. Found and fixed two real regressions
   introduced by features added since the last pass: the Config page walkthrough hardcoded
