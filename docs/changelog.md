@@ -5,6 +5,12 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** a new Troubleshooting entry for clock skew between the Host and a
+  remote - confirmed in the wild as the actual cause of a connection failure that didn't
+  match any of the existing SSH-failure entries (not a password mismatch, not a stale host
+  key, network reachability looked fine). Covers how to check for it (`date` on both sides)
+  and the fix (get the remote's NTP sync working again).
+
 - **Fixed:** the new "Select All" checkbox in Remote Systems to Back Up rendered correctly
   but was reported as "not there" - it's a bare checkbox in the header row with no visible
   text, so once checked (a green checkmark, same styling as every other checked box on that

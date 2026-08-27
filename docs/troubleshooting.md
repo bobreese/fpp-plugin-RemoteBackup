@@ -8,6 +8,7 @@
   - ["No local SSH key found; re-run the plugin install script."](#no-local-ssh-key-found-re-run-the-plugin-install-script)
   - ["Timed out connecting/authenticating to `<address>`."](#timed-out-connectingauthenticating-to-address)
   - ["Key push failed (rc=N): `<raw ssh output>`"](#key-push-failed-rcn-raw-ssh-output)
+  - [Clock skew between the Host and a remote](#clock-skew-between-the-host-and-a-remote)
   - [A reimaged/rebuilt remote ("new SD/boot device")](#a-reimagedrebuilt-remote-new-sdboot-device)
   - [The push reports success, but backups still fail with "Permission denied (publickey)"](#the-push-reports-success-but-backups-still-fail-with-permission-denied-publickey)
 - [Backup Destination Missing](#backup-destination-missing)
@@ -79,6 +80,18 @@ Common text to look for inside it:
 - **`Could not resolve hostname`** - only relevant if the remote was added by hostname
   rather than IP and that hostname doesn't resolve from the Host; add or re-add the
   remote using its IP address instead as a workaround.
+
+### Clock skew between the Host and a remote
+
+Confirmed in the wild: a remote whose system clock had drifted far enough from the
+correct time caused connection/authentication attempts to it to fail outright, in a way
+that didn't match any of the specific causes above (not a password mismatch, not a stale
+host key, network reachability looked fine) - FPP itself refused to treat the connection
+as valid once the clock gap was that large. If a remote is failing for no reason you can
+otherwise pin down, check whether its clock has drifted - `date` over SSH on both the
+Host and the remote is the fastest way to compare - and that it's actually syncing via
+NTP (a remote that's been powered off for a long time, or has no working internet/NTP
+access, can drift significantly). Fixing the remote's time sync resolves this.
 
 ### A reimaged/rebuilt remote ("new SD/boot device")
 
