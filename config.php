@@ -11,11 +11,20 @@ $rbPlugin = basename(__DIR__);
         /* Config page walkthrough (see the "rb-tour" JS below). Only the
            spotlight/arrow need custom styling - the popup text box itself
            is plain Bootstrap (.card) so it follows FPP's own light/dark
-           theme instead of a hardcoded color here. */
+           theme instead of a hardcoded color here. The highlight/arrow
+           accent reads Bootstrap's own --bs-primary variable (falling
+           back to its default blue only if that variable isn't defined at
+           all) instead of a bare hex value, so it follows FPP's theme too
+           rather than staying a fixed color if FPP's dark theme overrides
+           its accent color. The dimming scrim's rgba(0,0,0,...) is a
+           deliberate exception, not an oversight - a translucent black
+           backdrop behind a spotlight is the same convention regardless of
+           theme (it's what Bootstrap's own modal backdrop does too), not a
+           color that needs to adapt to light/dark. */
         #rb-tour-highlight {
             position: fixed;
             z-index: 2000;
-            border: 2px solid #0d6efd;
+            border: 2px solid var(--bs-primary, #0d6efd);
             border-radius: 6px;
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
             pointer-events: none;
@@ -35,8 +44,8 @@ $rbPlugin = basename(__DIR__);
             border-left: 9px solid transparent;
             border-right: 9px solid transparent;
         }
-        #rb-tour-arrow.rb-tour-arrow-above { border-top: 9px solid #0d6efd; }
-        #rb-tour-arrow.rb-tour-arrow-below { border-bottom: 9px solid #0d6efd; }
+        #rb-tour-arrow.rb-tour-arrow-above { border-top: 9px solid var(--bs-primary, #0d6efd); }
+        #rb-tour-arrow.rb-tour-arrow-below { border-bottom: 9px solid var(--bs-primary, #0d6efd); }
 
         /* Floating Save bar - opt-out via its own "Keep floating while
            scrolling" checkbox (see rb-floatingSaveToggle in the JS below).

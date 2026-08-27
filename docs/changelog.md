@@ -5,6 +5,17 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** re-ran the Pre-submission Checklist / Plugin Guidelines Compliance audit
+  against the live guidelines and current codebase. Found and fixed two real regressions
+  introduced by features added since the last pass: the Config page walkthrough hardcoded
+  `#0d6efd` in three places for its highlight/arrow accent (now `var(--bs-primary,
+  #0d6efd)`, so it follows FPP's theme instead of staying fixed), and `pluginInfo.json`'s
+  description still said "Supports up to 2 concurrent transfers" even though that field
+  has been user-configurable (1-8) for a while (reworded). Everything else re-checked
+  clean - see [Plugin Guidelines Compliance](plugin-guidelines-compliance.md) for the full
+  write-up, including a note on why the walkthrough's dimming scrim and capped popup width
+  were deliberately left as-is.
+
 - **Added:** Config's Save Settings bar now floats at the bottom of the screen while
   scrolling, on by default, so it's reachable from anywhere on the page instead of only at
   the very bottom. Its own "Keep floating while scrolling" checkbox is the way to back
