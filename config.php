@@ -1093,7 +1093,8 @@ $rbPlugin = basename(__DIR__);
         el.className = 'mt-2';
         if (!state.remotes.length) { el.innerHTML = '<em>No remotes found yet. Rescan, or add one manually below.</em>'; return; }
         var html = '<table class="table table-sm"><tr>' +
-            '<th><input type="checkbox" id="rb-remote-selectall" title="Select/deselect every remote below"></th>' +
+            '<th><label class="d-flex align-items-center gap-1 mb-0" style="font-weight:normal; white-space:nowrap; cursor:pointer;" ' +
+            'title="Select/deselect every remote below"><input type="checkbox" id="rb-remote-selectall"> All</label></th>' +
             '<th>Hostname</th><th>Address</th><th>Source</th><th></th><th></th></tr>';
         state.remotes.forEach(function (r) {
             var isHost = isHostRemote(r);

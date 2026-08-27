@@ -5,6 +5,13 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the new "Select All" checkbox in Remote Systems to Back Up rendered correctly
+  but was reported as "not there" - it's a bare checkbox in the header row with no visible
+  text, so once checked (a green checkmark, same styling as every other checked box on that
+  page) it visually blends into the header instead of reading as a distinct control. Added a
+  visible "All" label right next to it, wrapped in the same `<label>` so clicking the text
+  toggles it too, not just the checkbox itself.
+
 - **Added:** a "Select All" checkbox in the Remote Systems to Back Up table header -
   selects or deselects every listed remote in one click instead of ticking each box by
   hand. Explicitly mirrors what checking a box does individually (auto-pushing this Host's
