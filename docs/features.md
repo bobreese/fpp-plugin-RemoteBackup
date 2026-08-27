@@ -43,6 +43,12 @@
   scans only run when the Config page is open) never silently drops out of your backup
   selection. The badge clears itself the next time that remote shows up in a scan; manually
   added remotes are never flagged, since they're expected not to appear in a MultiSync scan.
+  A **Select All** checkbox in the table header selects (or deselects) every listed remote
+  in one click, including auto-pushing this Host's SSH key to each newly-selected one, same
+  as checking each box individually - not just a raw "check every box" that would silently
+  leave keys unpushed. It reflects the table's real state either way: fully checked only
+  when every remote already is, fully unchecked only when none are, and shown as a dashed/
+  indeterminate box for anything in between.
 - **The Host backs itself up locally, not over SSH.** MultiSync's own system list (or a
   manual add) can include the Host running this plugin - selecting it is marked with a
   "Host" badge on the Config page, and it's backed up as a plain local file copy instead

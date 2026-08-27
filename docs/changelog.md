@@ -5,6 +5,17 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a "Select All" checkbox in the Remote Systems to Back Up table header -
+  selects or deselects every listed remote in one click instead of ticking each box by
+  hand. Explicitly mirrors what checking a box does individually (auto-pushing this Host's
+  SSH key to each newly-selected remote, clearing key status for each deselected one) rather
+  than just flipping checkboxes, since setting `.checked` on a box programmatically never
+  fires its own `change` listener - a naive implementation would have silently left every
+  newly-selected remote's key unpushed. It's a real toggle in both directions (clicking it
+  again deselects everyone - that's how you back a Select All click out), and reflects the
+  table's actual state at all times: checked only when every row is, unchecked only when
+  none are, indeterminate otherwise - kept in sync whether you use it or tick rows by hand.
+
 - **Fixed:** the Config page walkthrough didn't auto-show on a real fresh SD card install -
   confirmed in the wild: `data/settings.json` simply didn't exist yet, meaning
   `fpp_install.sh`'s seed (which sets `onboardingSeen: false` for exactly this case) never

@@ -1070,11 +1070,31 @@ $rbPlugin = basename(__DIR__);
             'Not seen in ' + label + '</span>';
     }
 
+    // Reflects the row checkboxes' actual state onto the "Select All"
+    // header checkbox - fully checked only when every row is, fully
+    // unchecked only when none are, indeterminate (the usual dashed-box
+    // look) for anything in between. Called after the table is (re)built
+    // and after every individual row change, so the header always matches
+    // reality instead of only ever reflecting whatever Select All itself
+    // last set.
+    function syncSelectAllCheckbox() {
+        var selectAll = document.getElementById('rb-remote-selectall');
+        if (!selectAll) return;
+        var rowChecks = document.getElementsByClassName('rb-remote-check');
+        var total = rowChecks.length;
+        var checkedCount = 0;
+        Array.prototype.forEach.call(rowChecks, function (chk) { if (chk.checked) checkedCount++; });
+        selectAll.checked = total > 0 && checkedCount === total;
+        selectAll.indeterminate = checkedCount > 0 && checkedCount < total;
+    }
+
     function renderRemotes() {
         var el = document.getElementById('rb-remoteList');
         el.className = 'mt-2';
         if (!state.remotes.length) { el.innerHTML = '<em>No remotes found yet. Rescan, or add one manually below.</em>'; return; }
-        var html = '<table class="table table-sm"><tr><th></th><th>Hostname</th><th>Address</th><th>Source</th><th></th><th></th></tr>';
+        var html = '<table class="table table-sm"><tr>' +
+            '<th><input type="checkbox" id="rb-remote-selectall" title="Select/deselect every remote below"></th>' +
+            '<th>Hostname</th><th>Address</th><th>Source</th><th></th><th></th></tr>';
         state.remotes.forEach(function (r) {
             var isHost = isHostRemote(r);
             var hostTag = isHost ?
@@ -1112,20 +1132,55 @@ $rbPlugin = basename(__DIR__);
         // default password fails. Skipped for the Host itself (the "Host"
         // badge) - it's backed up as a local copy, not over SSH, so it
         // has no key to push.
-        Array.prototype.forEach.call(document.getElementsByClassName('rb-remote-check'), function (chk) {
+        var rowChecks = document.getElementsByClassName('rb-remote-check');
+        Array.prototype.forEach.call(rowChecks, function (chk) {
             chk.addEventListener('change', function () {
                 var id = chk.getAttribute('data-id');
                 var addr = chk.getAttribute('data-addr');
                 var r = state.remotes.filter(function (x) { return x.id === id; })[0];
                 if (r) r.selected = chk.checked;
-                if (r && isHostRemote(r)) return;
-                if (chk.checked) {
-                    pushKeyFor(id, addr, null, false);
-                } else {
-                    setKeyStatus(id, '', 'text-muted');
+                if (!r || !isHostRemote(r)) {
+                    if (chk.checked) {
+                        pushKeyFor(id, addr, null, false);
+                    } else {
+                        setKeyStatus(id, '', 'text-muted');
+                    }
+                }
+                syncSelectAllCheckbox();
+            });
+        });
+
+        // "Select All" header checkbox - a toggle in both directions (also
+        // how you back a select-all click out: click it again to deselect
+        // everyone), not a one-way action. Setting .checked on each row
+        // programmatically here doesn't fire their own 'change' listener
+        // above (browsers never fire 'change' for a script-driven
+        // assignment), so the same selected/key-push/key-status handling
+        // that listener does per row is repeated here explicitly - a naive
+        // "just check every box" implementation would select every remote
+        // without ever pushing their SSH keys, silently leaving the first
+        // real backup after Select All to fail with "Permission denied
+        // (publickey)" for all of them.
+        var selectAll = document.getElementById('rb-remote-selectall');
+        selectAll.addEventListener('change', function () {
+            var checkedNow = selectAll.checked;
+            Array.prototype.forEach.call(rowChecks, function (chk) {
+                if (chk.checked === checkedNow) return;
+                chk.checked = checkedNow;
+                var id = chk.getAttribute('data-id');
+                var addr = chk.getAttribute('data-addr');
+                var r = state.remotes.filter(function (x) { return x.id === id; })[0];
+                if (r) r.selected = checkedNow;
+                if (!r || !isHostRemote(r)) {
+                    if (checkedNow) {
+                        pushKeyFor(id, addr, null, false);
+                    } else {
+                        setKeyStatus(id, '', 'text-muted');
+                    }
                 }
             });
         });
+        syncSelectAllCheckbox();
 
         Array.prototype.forEach.call(document.getElementsByClassName('rb-remote-remove'), function (btn) {
             btn.addEventListener('click', function () {
