@@ -5,6 +5,14 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** Config's Save Settings bar now floats at the bottom of the screen while
+  scrolling, on by default, so it's reachable from anywhere on the page instead of only at
+  the very bottom. Its own "Keep floating while scrolling" checkbox is the way to back
+  this out - turn it off to put the button back in its normal spot in the page flow. A
+  pure display preference kept in the browser's own localStorage rather than
+  settings.json, so it applies immediately and never needs Save Settings clicked to take
+  effect.
+
 - **Documented:** a new Troubleshooting entry for clock skew between the Host and a
   remote - confirmed in the wild as the actual cause of a connection failure that didn't
   match any of the existing SSH-failure entries (not a password mismatch, not a stale host

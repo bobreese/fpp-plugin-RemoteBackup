@@ -37,6 +37,27 @@ $rbPlugin = basename(__DIR__);
         }
         #rb-tour-arrow.rb-tour-arrow-above { border-top: 9px solid #0d6efd; }
         #rb-tour-arrow.rb-tour-arrow-below { border-bottom: 9px solid #0d6efd; }
+
+        /* Floating Save bar - opt-out via its own "Keep floating while
+           scrolling" checkbox (see rb-floatingSaveToggle in the JS below).
+           bg-body/border-top/shadow-sm (Bootstrap classes on the element
+           itself, not hardcoded here) keep it theme-correct in dark mode
+           instead of a fixed color. */
+        #rb-save-bar.rb-save-floating {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1500;
+            margin: 0;
+            padding: 0.6em 1em;
+        }
+        /* Keeps the floating bar from covering the last fieldset's own
+           content once you've scrolled all the way down - only applied
+           while the bar is actually floating. */
+        #rb-config.rb-save-floating-active {
+            padding-bottom: 4em;
+        }
     </style>
 
     <div class="d-flex justify-content-end align-items-center mb-2">
@@ -205,9 +226,14 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
-    <button type="button" class="btn btn-primary mt-2" id="rb-save">Save Settings</button>
-    <a class="btn btn-outline-secondary mt-2" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status</a>
-    <span id="rb-saveMsg" class="ms-2"></span>
+    <div id="rb-save-bar" class="mt-2 d-flex align-items-center flex-wrap" style="gap:0.5em;">
+        <button type="button" class="btn btn-primary" id="rb-save">Save Settings</button>
+        <a class="btn btn-outline-secondary" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status</a>
+        <span id="rb-saveMsg" class="ms-2"></span>
+        <label class="small text-muted mb-0 ms-auto" style="cursor:pointer; white-space:nowrap;">
+            <input type="checkbox" id="rb-floatingSaveToggle"> Keep floating while scrolling
+        </label>
+    </div>
 </div>
 
 <script>
@@ -1859,6 +1885,43 @@ $rbPlugin = basename(__DIR__);
             });
         }
     });
+
+    // Floating Save bar - a pure display preference (doesn't change what
+    // Save Settings actually does), so it's kept in the browser's own
+    // localStorage rather than settings.json: no reason to make every
+    // future page load wait on a save/reload round-trip just to toggle
+    // how the button is positioned, and it's private per browser anyway.
+    // Defaults on; the checkbox is how you back this out if you'd rather
+    // have the button back in its normal spot at the bottom of the page.
+    (function () {
+        var STORAGE_KEY = 'rb-floatingSaveEnabled';
+        var bar = document.getElementById('rb-save-bar');
+        var toggle = document.getElementById('rb-floatingSaveToggle');
+        var pageEl = document.getElementById('rb-config');
+
+        function readPref() {
+            try { return localStorage.getItem(STORAGE_KEY) !== '0'; }
+            catch (e) { return true; }
+        }
+        function writePref(enabled) {
+            try { localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0'); }
+            catch (e) { /* private browsing / storage blocked - just won't persist across loads */ }
+        }
+        function apply(enabled) {
+            bar.classList.toggle('rb-save-floating', enabled);
+            bar.classList.toggle('bg-body', enabled);
+            bar.classList.toggle('border-top', enabled);
+            bar.classList.toggle('shadow-sm', enabled);
+            pageEl.classList.toggle('rb-save-floating-active', enabled);
+            toggle.checked = enabled;
+        }
+
+        apply(readPref());
+        toggle.addEventListener('change', function () {
+            writePref(toggle.checked);
+            apply(toggle.checked);
+        });
+    })();
 
     loadAll();
     rbPollDestination();
