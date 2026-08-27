@@ -17,10 +17,14 @@ current codebase rather than trusting the previous write-up.
 - **`pluginInfo.json` is valid JSON and has every mandatory field** (`repoName`, `name`,
   `author`, `description`, `homeURL`, `srcURL`, `bugURL`, `versions`). `iconURL` resolves
   to a real committed `icon.png` at the repo root, confirmed 256x256.
-- **No hardcoded colors** anywhere except one instance found and fixed during this
-  re-audit (see Findings below) - the Config/Status pages otherwise use FPP's own
-  Bootstrap-based dialog, toast, and CSS color idioms instead of hex/RGB values, so they
-  adapt correctly to FPP's dark theme.
+- **No hardcoded colors** as of this pass - two rounds of findings so far (one hex color in
+  an early pass, three more reintroduced by new code - the Config page walkthrough - in
+  this one; see Findings below for both) - the Config/Status pages otherwise use FPP's own
+  Bootstrap-based dialog, toast, and CSS color idioms (or, for the walkthrough's own accent,
+  the `--bs-primary` CSS variable) instead of bare hex/RGB values, so they adapt correctly
+  to FPP's dark theme. New UI added between audits is exactly where this tends to slip back
+  in, so worth re-checking specifically on every future pass, not just assuming it still
+  holds from last time.
 - **No cron jobs, systemd units, or symlinks** are created outside FPP's own plugin
   lifecycle hooks and `commands/descriptions.json` mechanism - confirmed by inspection of
   `fpp_install.sh`/`fpp_uninstall.sh` (no `systemctl`, `crontab`, or `ln -s` anywhere in
@@ -77,6 +81,29 @@ current codebase rather than trusting the previous write-up.
   CPU - nothing here has ever needed declaring.
 
 ## Findings
+
+### Fixed: three hardcoded colors introduced by the Config page walkthrough
+
+The first-run Config page walkthrough (spotlight/arrow tour added after the previous
+pass) hardcoded `#0d6efd` for its highlight border and arrow accent color - the exact
+anti-pattern this same doc already caught and fixed once before elsewhere (see "one
+hardcoded color" below), reintroduced by new code rather than missed in old code. Fixed:
+all three now read `var(--bs-primary, #0d6efd)` - Bootstrap's own theme variable, with the
+literal value kept only as a fallback for the (unlikely) case that variable isn't defined
+at all - so the accent follows FPP's own theme instead of staying fixed if a dark theme
+ever overrides its primary color. Left as-is, deliberately: the spotlight's dimming scrim
+(`rgba(0, 0, 0, 0.55)`) - a translucent black backdrop is the same convention in both
+themes (it's what Bootstrap's own modal backdrop does too), not a color that needs to
+adapt the way a border/text color does. Re-swept every `style="..."`/`<style>` block added
+since the previous pass; found no other hex/named/`rgb()` colors.
+
+### Fixed: `pluginInfo.json`'s description overstated a fixed transfer limit
+
+Said *"Supports up to 2 concurrent transfers"* - true when first written, but Config's
+"Max concurrent transfers" field has been user-configurable (1-8, default 2) since before
+that description was last touched. Left uncorrected, it undersells the actual feature and
+reads like a hard cap that isn't there. Reworded to *"Configurable concurrent transfers
+(up to 8)"*.
 
 ### Fixed: SSH password was being logged in cleartext
 
@@ -166,6 +193,11 @@ floor can, so these aren't uniformly equally risky, and getting a responsive-lay
 right needs actually looking at it on a real ~320px viewport in both themes - something
 this pass didn't have a way to do safely without risking a change that reads fine in the
 diff but breaks visually. Left as a concrete, scoped to-do rather than guessed at blind.
+
+Re-checked against new UI added since: the Config page walkthrough's popup uses `width:
+320px` but pairs it with `max-width: calc(100vw - 16px)`, so it shrinks to fit rather than
+forcing overflow - same reasoning as the `max-width`/`max-height` values above, not a new
+instance of the riskier bare-fixed-width pattern.
 
 ### Open: extensive use of `sudo` outside the install/uninstall lifecycle
 
