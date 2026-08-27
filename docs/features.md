@@ -188,6 +188,13 @@
   [Restoring a Backup](restoring-a-backup.md) for the full walkthrough, including why
   File Copy Restore's device browser shows a `/` and a `System Volume Information`
   folder, and why neither of those should ever be selected as the thing you're restoring.
+- **A floating Save Settings bar.** On by default - the Save button (with Status and the
+  save result message alongside it) stays pinned to the bottom of the screen as you scroll
+  through Config's fieldsets, instead of only being reachable at the very bottom of the
+  page. Its own "Keep floating while scrolling" checkbox turns this off if you'd rather
+  have it back in its normal spot in the page - a per-browser display preference stored
+  locally, not a saved setting, so it applies immediately and doesn't need Save Settings
+  clicked to take effect.
 
 ## Safe Guards
 
