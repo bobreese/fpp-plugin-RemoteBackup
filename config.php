@@ -228,7 +228,7 @@ $rbPlugin = basename(__DIR__);
 
     <div id="rb-save-bar" class="mt-2 d-flex align-items-center flex-wrap" style="gap:0.5em;">
         <button type="button" class="btn btn-primary" id="rb-save">Save Settings</button>
-        <a class="btn btn-outline-secondary" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status</a>
+        <a class="btn btn-outline-secondary" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status Page</a>
         <span id="rb-saveMsg" class="ms-2"></span>
         <label class="small text-muted mb-0 ms-auto" style="cursor:pointer; white-space:nowrap;">
             <input type="checkbox" id="rb-floatingSaveToggle"> Keep floating while scrolling
