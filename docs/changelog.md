@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Config page walkthrough advanced to the next step the instant you clicked
+  *anywhere* inside the currently-highlighted fieldset - since a step's highlight often
+  covers several checkboxes/inputs/radios at once (e.g. Backup Options), checking a box or
+  clicking into a field to type immediately jumped the tour ahead before you were done,
+  making it awkward to change more than one setting per step. The click listener that did
+  this was bound to the whole highlighted container, so any click inside it bubbled up and
+  fired it, regardless of what was actually clicked. Removed entirely - Next/Back/Skip Tour
+  are now the only way to navigate, so the highlighted section stays fully interactive and
+  making several changes within one step before moving on actually works.
+
 - **Fixed:** `fpp_uninstall.sh` now removes the stray `/etc/fstab.rb-*-bak` backup files
   left behind by every `sed -i.<suffix>` edit this plugin makes to `/etc/fstab` across
   `mount_usb.sh` (`.rb-mount-bak`), `unmount_usb.sh` (`.rb-unmount-bak`), `format_usb.sh`

@@ -10,11 +10,13 @@
   script and Config page both warn that only one system should ever have Host Mode enabled.
 - **First-run Config walkthrough.** A brand-new install shows a one-time, click-through tour
   of the Config page - a spotlight and arrow step through each fieldset top to bottom with a
-  short plain-language explanation, advancing on "Next" or on a click anywhere in the
-  highlighted setting itself. The three sections whose contents are found by a scan (storage
-  drives, remotes) say so explicitly rather than pretending to show you what's there, since
-  nothing's been discovered yet the moment the page first loads. The "Show the setup
-  walkthrough" checkbox above Backup Host Mode doubles as the recall control - check it
+  short plain-language explanation, advancing only on "Next"/"Back" - the highlighted
+  section itself stays fully interactive (checking boxes, typing into fields, picking
+  radios), so making several changes within one step before moving on works, rather than
+  the first click anywhere in it jumping ahead. The three sections whose contents are found
+  by a scan (storage drives, remotes) say so explicitly rather than pretending to show you
+  what's there, since nothing's been discovered yet the moment the page first loads. The
+  "Show the setup walkthrough" checkbox above Backup Host Mode doubles as the recall control - check it
   anytime to run the walkthrough again - and as the on/off switch for the automatic first-run
   popup; a "?" next to it explains both in one place. Existing installs upgrading to this
   version never see the automatic popup unsolicited, since it's only wired to trigger on a

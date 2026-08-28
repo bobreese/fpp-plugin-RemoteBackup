@@ -1934,7 +1934,6 @@ $rbPlugin = basename(__DIR__);
         }
     ];
     var rbTourIndex = -1;
-    var rbTourClickTarget = null;
     var rbTourReposition = null;
 
     function rbTourBuildDom() {
@@ -1972,11 +1971,6 @@ $rbPlugin = basename(__DIR__);
     function rbTourGo(index) {
         if (index < 0) return;
         if (index >= RB_TOUR_STEPS.length) { rbTourEnd(); return; }
-        // Clicking the previous step's own highlighted setting also
-        // advances the tour (per spec) - drop that listener before moving
-        // on so it doesn't fire again later against a step it no longer
-        // applies to.
-        if (rbTourClickTarget) { rbTourClickTarget.removeEventListener('click', rbTourAdvanceFromClick); rbTourClickTarget = null; }
         rbTourIndex = index;
         var step = RB_TOUR_STEPS[index];
         var target = document.querySelector(step.selector);
@@ -1987,15 +1981,19 @@ $rbPlugin = basename(__DIR__);
         document.getElementById('rb-tour-back').disabled = index === 0;
         document.getElementById('rb-tour-next').textContent = (index === RB_TOUR_STEPS.length - 1) ? 'Finish' : 'Next';
 
-        rbTourClickTarget = target;
-        target.addEventListener('click', rbTourAdvanceFromClick);
+        // Deliberately no "click the highlighted setting to advance"
+        // shortcut (an earlier version of this tour had one) - the
+        // highlighted fieldset is often several checkboxes/inputs/radios
+        // at once (e.g. Backup Options), and a listener on the whole
+        // container fired on every click inside it, advancing the tour
+        // the instant you tried to check a box or type into a field. Next/
+        // Back/Skip Tour are the only way to navigate now, so making
+        // several changes within one step before moving on actually works.
 
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         clearTimeout(rbTourReposition);
         rbTourReposition = setTimeout(rbTourPosition, 260);
     }
-
-    function rbTourAdvanceFromClick() { rbTourGo(rbTourIndex + 1); }
 
     function rbTourPosition() {
         var step = RB_TOUR_STEPS[rbTourIndex];
@@ -2031,7 +2029,6 @@ $rbPlugin = basename(__DIR__);
     }
 
     function rbTourEnd() {
-        if (rbTourClickTarget) { rbTourClickTarget.removeEventListener('click', rbTourAdvanceFromClick); rbTourClickTarget = null; }
         rbTourIndex = -1;
         ['rb-tour-highlight', 'rb-tour-arrow', 'rb-tour-popup'].forEach(function (id) {
             var el = document.getElementById(id);
