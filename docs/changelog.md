@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** switching Config's destination away from SD Card/System Storage now offers to
+  clean up the backups left behind there - a popup fires the moment a different storage
+  radio is clicked (not deferred until Save Settings), offering "Leave Them" or "Remove
+  Them Now." Nothing actually happens until Save Settings is clicked and succeeds - the
+  choice is only staged client-side until then - and a note next to the Save button
+  reflects the pending choice so it's never a forgotten decision. Deletion runs server-side
+  as part of the same `saveSettings` request (a new `purge_sdcard_backups.sh`, reusing
+  `fpp_uninstall.sh --purge-backups`'s own backup-folder-naming-pattern safety check - never
+  a blind wipe), anchored to the destination's pre-save value so it can't be fooled by the
+  setting having already changed. Scoped deliberately to just the SD card fallback - a real
+  external drive being swapped out already leaves with its data either way, so there's
+  nothing to offer there; only the SD card's backups quietly eat into the Host's own
+  limited system storage if forgotten.
+
 - **Fixed:** Dry Run massively over-reported the transfer size for rolling-mode remotes
   (the default mode) that already had a previous backup - reported in the wild as a Dry
   Run showing ~2.1GB "to transfer" for remotes whose very next real run only transferred a

@@ -79,7 +79,7 @@ chown -R fpp:fpp "${PLUGINDIR}/data" 2>/dev/null || true
 # leave Config Save / status writes silently failing.
 chmod -R 0777 "${PLUGINDIR}/data" 2>/dev/null || true
 
-for f in run_backup.sh dry_run.sh probe_storage.sh probe_remotes.sh ssh_setup.sh mount_usb.sh unmount_usb.sh format_usb.sh list_backups.sh get_backup_info.sh delete_backup.sh lib_common.sh clone_backups.sh; do
+for f in run_backup.sh dry_run.sh probe_storage.sh probe_remotes.sh ssh_setup.sh mount_usb.sh unmount_usb.sh format_usb.sh list_backups.sh get_backup_info.sh delete_backup.sh purge_sdcard_backups.sh lib_common.sh clone_backups.sh; do
     chmod +x "${PLUGINDIR}/scripts/${f}" 2>/dev/null || true
 done
 chmod +x "${PLUGINDIR}/commands/"*.sh 2>/dev/null || true
