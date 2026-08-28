@@ -90,6 +90,11 @@ specifically because you're starting from a fresh image rather than upgrading in
   though they're newer): they come up in Master mode rather than Player mode, which isn't
   what a from-scratch Player rebuild wants. This applies to any FPP system being rebuilt
   from an image, whether or not you use this plugin at all.
+- **On FPP 10, look for the "Restore from Backup" button on first boot** - it sits at the
+  top right of the very first setup screen, before you've gone through the rest of the
+  setup wizard, and can jump straight into a restore from there. Older FPP versions don't
+  have this shortcut: you'd finish the setup wizard first, then separately find your way
+  to File Copy Restore under Content Setup afterward, as described above.
 - **Update FPP itself first, then check for plugin updates separately** - FPP's home page
   shows its own warning/update indicator when FPP core is behind, but an installed
   plugin's own update state (this one included) is tracked separately from FPP core.

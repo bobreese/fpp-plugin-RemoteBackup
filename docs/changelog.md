@@ -5,6 +5,13 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** FPP 10's fresh-boot "Restore from Backup" button in
+  [Restoring a Backup](restoring-a-backup.md)'s "After a fresh SD card" section - it sits
+  at the top right of the very first setup screen and can jump straight into a restore,
+  ahead of finishing the setup wizard. Older FPP versions don't have this shortcut and
+  still need the setup wizard finished first, then File Copy Restore found separately
+  under Content Setup afterward.
+
 - **Fixed:** `ssh-keygen -R` calls racing each other across concurrent remotes left
   orphaned `known_hosts.<random>`/`known_hosts.old` files piling up indefinitely in
   `~/.ssh` - confirmed in the wild: dozens of stray files accumulated over about a week
