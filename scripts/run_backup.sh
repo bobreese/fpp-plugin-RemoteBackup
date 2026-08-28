@@ -426,10 +426,15 @@ estimate_one() {
     fi
 
     scratch_out=$(mktemp "${DATA_DIR}/tmp_estimate_XXXXXX")
+    # --no-owner --no-group: matches backup_one()'s real transfer below (see
+    # its own comment for why) - without this, a file whose owner/group
+    # simply can't be preserved would still count as "needs transferring"
+    # in rsync's own comparison here, overstating the estimate against
+    # what the real run will actually attempt.
     if [ "$is_host" = "1" ]; then
-        rsync -a -n --stats --copy-links "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
+        rsync -a -n --no-owner --no-group --stats --copy-links "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
     else
-        rsync -a -n --stats --copy-links -e "$ssh_cmd" "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
+        rsync -a -n --no-owner --no-group --stats --copy-links -e "$ssh_cmd" "${EXCLUDE_ARGS[@]}" "${extra[@]}" "$src" "${target}/" > "$scratch_out" 2>&1
     fi
     bytes=$(rb_parse_rsync_bytes "$(grep -m1 '^Total transferred file size:' "$scratch_out" | grep -oE '[0-9][0-9,]*(\.[0-9]+)?[KMGT]?' | head -1)")
     rm -f "$scratch_out"
@@ -755,7 +760,27 @@ backup_one() {
     # filenames and --info=progress2 updates sit in rsync's internal
     # buffer and may not hit the log for a long time (sometimes only at
     # exit), which is why Current File/Progress looked empty during a run.
-    rsync -a -h -v --stats --info=progress2 --outbuf=line --copy-links \
+    #
+    # --no-owner --no-group: -a implies -o/-g (preserve owner/group), which
+    # this pull can never actually honor - it connects as an ordinary
+    # unprivileged user (SSH_USER, normally 'fpp'), and chown-ing a file to
+    # an owner other than yourself requires root/CAP_CHOWN on the
+    # RECEIVING side (the Host), which this process never has. Confirmed
+    # in the wild: a real remote's own root-owned files under
+    # /home/fpp/media (apache2 log files, a plugin's __pycache__, config
+    # files owned by a service account) made rsync exit 23 ("some
+    # files/attrs were not transferred") on every one of them - reported
+    # as a hard FAILED state even though the actual file *content* had
+    # already transferred completely; only the chown step on each file
+    # failed. Backup/restore here only ever needs content, not exact
+    # Linux uid/gid fidelity (File Copy Restore re-writes files as
+    # whatever local user runs it anyway) - dropping owner/group up front
+    # means rsync stops attempting something guaranteed to fail, instead
+    # of failing at it on every run and mis-reporting a real transfer as
+    # broken. Not applied to the system-config extras pull below, which
+    # deliberately DOES preserve real ownership via a privileged rsync
+    # (local sudo, or sudo on the remote) - see that block's own comment.
+    rsync -a -h -v --no-owner --no-group --stats --info=progress2 --outbuf=line --copy-links \
         "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${extra[@]}" \
         "${rsync_xport[@]}" "$src" "${target}/" > "$logfile" 2>&1 &
     local rsync_pid=$!
@@ -842,11 +867,18 @@ backup_one() {
                 *)
                     echo "logs: logDirectory=$remote_log_dir is NOT under /home/fpp/media - pulling separately" >> "$logfile" 2>&1
                     mkdir -p "${scratch_root}/system-logs"
+                    # --no-owner --no-group: same reasoning as the main
+                    # transfer above - this pulls into a plain scratch dir
+                    # as the unprivileged fpp user, and log files are
+                    # commonly owned by a different service account (or
+                    # root), so attempting to preserve owner/group here is
+                    # guaranteed to fail on some files and just adds
+                    # chown-EPERM noise to the log for no benefit.
                     if [ "$is_host" = "1" ]; then
-                        rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
+                        rsync -a -h --no-owner --no-group --outbuf=line --copy-links "${extras_opts[@]}" \
                             "${remote_log_dir%/}/" "${scratch_root}/system-logs/" >> "$logfile" 2>&1
                     else
-                        rsync -a -h --outbuf=line --copy-links "${extras_opts[@]}" \
+                        rsync -a -h --no-owner --no-group --outbuf=line --copy-links "${extras_opts[@]}" \
                             -e "$ssh_cmd" "${SSH_USER}@${rsync_host}:${remote_log_dir%/}/" "${scratch_root}/system-logs/" >> "$logfile" 2>&1
                     fi
                     if [ "$DRYRUN" != "1" ] && [ -n "$(ls -A "${scratch_root}/system-logs" 2>/dev/null)" ]; then
@@ -962,8 +994,33 @@ backup_one() {
 
     local error_detail=""
     if [ "$state" = "error" ]; then
-        error_detail=$(grep -iE 'rsync error|rsync:|@ERROR|ssh:|Connection refused|No route to host|Could not resolve|Permission denied|Host key verification failed' "$logfile" 2>/dev/null | tail -3 | tr '\n' ' | ')
-        [ -z "$error_detail" ] && error_detail=$(tail -3 "$logfile" 2>/dev/null | tr '\n' ' | ')
+        # --info=progress2 updates the SAME line with a bare \r (carriage
+        # return, no \n) while a file is transferring, exactly like a
+        # normal terminal progress bar would - and rsync's own error text
+        # (emitted by a different internal process) can land directly
+        # after the last update with no separator between them at all, not
+        # even a \r. A slow/large file can leave dozens of these \r-
+        # separated snapshots, which grep/tail (only ever split on \n) see
+        # as ONE giant "line" - if that line matched (it will, the moment
+        # any real error text is glued onto the end of it) and landed
+        # among the last 3 picked below, the whole multi-KB blob of
+        # repeated "2.55M 26% ... (xfr#111, to-chk=0/919)" noise ended up
+        # in errorDetail instead of the actual error text - confirmed in
+        # the wild via a real email status update showing exactly that.
+        # Fixed in two steps: normalize \r to \n so most snapshots become
+        # real lines grep can skip on their own, THEN strip the progress-
+        # pattern text itself wherever it still appears (including glued
+        # directly onto real error text with no separator at all, which
+        # the \r-normalization alone can't split apart).
+        local log_lines progress_re
+        log_lines=$(tr '\r' '\n' < "$logfile" 2>/dev/null)
+        progress_re='[0-9][0-9.,]*[A-Za-z]?[[:space:]]+[0-9]{1,3}%[[:space:]]+[0-9][0-9.,]*[A-Za-z]*/s[[:space:]]+[0-9:]+[[:space:]]+\(xfr#[0-9]+, to-chk=[0-9]+/[0-9]+\)'
+        # | as the sed delimiter, not the more usual / or # - the pattern
+        # itself contains both (xfr#... and .../s), which would otherwise
+        # end the substitution early and corrupt it.
+        log_lines=$(echo "$log_lines" | sed -E "s|${progress_re}||g")
+        error_detail=$(echo "$log_lines" | grep -iE 'rsync error|rsync:|@ERROR|ssh:|Connection refused|No route to host|Could not resolve|Permission denied|Host key verification failed' | tail -3 | sed -E 's/^[[:space:]]+//' | tr '\n' ' | ')
+        [ -z "$error_detail" ] && error_detail=$(echo "$log_lines" | tail -3 | sed -E 's/^[[:space:]]+//' | tr '\n' ' | ')
     elif [ "$state" = "done-with-warnings" ]; then
         local vanished
         vanished=$(grep '^file has vanished:' "$logfile" 2>/dev/null | sed 's/^file has vanished: //' | tr '\n' ' | ')
@@ -994,10 +1051,17 @@ backup_one() {
         # confirmed.
         [ "$DELETE_EXTRA" = "true" ] && verify_extra+=(--delete)
         verify_out=$(mktemp "${DATA_DIR}/tmp_verify_XXXXXX")
+        # --no-owner --no-group: matches the real transfer above (see its
+        # own comment) - without this, every file whose owner/group could
+        # never be preserved in the first place would show up here as a
+        # false "mismatch" on every single run, since rsync's own
+        # comparison still flags an owner/group difference as something
+        # that "needs" updating even though nothing this plugin does could
+        # ever actually fix it.
         if [ "$is_host" = "1" ]; then
-            rsync -a -n -i --stats --copy-links "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${verify_extra[@]}" "$src" "${target}/" > "$verify_out" 2>&1
+            rsync -a -n -i --no-owner --no-group --stats --copy-links "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${verify_extra[@]}" "$src" "${target}/" > "$verify_out" 2>&1
         else
-            rsync -a -n -i --stats --copy-links -e "$ssh_cmd" "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${verify_extra[@]}" "$src" "${target}/" > "$verify_out" 2>&1
+            rsync -a -n -i --no-owner --no-group --stats --copy-links -e "$ssh_cmd" "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${verify_extra[@]}" "$src" "${target}/" > "$verify_out" 2>&1
         fi
         verify_rc=$?
         if [ "$verify_rc" -ne 0 ] && [ "$verify_rc" -ne 24 ]; then
