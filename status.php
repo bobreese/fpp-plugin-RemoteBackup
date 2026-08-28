@@ -511,6 +511,20 @@ $rbPlugin = basename(__DIR__);
             remotes.sort(function (a, b) { return (a.hostname || '').localeCompare(b.hostname || ''); });
             body.innerHTML = remotes.map(function (r) {
                 var label = STATE_LABEL[r.state] || r.state;
+                // Optional post-run verification (Config > Backup Options'
+                // "Verify backup integrity after each run") - a second
+                // rsync dry-run pass comparing source and destination
+                // after the fact. Shown as a small badge under the state
+                // label rather than its own column, since it's blank
+                // entirely unless that setting is on.
+                var verifyBadge = '';
+                if (r.verifyState === 'clean') {
+                    verifyBadge = '<br><span class="text-success small">&#10003; Verified</span>';
+                } else if (r.verifyState === 'mismatch') {
+                    verifyBadge = '<br><span class="text-warning small" title="' + (r.verifyDetail || '').replace(/"/g, '&quot;') + '">&#9888; Verify: differs</span>';
+                } else if (r.verifyState === 'error') {
+                    verifyBadge = '<br><span class="text-danger small" title="' + (r.verifyDetail || '').replace(/"/g, '&quot;') + '">&#9888; Verify failed</span>';
+                }
                 var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
                 var fileCell = (r.state === 'error' || r.state === 'skipped' || r.state === 'done-with-warnings')
                     ? '<span class="' + (r.state === 'error' ? 'text-danger' : 'text-warning') + '" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
@@ -529,7 +543,7 @@ $rbPlugin = basename(__DIR__);
                 return '<tr>' +
                     '<td>' + (r.hostname || r.id) + '</td>' +
                     '<td>' + (r.address || '') + '</td>' +
-                    '<td>' + label + '</td>' +
+                    '<td>' + label + verifyBadge + '</td>' +
                     '<td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + ((r.currentFile || r.errorDetail || '')).replace(/"/g, '&quot;') + '">' + fileCell + '</td>' +
                     '<td>' + progressCell + '</td>' +
                     '<td>' + xfer + '</td>' +

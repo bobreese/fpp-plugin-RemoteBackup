@@ -169,6 +169,7 @@ fi
 MAX_CONCURRENT=$(rb_setting '.maxConcurrent' '2')
 DELETE_EXTRA=$(rb_setting '.deleteExtraneous' 'false')
 SNAPSHOT_MODE=$(rb_setting '.snapshotMode' 'false')
+VERIFY_AFTER_RUN=$(rb_setting '.verifyAfterRun' 'false')
 SSH_USER=$(rb_setting '.sshUser' 'fpp')
 SSH_PORT=$(rb_setting '.sshPort' '22')
 SSH_KEY=$(rb_setting '.sshKeyPath' '/home/fpp/.ssh/id_rsa_remotebackup')
@@ -969,12 +970,77 @@ backup_one() {
         error_detail="Some source files vanished mid-transfer (rc=24) - everything else copied normally. ${vanished}"
     fi
 
+    # --- Optional post-run verification pass (Config > Backup Options) ----
+    # A second read-only rsync dry-run pass against the SAME source/target
+    # this real transfer just used, checking whether source and destination
+    # now actually agree - the same rsync -n --stats mechanism estimate_one()
+    # above already uses for the pre-flight size estimate, just aimed
+    # backwards. A clean result means rsync's own size/mtime comparison
+    # (its usual "does this file need transferring" check, not a content
+    # checksum) sees nothing left to change - not proof of byte-for-byte
+    # integrity, and a remote actively recording/playing between the real
+    # run and this check can show a "mismatch" that's just new content, not
+    # a real problem. Skipped entirely for a dry run (nothing was actually
+    # written) and for any state other than done/done-with-warnings (an
+    # error already means something's wrong; verifying against a target
+    # that was never fully written wouldn't tell you anything new).
+    local verify_state="" verify_detail=""
+    if [ "$DRYRUN" != "1" ] && [ "$VERIFY_AFTER_RUN" = "true" ] && { [ "$state" = "done" ] || [ "$state" = "done-with-warnings" ]; }; then
+        local verify_out verify_extra=() verify_rc verify_files
+        # Mirror the real run's own --delete choice - otherwise a
+        # destination-only leftover file would never show as a difference
+        # here even when the real run (if DELETE_EXTRA were on) would have
+        # removed it, making "clean" claim more than this check actually
+        # confirmed.
+        [ "$DELETE_EXTRA" = "true" ] && verify_extra+=(--delete)
+        verify_out=$(mktemp "${DATA_DIR}/tmp_verify_XXXXXX")
+        if [ "$is_host" = "1" ]; then
+            rsync -a -n -i --stats --copy-links "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${verify_extra[@]}" "$src" "${target}/" > "$verify_out" 2>&1
+        else
+            rsync -a -n -i --stats --copy-links -e "$ssh_cmd" "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${verify_extra[@]}" "$src" "${target}/" > "$verify_out" 2>&1
+        fi
+        verify_rc=$?
+        if [ "$verify_rc" -ne 0 ] && [ "$verify_rc" -ne 24 ]; then
+            # The verification pass itself failed (e.g. remote went
+            # offline between the real run and this check) - distinct from
+            # a real mismatch, since there's no comparison result to trust
+            # either way.
+            verify_state="error"
+            verify_detail="verification pass itself failed (rc=${verify_rc}) - $(tail -3 "$verify_out" 2>/dev/null | tr '\n' ' | ')"
+            rb_log "VERIFY $id: $verify_detail"
+        else
+            verify_files=$(grep -m1 -E '^Number of (regular files transferred|files transferred):' "$verify_out" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
+            [ -z "$verify_files" ] && verify_files=0
+            if [ "$verify_files" -gt 0 ]; then
+                verify_state="mismatch"
+                # Itemize-changes lines are a fixed 11-character flags
+                # column then a space then the path (cut -c 12- rather
+                # than splitting on whitespace, so a filename containing
+                # spaces still comes through intact). Restricted to
+                # regular-file entries (second flag column "f") to match
+                # what verify_files above actually counts - rsync's
+                # itemize also lists directories it would create/touch
+                # (second column "d"), which "Number of regular files
+                # transferred" deliberately excludes, so including those
+                # here would list more paths than the count claims.
+                verify_detail="${verify_files} file(s) still differ from source after backup: $(grep -E '^[<>ch*]f' "$verify_out" | head -20 | cut -c 12- | tr '\n' ' | ')"
+                rb_log "VERIFY $id: $verify_detail"
+            else
+                verify_state="clean"
+                rb_log "VERIFY $id: clean - destination matches source (post-run dry-run comparison)"
+            fi
+        fi
+        rm -f "$verify_out"
+    fi
+
     rb_write_status "$id" "$(jq -n --arg id "$id" --arg hostname "$hostname" --arg address "$address" \
         --arg run "$RUN_ID" --argjson dryrun "$([ "$DRYRUN" = "1" ] && echo true || echo false)" \
         --arg state "$state" --arg t "$(rb_now_iso)" --arg target "$target" --arg log "$logfile" --arg errdetail "$error_detail" \
         --argjson rc "$rc" --argjson totalSize "$total_size" --argjson xferSize "$xfer_size" --argjson numFiles "$num_files" --argjson numFilesTotal "$num_files_total" \
+        --arg verifyState "$verify_state" --arg verifyDetail "$verify_detail" \
         '{id:$id, hostname:$hostname, address:$address, state:$state, dryRun:$dryrun, runId:$run, finishedAt:$t,
-          target:$target, logFile:$log, exitCode:$rc, totalBytes:$totalSize, transferredBytes:$xferSize, filesTransferred:$numFiles, totalFiles:$numFilesTotal, errorDetail:$errdetail}')"
+          target:$target, logFile:$log, exitCode:$rc, totalBytes:$totalSize, transferredBytes:$xferSize, filesTransferred:$numFiles, totalFiles:$numFilesTotal, errorDetail:$errdetail,
+          verifyState:$verifyState, verifyDetail:$verifyDetail}')"
 
     rb_log "finished rsync for $id rc=$rc xferBytes=$xfer_size files=$num_files"
     rb_prune_remote_logs "$id"

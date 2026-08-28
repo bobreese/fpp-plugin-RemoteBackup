@@ -584,7 +584,11 @@ rb_send_run_summary_email() {
              elif .state=="skipped" then "SKIPPED"
              else (.state // "unknown") end) as $label
             | "\(.hostname // .id): \($label)" +
-              (if (.errorDetail // "") != "" then " - \(.errorDetail)" else "" end)
+              (if (.errorDetail // "") != "" then " - \(.errorDetail)" else "" end) +
+              (if .verifyState=="clean" then " [verified]"
+               elif .verifyState=="mismatch" then " [VERIFY: \(.verifyDetail // "differs from source")]"
+               elif .verifyState=="error" then " [VERIFY FAILED: \(.verifyDetail // "")]"
+               else "" end)
         )')
     body+=$'\n\n'"Full detail: Status page on the Host, or data/logs/ on disk."
     rb_send_status_email "$subject" "$body"

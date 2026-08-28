@@ -115,6 +115,14 @@ Three FPP-side things are in scope for comparison:
    verification pass and no test-restore step after a run completes.
    - *To close it:* an optional post-run verification pass, even a lightweight one
      (file count and size comparison against the source).
+   - *Shipped (the lightweight half):* Backup Options' "Verify backup integrity after
+     each run" runs a second read-only rsync dry-run pass comparing source and
+     destination once more, shown as a badge on the Status page and folded into the
+     email summary. Still not a checksum: it's the same size/mtime comparison rsync's
+     own transfer already relies on, not byte-for-byte content verification, and a
+     remote actively recording/playing between the backup and this check can produce a
+     false "differs." A real checksum pass (`rsync --checksum`, reading every byte on
+     both ends) and any test-restore step remain unbuilt.
 8. **A couple of small, already-documented rough edges** - stray `/etc/fstab` backup
    files that never get cleaned up, and the SSH keypair path being hardcoded rather than
    reading its own `sshKeyPath` setting. Both already called out in

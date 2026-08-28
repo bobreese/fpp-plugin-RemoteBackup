@@ -441,7 +441,15 @@ function rb_default_settings() {
         // 'failed_or_skipped' - the actual silent-failure gap this
         // feature exists to close is a run that needed attention and
         // nobody happened to check the Status page.
-        'emailNotifyOutcome' => 'failed_or_skipped'
+        'emailNotifyOutcome' => 'failed_or_skipped',
+        // Off by default: a second read-only rsync dry-run pass against
+        // each remote after its real transfer finishes, comparing source
+        // and destination once more (size/mtime, the same thing rsync
+        // itself always checks - not a content checksum). See
+        // run_backup.sh's own comment on this block for what it does and
+        // doesn't prove. Adds a second directory-listing round trip over
+        // SSH to every remote's run, so it's opt-in rather than always-on.
+        'verifyAfterRun' => false
     ];
 }
 
@@ -817,7 +825,7 @@ switch ($action) {
         $settings = rb_load_settings($SETTINGS_FILE);
         $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
 
-        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount', 'onboardingTourEnabled', 'emailNotifyEnabled'] as $k) {
+        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount', 'onboardingTourEnabled', 'emailNotifyEnabled', 'verifyAfterRun'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword', 'scheduleMasterAddress'] as $k) {

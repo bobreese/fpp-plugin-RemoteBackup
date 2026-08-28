@@ -170,6 +170,13 @@ $rbPlugin = basename(__DIR__);
                 Landing on SD Card / System Storage this way is re-checked against its own free space too (reserving 500MB for
                 system stability, same as any other run there - see <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/troubleshooting.md#backup-space-insufficient" target="_blank" rel="noopener">Backup Space Insufficient</a>)
                 rather than just assumed to fit - it refuses instead of proceeding if it turns out not to.</label><br>
+            <label><input type="checkbox" id="rb-verifyAfterRun">
+                Verify backup integrity after each run - a second read-only rsync pass compares source and destination once
+                more and flags anything still different, shown as a small badge on the Status page.
+                &mdash; off by default, since it adds a second directory-listing pass over SSH to every remote's run. This
+                checks the same thing rsync's own transfer already does (file size and modification time), not a byte-for-byte
+                checksum, and a remote actively recording/playing between the backup and this check can show a false
+                "differs" for content that's simply new since the backup, not actually missed.</label><br>
             <br>
             <strong>If a selected remote is playing a sequence when a backup starts:</strong><br>
             <label class="ms-3"><input type="radio" name="rb-playPolicy-choice" id="rb-playPolicy-stop" value="stop">
@@ -1671,6 +1678,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-autoFailoverOnLowSpace').checked = !!state.settings.autoFailoverOnLowSpace;
+            document.getElementById('rb-verifyAfterRun').checked = !!state.settings.verifyAfterRun;
             document.getElementById('rb-enableRestoreBindMount').checked = !!state.settings.enableRestoreBindMount;
             renderBindMountStatus();
             var playPolicy = state.settings.remotePlayingPolicy === 'skip' ? 'skip' : 'stop';
@@ -1806,6 +1814,7 @@ $rbPlugin = basename(__DIR__);
             snapshotMode: document.getElementById('rb-snapshotMode').checked,
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
+            verifyAfterRun: document.getElementById('rb-verifyAfterRun').checked,
             enableRestoreBindMount: document.getElementById('rb-enableRestoreBindMount').checked,
             onboardingTourEnabled: document.getElementById('rb-onboardingTourEnabled').checked,
             purgeSdCardBackups: rbPendingSdCardPurge === true,

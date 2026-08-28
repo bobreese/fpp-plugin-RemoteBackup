@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** optional post-run integrity verification - Backup Options' "Verify backup
+  integrity after each run" checkbox, off by default. Reuses `estimate_one()`'s own
+  mechanism (a read-only `rsync -n --stats` dry-run pass, the same one behind the
+  pre-flight space check and the Dry Run button), just run again after a real transfer
+  finishes, against the exact target it just wrote to - a clean result means rsync's own
+  size/mtime comparison sees nothing left to change. Mirrors the real run's own
+  `--delete` choice, so a destination-only leftover doesn't get missed. Not a byte-for-
+  byte checksum (that's `rsync --checksum`, reading every byte on both ends - meaningfully
+  slower, deliberately not what this does) and not proof against a remote actively
+  recording/playing between the backup and this check, which can show a false "differs"
+  for content that's simply new. Result (`verifyState`/`verifyDetail`, one of
+  clean/mismatch/error) is written into the same per-remote status JSON `run_backup.sh`
+  already produces, shown as a small badge on the Status page, and folded into each
+  remote's line in the email summary above.
+
 - **Added:** optional email status updates after backup runs - a new **Email Settings**
   section on Config, between Backup Options and Show Schedule Conflict Check, off by
   default. Reuses FPP's own outbound email (`FPP Settings > Email`'s "Default TO

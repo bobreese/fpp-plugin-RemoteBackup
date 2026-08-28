@@ -208,6 +208,17 @@
   etc.) counts as "failed" and sends a short reason instead of a per-remote list. Dry Runs
   never send email, and a run refused only because another run was already in progress
   never does either - that's routine overlap, not a problem worth an alert.
+- **Optional post-run verification.** Backup Options' "Verify backup integrity after each
+  run" checkbox, off by default. After a real transfer finishes, runs a second read-only
+  rsync dry-run pass comparing source and destination once more and shows a small badge on
+  the Status page - a checkmark if nothing's left to change, or a warning naming which
+  files still differ. This checks the same thing rsync's own transfer already does (file
+  size and modification time), not a byte-for-byte content checksum, and a remote actively
+  recording/playing between the backup and this check can show a false "differs" for
+  content that's simply new since the backup, not actually missed. Off by default since it
+  adds a second directory-listing pass over SSH to every remote's run. Feeds into the email
+  status updates above too - a verified/mismatched/failed result is noted on that remote's
+  line in the summary.
 
 ## Safe Guards
 
