@@ -22,6 +22,11 @@ MultiSync remotes from a central Host.
   own storage is never touched, but the *other* remotes' transfers still run on the same
   network while the show plays - that shared network traffic can add some contention/timing
   risk of its own.
+- **No status alert vs. an optional email summary.** FPP File Copy Backup has no way to
+  tell you how a run went short of checking it yourself. Remote Backup can email a summary
+  after runs - all runs or scheduled-only, and for any outcome from "at least one failed"
+  up to every run - reusing FPP's own outbound email (`FPP Settings > Email`) rather than
+  managing delivery itself.
 - **Restoring stays the same.** Remote Backup doesn't replace FPP's own File Copy Restore -
   it's already proven reliable, so there's no reason to.
 

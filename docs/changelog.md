@@ -5,6 +5,12 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** the email status updates feature (added earlier but missing from two
+  places): a new "Email Status Updates" category in the in-app Help page
+  (`help/help.php`), between Scheduling and Log Files, and a new bullet in
+  [FPP Backup vs. Remote Backup](fpp-vs-remote-backup.md) covering FPP File Copy Backup's
+  lack of any status alert against Remote Backup's optional email summary.
+
 - **Documented:** clarified the intro of
   [Replacing FPP's Native Backup: A Readiness Assessment](backup-replacement-assessment.md) -
   it previously read as if replacing FPP's native tools were a goal or roadmap item of

@@ -24,6 +24,7 @@
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-restoring">Restoring a Backup</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-delete-handling">Delete Handling</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-scheduling">Scheduling</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-email-updates">Email Status Updates</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-log-files">Log Files</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-about">About</a>
             </nav>
@@ -268,6 +269,28 @@
                 - test any suggested time once before relying on it. See
                 <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/schedule-conflict-check.md" target="_blank" rel="noopener">Show Schedule Conflict Check</a>
                 for the full version.
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-email-updates">
+        <legend>Email Status Updates</legend>
+        <div class="p-2">
+            Config's <b>Email Settings</b> section (between Backup Options and Show Schedule
+            Conflict Check) can send an email summary after backup runs - off by default. Two
+            independent choices: <b>Send for</b> all runs or scheduled runs only (default - a
+            manual Start Backup click is already being watched live on the Status page), and
+            <b>Send when</b> at least one remote completed / failed / was skipped /
+            failed-and-or-skipped (default) / or every included run regardless of outcome. The
+            email lists every remote's own result; a run refused before any remote started
+            (halted, no destination, low space, etc.) counts as "failed" and sends a short reason
+            instead of a per-remote list. Dry Runs never send email, and a run refused only
+            because another run was already in progress never does either.
+            <div class="callout callout-info mb-0 mt-2">
+                This reuses FPP's own outbound email (<b>FPP Settings &gt; Email</b>) rather than
+                this plugin managing delivery itself - a real SMTP server needs to be entered
+                there and "Configure Email" clicked at least once, or there's nowhere for a
+                status email to go. Config shows inline whether that's already done.
             </div>
         </div>
     </fieldset>
