@@ -23,14 +23,30 @@ Three FPP-side things are in scope for comparison:
 
 ### Critical - block replacing FPP's native backup outright
 
-1. **No equivalent to FPP's own config-only backup.** Remote Backup has nothing like
-   FPP's native `Backup/Restore Configuration`. Its optional system-config capture pulls
-   `/etc/fpp` and network config as a raw `.tar.gz`, which covers the OS/network layer,
-   not FPP's own internal settings, and isn't something FPP's restore flow can read back
-   in.
+1. **No equivalent to FPP's own *packaged* config backup/restore artifact.** Corrected
+   after initially overstating this: FPP's own internal settings - channel outputs,
+   playlists, schedule, model/universe config - live as JSON files under
+   `/home/fpp/media/config/`, which is *inside* the tree Remote Backup already pulls
+   wholesale (no exclude pattern touches `config/`). That data genuinely does get backed
+   up, as an ordinary side effect of the content pull, not because this plugin does
+   anything special for it. What's actually missing is FPP's own native `Backup/Restore
+   Configuration` mechanism specifically: a portable, versioned, single-file export built
+   for fast re-setup after a reflash, with a guided restore flow that knows how to unpack
+   it. Remote Backup's copy of `config/` is undifferentiated - files inside the general
+   content backup, restorable via File Copy Restore like anything else, but not through
+   that same curated single-click "restore my settings" experience, and not extractable
+   as a standalone artifact without the whole media backup alongside it. The optional
+   system-config capture (`/etc/fpp`, network config as a raw `.tar.gz`) covers the
+   OS/network layer separately and isn't something FPP's restore flow can read back in
+   either.
+   - *Severity worth reconsidering:* this is a real gap in convenience and portability,
+     not in whether the underlying settings data survives a disaster - meaningfully
+     narrower than "no equivalent... to config-only backup" originally implied. Whether
+     it still belongs in the Critical bucket is worth revisiting rather than assumed.
    - *To close it:* a mode that calls FPP's own config-export mechanism on each remote
      (if exposed over its API) and stores the result as a clearly separate, restorable
-     artifact - not folded into the general media pull.
+     artifact matching FPP's own native format - not just relying on the raw files
+     already being swept up in the general pull.
 2. **No restore path of its own.** By design, Remote Backup only pulls. Content restore
    is handed off entirely to FPP's native `File Copy Restore`; anything in a
    `system-config.tar.gz` has to be manually untarred and placed back by hand, with no
@@ -48,13 +64,27 @@ Three FPP-side things are in scope for comparison:
 
 ### Significant - weaken the case for full replacement, matter more once it's the only backup
 
-4. **One Host is a single point of failure for everyone.** Every remote's backup
-   depends on one Host's SSH access, its SD card, and its `settings.json`. If the Host
-   dies, every scheduled backup stops at once - and the Host's own SSH keys and
-   configuration aren't themselves backed up anywhere.
-   - *To close it:* a documented, tested Host-recovery procedure at minimum; ideally the
-     Host's own SSH keypair and `data/settings.json` get folded into its own backup set
-     automatically.
+4. **One Host is a single point of failure for everyone - in two different ways worth
+   separating.** Every remote's backup depends on one Host's SSH access, its SD card,
+   and its `settings.json`:
+   - **Data loss**, if the Host or its destination drive is destroyed: this half already
+     has a real, existing partial mitigation - **Clone Backups to a Second Drive**
+     mirrors the entire primary destination, and is explicitly documented as meant for
+     an off-site/rotating spare copy. Physically rotating that second drive off-site
+     protects every backup that already existed from exactly this scenario.
+   - **Operational continuity**, if the Host itself goes down: unaddressed by Clone or
+     anything else. Clone is manual only (no Scheduler command) and still runs *from
+     that same Host*, using its own software and SSH keys - if the Host dies, Clone
+     can't run either. There's no second Host to fail over to, and every remote's
+     scheduled backup stops at once until the Host is repaired/replaced and
+     reconfigured. The Host's own SSH keys and configuration aren't themselves backed up
+     anywhere either.
+   - *To close it:* the operational-continuity half is the real open gap - a documented,
+     tested Host-recovery procedure at minimum; ideally the Host's own SSH keypair and
+     `data/settings.json` get folded into its own backup set automatically. The
+     data-loss half already has a real answer today, provided the second drive is
+     actually rotated off-site rather than left plugged in next to the primary the whole
+     time (which would just mean the same disaster takes out both).
 5. **Every remote must be SSH-reachable from the Host.** A remote behind a firewall
    change, moved to a different VLAN, or with SSH locked down simply can't be backed up
    - there's no fallback path. FPP's native File Copy Backup runs locally on each
