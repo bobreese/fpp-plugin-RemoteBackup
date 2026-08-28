@@ -95,6 +95,15 @@ if [ ! -f "$KEYFILE" ]; then
     chmod 600 "$KEYFILE" 2>/dev/null || true
 fi
 
+# --- One-time cleanup: orphaned known_hosts.<random>/known_hosts.old files
+# left behind by ssh-keygen -R racing itself across concurrent remotes,
+# before rb_clear_stale_host_key() (lib_common.sh) started serializing
+# access with its own flock. Safe to remove unconditionally - each one is
+# just a stale point-in-time copy of a file that gets rewritten on every
+# backup connection anyway, never read back by anything. The live
+# known_hosts file itself is untouched (name matched exactly, not a prefix).
+find /home/fpp/.ssh -maxdepth 1 -type f -name 'known_hosts.*' -delete 2>/dev/null || true
+
 # --- Ask FPP to restart so the "Run Remote Backup"/"Run Remote Backup Dry
 # Run" commands (commands/descriptions.json) actually become selectable in
 # the Scheduler/Playlist/Event command pickers. This plugin has no

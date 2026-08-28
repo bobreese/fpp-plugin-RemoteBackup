@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `ssh-keygen -R` calls racing each other across concurrent remotes left
+  orphaned `known_hosts.<random>`/`known_hosts.old` files piling up indefinitely in
+  `~/.ssh` - confirmed in the wild: dozens of stray files accumulated over about a week
+  on a host running several remotes. Root cause: `rb_clear_stale_host_key()`
+  (`lib_common.sh`, called before every backup connection to guard against a
+  reimaged/rebuilt remote's stale host key) ran unguarded, and `run_backup.sh` runs
+  multiple remotes' backups concurrently (bounded by Config's max concurrent transfers)
+  - two `ssh-keygen -R` calls hitting the same `known_hosts` file at once step on each
+  other's own backup-then-replace edit, and the loser's temp file is never cleaned up.
+  Fixed by wrapping the `ssh-keygen -R` calls in their own `flock` (new
+  `data/known_hosts.lock`) so concurrent remotes serialize instead of racing. Existing
+  stray `known_hosts.*` files are cleaned up automatically on the next install/upgrade
+  (`fpp_install.sh`); safe to delete by hand in the meantime (everything except the
+  plain `known_hosts` file itself is inert leftover).
+
 - **Documented:** corrected two findings in [Replacing FPP's Native Backup: A Readiness
   Assessment](backup-replacement-assessment.md) that overstated their severity. Finding
   #1 ("no equivalent to FPP's own config-only backup") missed that FPP's own settings

@@ -38,7 +38,10 @@ fpp-plugin-RemoteBackup/
     status/<id>.json         each remote's live status, polled by the Status page
     label_cache.json          volume labels, cached ~30s to avoid re-shelling out to
                                findmnt on every status/cloneStatus poll
-    run_active.json, clone_active.json, *.lock, pids/    run/clone overlap guards
+    run_active.json, clone_active.json, run.lock, clone.lock, pids/
+                               run/clone overlap guards
+    known_hosts.lock          serializes concurrent remotes' known_hosts edits
+                               (see rb_clear_stale_host_key() in lib_common.sh)
     logs/
       engine.log             run_backup.sh's own log (start/finish, refusals, errors)
       ajax.log                every backend script ajax.php invokes, plus its stderr
