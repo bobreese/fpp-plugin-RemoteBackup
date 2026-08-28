@@ -657,7 +657,23 @@ backup_one() {
         existing=$(find "$DEST_ROOT" -maxdepth 1 -mindepth 1 -type d -name "${id}-*" ! -name "${id}-${today}" 2>/dev/null | sort | tail -1)
         target="${DEST_ROOT}/${id}-${today}"
         if [ "$DRYRUN" = "1" ]; then
-            : # see snapshot-mode comment above - no mkdir/mv for a dry run
+            # See snapshot-mode comment above - no mkdir/mv for a dry run,
+            # ever. But a REAL run renames $existing -> $target in place
+            # before rsync touches it (below), so rsync only ever sees the
+            # small day-over-day delta against already-existing content,
+            # never a fresh empty folder. Comparing the dry-run estimate
+            # against $target instead - which doesn't exist yet, since
+            # dry runs never rename anything - meant it graded a rolling-
+            # mode remote's ENTIRE media tree as "new" every single day,
+            # instead of showing the same small delta the real run
+            # actually does. Confirmed against real logs: a Dry Run
+            # reporting ~2.1GB "to transfer" for remotes whose very next
+            # real run only transferred a handful of MB. Point the
+            # comparison at $existing instead when there is one - the
+            # same fix already applied in estimate_one() above (used for
+            # both the Dry Run summary's total AND the pre-flight space
+            # check before every real run), kept in sync with it here.
+            [ -n "$existing" ] && target="$existing"
         else
             if [ -n "$existing" ] && [ ! -d "$target" ]; then
                 mv "$existing" "$target"
