@@ -36,9 +36,10 @@ Three FPP-side things are in scope for comparison:
    content backup, restorable via File Copy Restore like anything else, but not through
    that same curated single-click "restore my settings" experience, and not extractable
    as a standalone artifact without the whole media backup alongside it. The optional
-   system-config capture (`/etc/fpp`, network config as a raw `.tar.gz`) covers the
-   OS/network layer separately and isn't something FPP's restore flow can read back in
-   either.
+   system-config capture (`/etc/fpp`, network config as a raw `.tar.gz`) has the same
+   restore gap, one layer further down: getting it back onto a system means manually
+   untarring the archive and copying files into place by hand - there's no guided restore
+   for it from FPP or this plugin, only the raw material to do it yourself.
    - *Severity worth reconsidering:* this is a real gap in convenience and portability,
      not in whether the underlying settings data survives a disaster - meaningfully
      narrower than "no equivalent... to config-only backup" originally implied. Whether
