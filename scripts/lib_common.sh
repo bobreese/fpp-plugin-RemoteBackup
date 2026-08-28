@@ -397,12 +397,29 @@ rb_prune_remote_logs() {
 # here is the intended, expected outcome rather than a MITM downgrade -
 # the real host identity is still learned fresh on this very connection,
 # same as it would be for a remote never seen before.
+#
+# Wrapped in its own flock (known_hosts.lock) because run_backup.sh runs
+# multiple remotes' backup_one() calls concurrently (bounded by Config's
+# max concurrent transfers), and each one reaches this function before
+# connecting. ssh-keygen -R edits known_hosts by writing a fresh temp file
+# and backing up the original as known_hosts.old, then renaming the temp
+# file into place - two invocations racing on the same file step on each
+# other's backup/rename, and the loser's temp file (named
+# known_hosts.<random>) is left behind rather than cleaned up. Confirmed
+# in the wild: dozens of orphaned known_hosts.<random> files accumulating
+# in ~/.ssh, clustered at timestamps where several remotes' runs
+# overlapped. Blocking (not -n): a caller that lost the race should wait
+# its turn, not skip the clear - skipping it reintroduces the exact
+# stale-host-key failure this function exists to prevent.
 rb_clear_stale_host_key() {
     local addr="$1" port="${2:-22}"
-    ssh-keygen -R "$addr" >/dev/null 2>&1
-    if [ -n "$port" ] && [ "$port" != "22" ]; then
-        ssh-keygen -R "[${addr}]:${port}" >/dev/null 2>&1
-    fi
+    (
+        flock 7
+        ssh-keygen -R "$addr" >/dev/null 2>&1
+        if [ -n "$port" ] && [ "$port" != "22" ]; then
+            ssh-keygen -R "[${addr}]:${port}" >/dev/null 2>&1
+        fi
+    ) 7>"${DATA_DIR}/known_hosts.lock"
     return 0
 }
 
