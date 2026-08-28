@@ -5,6 +5,13 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** clarified the intro of
+  [Replacing FPP's Native Backup: A Readiness Assessment](backup-replacement-assessment.md) -
+  it previously read as if replacing FPP's native tools were a goal or roadmap item of
+  this plugin. It's never been that: the document exists as a hypothetical readiness
+  check, kept up to date in case FPP's own developers ever want to weigh this plugin as a
+  possibility for that role - not something this plugin is pursuing on its own.
+
 - **Documented:** reworded finding #1's system-config sentence in
   [Replacing FPP's Native Backup: A Readiness Assessment](backup-replacement-assessment.md) -
   "covers the OS/network layer separately" read as reassurance before the actual restore

@@ -2,11 +2,13 @@
 
 [← Back to README](../README.md)
 
-A working list of what stands between Remote Backup as it is today and fully replacing
-FPP's native backup and restore tools, kept here to revisit and re-evaluate as the
-plugin matures. This is a plain-language audit, not a benchmark - each finding is rated
-by how much it actually blocks a "replace FPP's native tools" decision, not by how hard
-it would be to fix.
+A working list of what would stand between Remote Backup as it is today and fully
+replacing FPP's native backup and restore tools - not a goal or roadmap of this plugin,
+which has never set out to replace anything, but a plain-language readiness check kept
+here in case FPP's own developers ever want to weigh this plugin as a possibility for
+that role, revisited as the plugin matures. Each finding is rated by how much it would
+actually block a "replace FPP's native tools" decision, not by how hard it would be to
+fix.
 
 Three FPP-side things are in scope for comparison:
 
