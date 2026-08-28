@@ -99,6 +99,15 @@ Three FPP-side things are in scope for comparison:
    - *To close it:* some form of push beyond the Status page - even something modest,
      like an FPP Command/event hook on repeated failure, or a summary emailed after
      every scheduled run.
+   - *Shipped:* Config's Email Settings section now sends a status email after backup
+     runs (which remotes to include - all runs vs. scheduled only - and which outcomes
+     warrant one, up to always), reusing FPP's own outbound email setup rather than this
+     plugin managing delivery itself. See [Features & Safe Guards](features.md#features).
+     Narrows this finding rather than fully closing it: it depends on FPP's own Setting >
+     Email actually being configured (nothing enforces that), and delivery past FPP's own
+     local mail relay is never confirmed - a bad SMTP password or a blocked outbound port
+     fails silently past that point, the same gap this finding describes just moved one
+     layer down.
 
 ### Minor - worth knowing, not blocking
 

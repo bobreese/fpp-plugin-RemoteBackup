@@ -119,6 +119,7 @@ fi
 HALTED_REASON=$(rb_setting '.haltedReason')
 if [ -n "$HALTED_REASON" ]; then
     rb_log "ABORT: refusing to start - backups are halted: $HALTED_REASON"
+    rb_email_run_refusal "backups are halted - $HALTED_REASON"
     echo "A Remote Backup run was refused: backups are halted - $HALTED_REASON. Resolve it on the Config or Status page (pick a destination, or use the failover) before the next run." >&2
     exit 1
 fi
@@ -134,12 +135,14 @@ fi
 # for the first time.
 if [ "$DRYRUN" != "1" ] && [ "$(rb_setting '.hostModeEnabled' 'false')" != "true" ]; then
     rb_log "ABORT: refusing to start - Host Mode is not enabled on this system (Config > Backup Host Mode)."
+    rb_email_run_refusal "Host Mode is not enabled on this system (Config > Backup Host Mode)"
     echo "Remote Backup NOT started: this system does not have Host Mode enabled (Config > Backup Host Mode). Dry Run still works either way." >&2
     exit 1
 fi
 
 DEST_MOUNT=$(rb_setting '.destinationMount')
 if [ -z "$DEST_MOUNT" ] || [ ! -d "$DEST_MOUNT" ]; then
+    rb_email_run_refusal "destination storage is not configured or not mounted: '$DEST_MOUNT'"
     echo "Destination storage is not configured or not mounted: '$DEST_MOUNT'" >&2
     exit 1
 fi
@@ -158,6 +161,7 @@ rb_dest_mounted() {
 }
 
 if ! rb_dest_mounted; then
+    rb_email_run_refusal "destination storage '$DEST_MOUNT' is not currently mounted (drive may have been unplugged, unmounted, or is mid-format)"
     echo "Destination storage '$DEST_MOUNT' is not currently mounted (drive may have been unplugged, unmounted, or is mid-format). Re-check Config > Storage." >&2
     exit 1
 fi
@@ -253,6 +257,7 @@ fi
 
 COUNT=$(echo "$REMOTES_JSON" | jq 'length')
 if [ "$COUNT" -eq 0 ]; then
+    rb_email_run_refusal "no remotes selected"
     echo "No remotes selected." >&2
     exit 1
 fi
@@ -359,6 +364,11 @@ if [ "$PLAYING_COUNT" -gt 0 ]; then
             reason="every selected remote is currently playing a sequence: $PLAYING_NAMES"
             rb_log "ABORT: refusing to start - $reason"
             record_scheduled_play_outcome "skip" "1"
+            # Not rb_email_run_refusal: every playing remote above already
+            # got a real "skipped" status written for this RUN_ID, so the
+            # normal per-run summary path has actual data to report rather
+            # than just a refusal reason.
+            rb_send_run_summary_email
             echo "A Remote Backup run was refused: $reason" >&2
             exit 1
         fi
@@ -369,6 +379,7 @@ if [ "$PLAYING_COUNT" -gt 0 ]; then
         reason="refusing to start - currently playing a sequence: $PLAYING_NAMES"
         rb_log "ABORT: $reason"
         record_scheduled_play_outcome "stop" "1"
+        rb_email_run_refusal "$reason"
         echo "A Remote Backup run was refused: $reason" >&2
         exit 1
     fi
@@ -476,6 +487,7 @@ if [ "$DRYRUN" != "1" ] && [ "$SKIP_SPACE_CHECK" != "1" ]; then
         rb_set_setting '.lowSpaceReason' "$reason"
         jq --argjson e "$ESTIMATE_TOTAL" --argjson a "$AVAILABLE_NOW" '.lowSpaceEstimatedBytes = $e | .lowSpaceAvailableBytes = $a' \
             "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp_lowspace" 2>/dev/null && mv "${SETTINGS_FILE}.tmp_lowspace" "$SETTINGS_FILE"
+        rb_email_run_refusal "$reason"
         echo "A Remote Backup run was refused: $reason" >&2
         exit 1
     }
@@ -1005,6 +1017,8 @@ while IFS= read -r remote_json; do
 done < "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 wait
 rm -f "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
+
+rb_send_run_summary_email
 
 echo '{"active": false}' > "${DATA_DIR}/run_active.json"
 # Re-establish the bind mount (if the toggle/destination still call for it)

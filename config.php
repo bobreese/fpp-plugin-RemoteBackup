@@ -202,6 +202,42 @@ $rbPlugin = basename(__DIR__);
         </div>
     </fieldset>
 
+    <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-email">
+        <legend>Email Settings</legend>
+        <div class="p-2">
+            <label><input type="checkbox" id="rb-emailNotifyEnabled">
+                Send an email status update after backup runs</label><br>
+            <small>Reuses FPP's own outbound email (<code>FPP Settings &gt; Email</code>) - it needs a real SMTP
+                server entered there and "Configure Email" clicked at least once, or there's nowhere for this to
+                send to. This plugin doesn't manage email delivery itself.</small>
+            <div id="rb-emailFppStatus" class="mt-1 small"></div>
+            <div id="rb-emailSubOptions" class="mt-2" style="display:none">
+                <strong>Send for:</strong><br>
+                <label class="ms-3"><input type="radio" name="rb-emailScope-choice" id="rb-emailScope-scheduled" value="scheduled">
+                    Scheduled runs only (default) - a manual Start Backup click is already being watched live on the Status page.</label><br>
+                <label class="ms-3"><input type="radio" name="rb-emailScope-choice" id="rb-emailScope-all" value="all">
+                    All backup runs, manual and scheduled.</label><br>
+                <br>
+                <strong>Send when:</strong><br>
+                <label class="ms-3"><input type="radio" name="rb-emailOutcome-choice" id="rb-emailOutcome-completed" value="completed">
+                    At least one remote completed.</label><br>
+                <label class="ms-3"><input type="radio" name="rb-emailOutcome-choice" id="rb-emailOutcome-failed" value="failed">
+                    At least one remote failed.</label><br>
+                <label class="ms-3"><input type="radio" name="rb-emailOutcome-choice" id="rb-emailOutcome-skipped" value="skipped">
+                    At least one remote was skipped (busy with a show when the run started).</label><br>
+                <label class="ms-3"><input type="radio" name="rb-emailOutcome-choice" id="rb-emailOutcome-failed_or_skipped" value="failed_or_skipped">
+                    At least one remote failed and/or was skipped (default) - the case most worth an alert.</label><br>
+                <label class="ms-3"><input type="radio" name="rb-emailOutcome-choice" id="rb-emailOutcome-all" value="all">
+                    Every included run, regardless of outcome.</label><br>
+                <br>
+                <small>A run's email lists every remote's own result. A run refused before any remote started
+                    (halted, no destination, low space, etc.) counts as "failed" here and sends a short reason
+                    instead of a per-remote list. Dry Runs never send email, and a run refused only because another
+                    run was already in progress never does either - that's routine overlap, not a problem.</small>
+            </div>
+        </div>
+    </fieldset>
+
     <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-schedule">
         <legend>Show Schedule Conflict Check</legend>
         <div class="p-2">
@@ -324,6 +360,30 @@ $rbPlugin = basename(__DIR__);
         } else {
             el.innerHTML = '<span class="text-muted">Not currently active - the drive at <code>/mnt/Backups</code> ' +
                 'must be mounted and saved as the destination above for this to take effect.</span>';
+        }
+    }
+
+    // Shows/hides the "Send for:"/"Send when:" sub-options based on the
+    // master checkbox, and - only while it's checked - warns if FPP's own
+    // Setting > Email has no destination address configured yet (read
+    // once at page load via loadSettings' fppEmailToEmail, not re-checked
+    // per keystroke - that setting lives on a completely different page).
+    // A warning here is informational only: nothing below is disabled,
+    // since saving now and configuring FPP's email afterward is a
+    // perfectly normal order to do this in.
+    function renderEmailFppStatus() {
+        var sub = document.getElementById('rb-emailSubOptions');
+        var status = document.getElementById('rb-emailFppStatus');
+        var enabled = document.getElementById('rb-emailNotifyEnabled').checked;
+        if (sub) sub.style.display = enabled ? '' : 'none';
+        if (!status) return;
+        if (!enabled) { status.innerHTML = ''; return; }
+        if (state.fppEmailToEmail) {
+            status.innerHTML = '<span class="text-success">&#10003; FPP Setting &gt; Email is configured to send to <code>' +
+                state.fppEmailToEmail + '</code>.</span>';
+        } else {
+            status.innerHTML = '<span class="text-warning">FPP Setting &gt; Email has no destination address configured yet - ' +
+                'these settings will save, but nothing will actually be emailed until that\'s set up.</span>';
         }
     }
 
@@ -1615,6 +1675,14 @@ $rbPlugin = basename(__DIR__);
             renderBindMountStatus();
             var playPolicy = state.settings.remotePlayingPolicy === 'skip' ? 'skip' : 'stop';
             document.getElementById('rb-playPolicy-' + playPolicy).checked = true;
+            document.getElementById('rb-emailNotifyEnabled').checked = !!state.settings.emailNotifyEnabled;
+            var emailScope = state.settings.emailNotifyScope === 'all' ? 'all' : 'scheduled';
+            document.getElementById('rb-emailScope-' + emailScope).checked = true;
+            var emailOutcomeIds = ['completed', 'failed', 'skipped', 'failed_or_skipped', 'all'];
+            var emailOutcome = emailOutcomeIds.indexOf(state.settings.emailNotifyOutcome) !== -1 ? state.settings.emailNotifyOutcome : 'failed_or_skipped';
+            document.getElementById('rb-emailOutcome-' + emailOutcome).checked = true;
+            state.fppEmailToEmail = res.fppEmailToEmail || '';
+            renderEmailFppStatus();
             document.getElementById('rb-maxConcurrent').value = state.settings.maxConcurrent || 2;
             document.getElementById('rb-logRetentionCount').value = state.settings.logRetentionCount || 15;
             document.getElementById('rb-sshUser').value = state.settings.sshUser || 'fpp';
@@ -1667,6 +1735,7 @@ $rbPlugin = basename(__DIR__);
     // currently active" right away, and checking it shows the true state
     // (which only actually changes once this is saved).
     document.getElementById('rb-enableRestoreBindMount').addEventListener('change', renderBindMountStatus);
+    document.getElementById('rb-emailNotifyEnabled').addEventListener('change', renderEmailFppStatus);
 
     document.getElementById('rb-refreshStorage').addEventListener('click', function () {
         setScanning('rb-storageList');
@@ -1741,6 +1810,9 @@ $rbPlugin = basename(__DIR__);
             onboardingTourEnabled: document.getElementById('rb-onboardingTourEnabled').checked,
             purgeSdCardBackups: rbPendingSdCardPurge === true,
             remotePlayingPolicy: document.getElementById('rb-playPolicy-skip').checked ? 'skip' : 'stop',
+            emailNotifyEnabled: document.getElementById('rb-emailNotifyEnabled').checked,
+            emailNotifyScope: document.getElementById('rb-emailScope-all').checked ? 'all' : 'scheduled',
+            emailNotifyOutcome: (document.querySelector('input[name="rb-emailOutcome-choice"]:checked') || {}).value || 'failed_or_skipped',
             scheduleMasterAddress: currentScheduleMasterAddress(),
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
             logRetentionCount: parseInt(document.getElementById('rb-logRetentionCount').value, 10) || 15,
@@ -1831,6 +1903,13 @@ $rbPlugin = basename(__DIR__);
             text: 'Everything that controls how a backup actually runs - what happens if a remote is mid-show, ' +
                 'how many run at once, log retention, SSH credentials, and exclude patterns. Each field has its ' +
                 'own short description right below it.'
+        },
+        {
+            selector: '#rb-fieldset-email',
+            title: 'Email Settings',
+            text: 'Optional. Sends a status email after backup runs, using FPP\'s own outbound email ' +
+                '(FPP Setting > Email) - configure that separately if you want this to actually deliver ' +
+                'anywhere.'
         },
         {
             selector: '#rb-fieldset-schedule',

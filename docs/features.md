@@ -195,6 +195,19 @@
   have it back in its normal spot in the page - a per-browser display preference stored
   locally, not a saved setting, so it applies immediately and doesn't need Save Settings
   clicked to take effect.
+- **Optional email status updates.** Config's **Email Settings** section (between Backup
+  Options and Show Schedule Conflict Check), off by default. Reuses FPP's own outbound
+  email (`FPP Settings > Email`'s "Default TO Address") rather than this plugin managing
+  delivery itself - a real SMTP server needs to be entered there and "Configure Email"
+  clicked at least once, or there's nowhere for a status email to go (Config shows whether
+  that's already done). Two independent choices: **Send for** all runs or scheduled runs
+  only (default - a manual Start Backup click is already being watched live), and **Send
+  when** at least one remote completed / failed / was skipped / failed-and-or-skipped
+  (default) / or every included run regardless of outcome. The email lists every remote's
+  own result; a run refused before any remote started (halted, no destination, low space,
+  etc.) counts as "failed" and sends a short reason instead of a per-remote list. Dry Runs
+  never send email, and a run refused only because another run was already in progress
+  never does either - that's routine overlap, not a problem worth an alert.
 
 ## Safe Guards
 

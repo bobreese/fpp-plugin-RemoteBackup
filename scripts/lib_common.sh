@@ -448,3 +448,144 @@ rb_parse_rsync_bytes() {
         *) echo "$token" ;;
     esac
 }
+
+# --- Optional email status updates (Config > Email Settings) -------------
+# Uses FPP's OWN outbound email setup (FPP Setting > Email), not anything
+# this plugin manages itself - once a user has configured a real SMTP
+# server there and clicked "Configure Email", FPP has set up the local
+# exim4 MTA as a relay and aliased local mail to whatever "emailtoemail"
+# (its "Default TO Address") is set to. FPP's own Send Test Email button
+# (api/controllers/email.php) just shells out to the `mail` command
+# addressed to that same setting - there's no general "send an email with
+# this subject/body" API in FPP core to call instead, so this reuses the
+# exact same underlying mechanism directly.
+
+# rb_fpp_setting <name>: reads one value from FPP's OWN settings file
+# (/home/fpp/media/settings - a plain `key = "value"` per line format,
+# NOT this plugin's own JSON settings.json), the same way FPP's own
+# getSetting() bash helper (scripts/common) does. Deliberately a plain
+# grep/sed rather than sourcing all of FPP's own scripts/common, which
+# pulls in far more environment setup than reading one setting needs.
+rb_fpp_setting() {
+    local name="$1" f="/home/fpp/media/settings"
+    [ -f "$f" ] || return 0
+    grep -i --binary-files=text "^${name}\s*=.*" "$f" 2>/dev/null | head -1 | sed -E -e "s/^${name}\s*=\s*(.*)/\1/" -e 's/"//g'
+}
+
+# rb_send_status_email <subject> <body>: pipes body to the `mail` command
+# addressed to FPP's own configured emailtoemail. Fire-and-forget: `mail`
+# accepting the message locally means FPP's own exim4 relay picked it up
+# for delivery, not that it actually arrived - a bad SMTP password or a
+# blocked outbound port fails asynchronously and invisibly from here,
+# exactly like FPP's own Send Test Email button. Subject is stripped of
+# any CR/LF first since it's built partly from user-editable remote
+# hostnames - cheap insurance against header injection via `mail -s`.
+rb_send_status_email() {
+    local subject body to
+    subject=$(printf '%s' "$1" | tr -d '\r\n')
+    body="$2"
+    to=$(rb_fpp_setting 'emailtoemail')
+    if [ -z "$to" ]; then
+        rb_log "EMAIL: skipped '$subject' - FPP Setting > Email has no destination address configured"
+        return 1
+    fi
+    if ! command -v mail >/dev/null 2>&1; then
+        rb_log "EMAIL: skipped '$subject' - 'mail' command not found (should ship with FPP's own mailutils package)"
+        return 1
+    fi
+    if printf '%s\n' "$body" | mail -s "$subject" "$to" 2>>"${LOG_DIR}/engine.log"; then
+        rb_log "EMAIL: sent '$subject' to $to"
+    else
+        rb_log "EMAIL: mail command failed sending '$subject' to $to"
+    fi
+}
+
+# rb_email_run_refusal <reason>: the whole-run-never-started counterpart to
+# rb_send_run_summary_email() below - call from an early abort site where
+# no remote was ever touched, so there's no per-remote status to
+# summarize. Counts as "failed" for emailNotifyOutcome purposes (only
+# sent under failed / failed_or_skipped / all, never completed/skipped
+# alone). Deliberately never called for "another run is already in
+# progress" (run.lock held) - that's routine overlap from a run that's
+# still going, not a problem needing attention, and would spam an inbox
+# every time a long run overruns its next scheduled slot. Reads
+# DRYRUN/SCHEDULED from the caller's scope (run_backup.sh's own globals).
+rb_email_run_refusal() {
+    local reason="$1"
+    [ "$DRYRUN" = "1" ] && return 0
+    [ "$(rb_setting '.emailNotifyEnabled' 'false')" = "true" ] || return 0
+    local scope
+    scope=$(rb_setting '.emailNotifyScope' 'scheduled')
+    if [ "$scope" = "scheduled" ] && [ "$SCHEDULED" != "1" ]; then
+        return 0
+    fi
+    case "$(rb_setting '.emailNotifyOutcome' 'failed_or_skipped')" in
+        failed | failed_or_skipped | all) ;;
+        *) return 0 ;;
+    esac
+    local host_name
+    host_name=$(hostname 2>/dev/null)
+    rb_send_status_email "Remote Backup: run refused - ${host_name}" \
+        "A Remote Backup run was refused on ${host_name} at $(rb_now_iso): ${reason}"
+}
+
+# rb_send_run_summary_email: gathers every remote's status for THIS run
+# (data/status/<id>.json entries whose runId matches $RUN_ID - a plain
+# glob rather than a list of known ids, so it naturally includes remotes
+# a "skip busy remote" play-policy already wrote a real "skipped" status
+# for earlier in this same run, before the main per-remote loop even
+# started) and, if emailNotifyEnabled/Scope/Outcome say to, emails a
+# plain-text summary. Reads DRYRUN/SCHEDULED/RUN_ID from the caller's
+# scope (run_backup.sh's own globals) - never called for a dry run.
+rb_send_run_summary_email() {
+    [ "$DRYRUN" = "1" ] && return 0
+    [ "$(rb_setting '.emailNotifyEnabled' 'false')" = "true" ] || return 0
+    local scope
+    scope=$(rb_setting '.emailNotifyScope' 'scheduled')
+    if [ "$scope" = "scheduled" ] && [ "$SCHEDULED" != "1" ]; then
+        return 0
+    fi
+
+    local statuses total
+    statuses=$(jq -s --arg run "$RUN_ID" '[.[] | select(.runId == $run)]' "${STATUS_DIR}"/*.json 2>/dev/null)
+    [ -z "$statuses" ] && statuses='[]'
+    total=$(echo "$statuses" | jq 'length')
+    [ "$total" -eq 0 ] && return 0
+
+    local ok_n err_n skip_n
+    ok_n=$(echo "$statuses" | jq '[.[] | select(.state=="done" or .state=="done-with-warnings")] | length')
+    err_n=$(echo "$statuses" | jq '[.[] | select(.state=="error")] | length')
+    skip_n=$(echo "$statuses" | jq '[.[] | select(.state=="skipped")] | length')
+
+    local send=0
+    case "$(rb_setting '.emailNotifyOutcome' 'failed_or_skipped')" in
+        completed) [ "$ok_n" -gt 0 ] && send=1 ;;
+        failed) [ "$err_n" -gt 0 ] && send=1 ;;
+        skipped) [ "$skip_n" -gt 0 ] && send=1 ;;
+        failed_or_skipped)
+            if [ "$err_n" -gt 0 ] || [ "$skip_n" -gt 0 ]; then
+                send=1
+            fi
+            ;;
+        all) send=1 ;;
+    esac
+    [ "$send" = "1" ] || return 0
+
+    local host_name subject body
+    host_name=$(hostname 2>/dev/null)
+    subject="Remote Backup: ${ok_n} OK, ${err_n} failed, ${skip_n} skipped - ${host_name}"
+    body="Remote Backup run finished on ${host_name} at $(rb_now_iso) (runId=${RUN_ID})"
+    body+=$'\n\n'
+    body+=$(echo "$statuses" | jq -r '
+        .[] | (
+            (if .state=="done" then "OK"
+             elif .state=="done-with-warnings" then "OK (warnings)"
+             elif .state=="error" then "FAILED"
+             elif .state=="skipped" then "SKIPPED"
+             else (.state // "unknown") end) as $label
+            | "\(.hostname // .id): \($label)" +
+              (if (.errorDetail // "") != "" then " - \(.errorDetail)" else "" end)
+        )')
+    body+=$'\n\n'"Full detail: Status page on the Host, or data/logs/ on disk."
+    rb_send_status_email "$subject" "$body"
+}
