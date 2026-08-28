@@ -288,6 +288,33 @@ function rb_resolve_log_file($which) {
     return $AJAX_LOG;
 }
 
+// rb_fpp_email_to(): reads FPP's OWN "emailtoemail" setting (FPP Setting >
+// Email's "Default TO Address") directly from its settings file - a plain
+// `key = "value"` per line format at /home/fpp/media/settings, NOT this
+// plugin's own data/settings.json. Deliberately reads the file fresh
+// rather than trusting FPP's own already-populated global $settings
+// (populated by www/config.php, which plugin.php always requires before
+// this file runs): every case below that touches settings does
+// `$settings = rb_load_settings(...)` for THIS plugin's own settings
+// object, using the same variable name - the first such reassignment
+// would silently shadow FPP's global for the rest of the request. Reading
+// the file directly here sidesteps that shadowing hazard entirely. Used
+// only so Config can show whether FPP's own email is configured at all -
+// the actual send (scripts/lib_common.sh's rb_send_status_email) reads
+// this same file itself, independently, from the bash side.
+function rb_fpp_email_to() {
+    $f = '/home/fpp/media/settings';
+    if (!is_file($f)) return '';
+    $lines = @file($f, FILE_IGNORE_NEW_LINES);
+    if (!$lines) return '';
+    foreach ($lines as $line) {
+        if (preg_match('/^emailtoemail\s*=\s*"?([^"]*)"?\s*$/i', $line, $m)) {
+            return trim($m[1]);
+        }
+    }
+    return '';
+}
+
 function rb_default_settings() {
     return [
         'hostModeEnabled' => false,
@@ -390,7 +417,39 @@ function rb_default_settings() {
         // the tour immediately in config.php's JS, independent of whether
         // this saved value is true or false yet. The "?" next to it is
         // just an explanatory popover, not a separate control.
-        'onboardingTourEnabled' => true
+        'onboardingTourEnabled' => true,
+        // Optional email status updates after a backup run, reusing FPP's
+        // OWN outbound email setup (FPP Setting > Email's "Default TO
+        // Address") rather than anything this plugin manages itself - see
+        // rb_send_status_email()/rb_send_run_summary_email() in
+        // lib_common.sh for the actual send logic. Off by default: this is
+        // opt-in, and depends on FPP's own Email settings already being
+        // configured (checked at send time, not enforced here).
+        'emailNotifyEnabled' => false,
+        // 'all' = every real run, manual Start Backup clicks included;
+        // 'scheduled' (default) = only a run started by FPP's Scheduler/
+        // Playlist/Event (run_backup.sh's own --scheduled flag) - someone
+        // clicking Start Backup manually is already watching the Status
+        // page live, so a scheduled-only default avoids emailing about
+        // runs somebody triggered and is already looking at.
+        'emailNotifyScope' => 'scheduled',
+        // Which outcome(s) in a run trigger an email: 'completed' (at
+        // least one remote finished OK), 'failed' (at least one errored),
+        // 'skipped' (at least one was skipped - busy remote under the
+        // skip play-policy), 'failed_or_skipped', or 'all' (always, once
+        // scope above already said to send for this run). Defaults to
+        // 'failed_or_skipped' - the actual silent-failure gap this
+        // feature exists to close is a run that needed attention and
+        // nobody happened to check the Status page.
+        'emailNotifyOutcome' => 'failed_or_skipped',
+        // Off by default: a second read-only rsync dry-run pass against
+        // each remote after its real transfer finishes, comparing source
+        // and destination once more (size/mtime, the same thing rsync
+        // itself always checks - not a content checksum). See
+        // run_backup.sh's own comment on this block for what it does and
+        // doesn't prove. Adds a second directory-listing round trip over
+        // SSH to every remote's run, so it's opt-in rather than always-on.
+        'verifyAfterRun' => false
     ];
 }
 
@@ -726,7 +785,15 @@ switch ($action) {
         // every load fell back to the upgrade-safe default and the tour
         // never fired for what should have shown it automatically.
         $settingsFileExisted = file_exists($SETTINGS_FILE);
-        echo json_encode(['ok' => true, 'data' => rb_load_settings($SETTINGS_FILE), 'settingsFileExisted' => $settingsFileExisted]);
+        echo json_encode([
+            'ok' => true,
+            'data' => rb_load_settings($SETTINGS_FILE),
+            'settingsFileExisted' => $settingsFileExisted,
+            // So Config's Email Settings section can warn when there's
+            // nowhere for a status email to actually go, without needing
+            // its own separate round trip.
+            'fppEmailToEmail' => rb_fpp_email_to()
+        ]);
         break;
     }
 
@@ -758,7 +825,7 @@ switch ($action) {
         $settings = rb_load_settings($SETTINGS_FILE);
         $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
 
-        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount', 'onboardingTourEnabled'] as $k) {
+        foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount', 'onboardingTourEnabled', 'emailNotifyEnabled', 'verifyAfterRun'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
         }
         foreach (['destinationMount', 'destinationLabel', 'sshUser', 'sshKeyPath', 'sshPassword', 'scheduleMasterAddress'] as $k) {
@@ -781,6 +848,12 @@ switch ($action) {
         }
         if (isset($body['remotePlayingPolicy']) && in_array($body['remotePlayingPolicy'], ['stop', 'skip'], true)) {
             $settings['remotePlayingPolicy'] = $body['remotePlayingPolicy'];
+        }
+        if (isset($body['emailNotifyScope']) && in_array($body['emailNotifyScope'], ['all', 'scheduled'], true)) {
+            $settings['emailNotifyScope'] = $body['emailNotifyScope'];
+        }
+        if (isset($body['emailNotifyOutcome']) && in_array($body['emailNotifyOutcome'], ['completed', 'failed', 'skipped', 'failed_or_skipped', 'all'], true)) {
+            $settings['emailNotifyOutcome'] = $body['emailNotifyOutcome'];
         }
         if (isset($body['logRetentionCount'])) {
             // Clamped rather than trusted outright - this feeds straight into

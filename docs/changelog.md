@@ -5,6 +5,55 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `fpp_uninstall.sh` now removes the stray `/etc/fstab.rb-*-bak` backup files
+  left behind by every `sed -i.<suffix>` edit this plugin makes to `/etc/fstab` across
+  `mount_usb.sh` (`.rb-mount-bak`), `unmount_usb.sh` (`.rb-unmount-bak`), `format_usb.sh`
+  (`.rb-reformat-bak`), and `fpp_uninstall.sh` itself (`.rb-uninstall-bak`) - a normal
+  uninstall now leaves none of the four behind. Considered and rejected: backing up the
+  original `/etc/fstab` once at install and restoring it wholesale at uninstall instead of
+  this plugin's existing targeted line-deletion approach - `/etc/fstab` isn't exclusive to
+  this plugin, so a full-file restore would silently discard any other fstab changes made
+  in between (a manual mount, another plugin's own entry), which is a bigger blast radius
+  than today's "only ever touch this plugin's own mountpoint lines" design. The narrower
+  gap remains open on purpose: nothing cleans these files up between mount/unmount/
+  reformat actions while the plugin stays installed, only at uninstall.
+
+- **Added:** optional post-run integrity verification - Backup Options' "Verify backup
+  integrity after each run" checkbox, off by default. Reuses `estimate_one()`'s own
+  mechanism (a read-only `rsync -n --stats` dry-run pass, the same one behind the
+  pre-flight space check and the Dry Run button), just run again after a real transfer
+  finishes, against the exact target it just wrote to - a clean result means rsync's own
+  size/mtime comparison sees nothing left to change. Mirrors the real run's own
+  `--delete` choice, so a destination-only leftover doesn't get missed. Not a byte-for-
+  byte checksum (that's `rsync --checksum`, reading every byte on both ends - meaningfully
+  slower, deliberately not what this does) and not proof against a remote actively
+  recording/playing between the backup and this check, which can show a false "differs"
+  for content that's simply new. Result (`verifyState`/`verifyDetail`, one of
+  clean/mismatch/error) is written into the same per-remote status JSON `run_backup.sh`
+  already produces, shown as a small badge on the Status page, and folded into each
+  remote's line in the email summary above.
+
+- **Added:** optional email status updates after backup runs - a new **Email Settings**
+  section on Config, between Backup Options and Show Schedule Conflict Check, off by
+  default. Reuses FPP's own outbound email (`FPP Settings > Email`'s "Default TO
+  Address") rather than this plugin managing delivery itself: FPP's own REST API has no
+  general "send a custom email" endpoint, just a hardcoded test message
+  (`api/controllers/email.php`'s `SendTestEmail`), so this shells out to the same `mail`
+  command that endpoint uses, addressed to whatever `emailtoemail` is configured -
+  nothing new to install, `mail`/`exim4` ship with every FPP system already. Two
+  independent choices: **Send for** all runs or scheduled runs only (default), and
+  **Send when** at least one remote completed / failed / was skipped /
+  failed-and-or-skipped (default) / or always. A run refused before any remote started
+  (halted, no destination, low space, "every selected remote is playing," etc.) counts
+  as "failed" and sends a short reason instead of a per-remote list - except a run
+  refused only because another run is already in progress, which never emails (routine
+  overlap, not a problem). Dry Runs never send email either way. New
+  `rb_send_status_email()`/`rb_send_run_summary_email()`/`rb_email_run_refusal()` in
+  `lib_common.sh`; Config shows inline whether FPP's own Email settings are actually
+  configured, read fresh from FPP's settings file rather than trusting its already-loaded
+  `$settings` global, which this plugin's own code (same variable name, different
+  object) would otherwise silently shadow.
+
 - **Documented:** FPP 10's fresh-boot "Restore from Backup" button in
   [Restoring a Backup](restoring-a-backup.md)'s "After a fresh SD card" section - it sits
   at the top right of the very first setup screen and can jump straight into a restore,

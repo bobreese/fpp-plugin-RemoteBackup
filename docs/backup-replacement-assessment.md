@@ -99,6 +99,15 @@ Three FPP-side things are in scope for comparison:
    - *To close it:* some form of push beyond the Status page - even something modest,
      like an FPP Command/event hook on repeated failure, or a summary emailed after
      every scheduled run.
+   - *Shipped:* Config's Email Settings section now sends a status email after backup
+     runs (which remotes to include - all runs vs. scheduled only - and which outcomes
+     warrant one, up to always), reusing FPP's own outbound email setup rather than this
+     plugin managing delivery itself. See [Features & Safe Guards](features.md#features).
+     Narrows this finding rather than fully closing it: it depends on FPP's own Setting >
+     Email actually being configured (nothing enforces that), and delivery past FPP's own
+     local mail relay is never confirmed - a bad SMTP password or a blocked outbound port
+     fails silently past that point, the same gap this finding describes just moved one
+     layer down.
 
 ### Minor - worth knowing, not blocking
 
@@ -106,11 +115,28 @@ Three FPP-side things are in scope for comparison:
    verification pass and no test-restore step after a run completes.
    - *To close it:* an optional post-run verification pass, even a lightweight one
      (file count and size comparison against the source).
+   - *Shipped (the lightweight half):* Backup Options' "Verify backup integrity after
+     each run" runs a second read-only rsync dry-run pass comparing source and
+     destination once more, shown as a badge on the Status page and folded into the
+     email summary. Still not a checksum: it's the same size/mtime comparison rsync's
+     own transfer already relies on, not byte-for-byte content verification, and a
+     remote actively recording/playing between the backup and this check can produce a
+     false "differs." A real checksum pass (`rsync --checksum`, reading every byte on
+     both ends) and any test-restore step remain unbuilt.
 8. **A couple of small, already-documented rough edges** - stray `/etc/fstab` backup
    files that never get cleaned up, and the SSH keypair path being hardcoded rather than
    reading its own `sshKeyPath` setting. Both already called out in
    [Requirements, Install, and Uninstall](requirements-install-uninstall.md#uninstall)'s
    Known Minor Gaps.
+   - *Shipped (the fstab half, on uninstall only):* `fpp_uninstall.sh` now removes all
+     four `/etc/fstab.rb-*-bak` files unconditionally as one of its last steps, so a
+     normal uninstall leaves none behind. Deliberately not fixed by snapshotting the
+     original `/etc/fstab` at install and restoring it wholesale at uninstall, which was
+     considered and rejected - `/etc/fstab` isn't exclusive to this plugin, so a full-file
+     restore would silently discard any other fstab changes made in between (a manual
+     mount, another plugin's own entry). The narrower gap remains: nothing cleans these
+     up between mount/unmount/reformat actions while the plugin stays installed, so up to
+     three of the four can still accumulate day to day.
 9. **Still shaking out real bugs.** A 32-bit integer overflow in the free-space display
    was found and fixed in this plugin's development - harmless (display-only, never
    blocked an actual backup), but a sign the codebase is still maturing rather than

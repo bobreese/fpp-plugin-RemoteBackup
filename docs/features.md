@@ -195,6 +195,30 @@
   have it back in its normal spot in the page - a per-browser display preference stored
   locally, not a saved setting, so it applies immediately and doesn't need Save Settings
   clicked to take effect.
+- **Optional email status updates.** Config's **Email Settings** section (between Backup
+  Options and Show Schedule Conflict Check), off by default. Reuses FPP's own outbound
+  email (`FPP Settings > Email`'s "Default TO Address") rather than this plugin managing
+  delivery itself - a real SMTP server needs to be entered there and "Configure Email"
+  clicked at least once, or there's nowhere for a status email to go (Config shows whether
+  that's already done). Two independent choices: **Send for** all runs or scheduled runs
+  only (default - a manual Start Backup click is already being watched live), and **Send
+  when** at least one remote completed / failed / was skipped / failed-and-or-skipped
+  (default) / or every included run regardless of outcome. The email lists every remote's
+  own result; a run refused before any remote started (halted, no destination, low space,
+  etc.) counts as "failed" and sends a short reason instead of a per-remote list. Dry Runs
+  never send email, and a run refused only because another run was already in progress
+  never does either - that's routine overlap, not a problem worth an alert.
+- **Optional post-run verification.** Backup Options' "Verify backup integrity after each
+  run" checkbox, off by default. After a real transfer finishes, runs a second read-only
+  rsync dry-run pass comparing source and destination once more and shows a small badge on
+  the Status page - a checkmark if nothing's left to change, or a warning naming which
+  files still differ. This checks the same thing rsync's own transfer already does (file
+  size and modification time), not a byte-for-byte content checksum, and a remote actively
+  recording/playing between the backup and this check can show a false "differs" for
+  content that's simply new since the backup, not actually missed. Off by default since it
+  adds a second directory-listing pass over SSH to every remote's run. Feeds into the email
+  status updates above too - a verified/mismatched/failed result is noted on that remote's
+  line in the summary.
 
 ## Safe Guards
 

@@ -85,10 +85,23 @@ yourself - they won't do anything once the plugin is gone.
 **Known minor gaps**, both harmless and neither reachable through normal use
 of the plugin today:
 
-- `fpp_uninstall.sh`, `format_usb.sh`, and `unmount_usb.sh` each edit
-  `/etc/fstab` with `sed -i.rb-*-bak`, which leaves a small backup copy of
-  `/etc/fstab` behind (e.g. `/etc/fstab.rb-uninstall-bak`). Nothing ever
-  cleans these up - cosmetic filesystem litter, not a functional issue.
+- `fpp_uninstall.sh`, `format_usb.sh`, `mount_usb.sh`, and `unmount_usb.sh`
+  each edit `/etc/fstab` with `sed -i.rb-*-bak`, which leaves a small backup
+  copy of `/etc/fstab` behind (`/etc/fstab.rb-mount-bak`/`.rb-unmount-bak`/
+  `.rb-reformat-bak`/`.rb-uninstall-bak`). `fpp_uninstall.sh` now removes all
+  four unconditionally as one of its last steps, so a normal uninstall
+  leaves none behind - but nothing cleans them up between mount/unmount/
+  reformat actions during normal day-to-day use, so up to three of the four
+  can still accumulate while the plugin stays installed. Cosmetic
+  filesystem litter either way, not a functional issue - each is sed's own
+  transient safety copy for its own edit, never anything this plugin
+  documented as a real recovery point. Deliberately *not* fixed by
+  snapshotting the original `/etc/fstab` once at install and restoring it
+  wholesale at uninstall: `/etc/fstab` isn't exclusive to this plugin, and a
+  full-file restore would silently discard any *other* fstab changes made
+  in between (a manual mount, another plugin's own entry) - today's
+  targeted deletion of just this plugin's own mountpoint lines is the safer
+  design to keep.
 - `fpp_uninstall.sh` removes the SSH keypair from a hardcoded path
   (`~fpp/.ssh/id_rsa_remotebackup`) rather than reading the `sshKeyPath`
   setting. `sshKeyPath` is accepted by the `saveSettings` API but has no
