@@ -128,6 +128,15 @@ Three FPP-side things are in scope for comparison:
    reading its own `sshKeyPath` setting. Both already called out in
    [Requirements, Install, and Uninstall](requirements-install-uninstall.md#uninstall)'s
    Known Minor Gaps.
+   - *Shipped (the fstab half, on uninstall only):* `fpp_uninstall.sh` now removes all
+     four `/etc/fstab.rb-*-bak` files unconditionally as one of its last steps, so a
+     normal uninstall leaves none behind. Deliberately not fixed by snapshotting the
+     original `/etc/fstab` at install and restoring it wholesale at uninstall, which was
+     considered and rejected - `/etc/fstab` isn't exclusive to this plugin, so a full-file
+     restore would silently discard any other fstab changes made in between (a manual
+     mount, another plugin's own entry). The narrower gap remains: nothing cleans these
+     up between mount/unmount/reformat actions while the plugin stays installed, so up to
+     three of the four can still accumulate day to day.
 9. **Still shaking out real bugs.** A 32-bit integer overflow in the free-space display
    was found and fixed in this plugin's development - harmless (display-only, never
    blocked an actual backup), but a sign the codebase is still maturing rather than

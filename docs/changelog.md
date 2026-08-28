@@ -5,6 +5,19 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `fpp_uninstall.sh` now removes the stray `/etc/fstab.rb-*-bak` backup files
+  left behind by every `sed -i.<suffix>` edit this plugin makes to `/etc/fstab` across
+  `mount_usb.sh` (`.rb-mount-bak`), `unmount_usb.sh` (`.rb-unmount-bak`), `format_usb.sh`
+  (`.rb-reformat-bak`), and `fpp_uninstall.sh` itself (`.rb-uninstall-bak`) - a normal
+  uninstall now leaves none of the four behind. Considered and rejected: backing up the
+  original `/etc/fstab` once at install and restoring it wholesale at uninstall instead of
+  this plugin's existing targeted line-deletion approach - `/etc/fstab` isn't exclusive to
+  this plugin, so a full-file restore would silently discard any other fstab changes made
+  in between (a manual mount, another plugin's own entry), which is a bigger blast radius
+  than today's "only ever touch this plugin's own mountpoint lines" design. The narrower
+  gap remains open on purpose: nothing cleans these files up between mount/unmount/
+  reformat actions while the plugin stays installed, only at uninstall.
+
 - **Added:** optional post-run integrity verification - Backup Options' "Verify backup
   integrity after each run" checkbox, off by default. Reuses `estimate_one()`'s own
   mechanism (a read-only `rsync -n --stats` dry-run pass, the same one behind the

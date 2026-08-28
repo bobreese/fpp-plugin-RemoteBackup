@@ -115,6 +115,20 @@ for MP in /mnt/Backups /mnt/BackupsCopy; do
     fi
 done
 
+# --- Clean up sed's own /etc/fstab.rb-*-bak backup copies ----------------
+# Every sed -i.<suffix> edit this plugin ever makes to /etc/fstab (here,
+# and in mount_usb.sh/unmount_usb.sh/format_usb.sh across this install's
+# whole lifetime) leaves a full backup copy of the file behind at that
+# fixed suffix - .rb-mount-bak, .rb-unmount-bak, .rb-reformat-bak,
+# .rb-uninstall-bak. None of those four ever got removed anywhere, so up
+# to four stray full copies of /etc/fstab could accumulate over an
+# install's life. Not a real recovery mechanism worth preserving on
+# uninstall - sed's own transient safety copy for its own edit, nothing
+# this plugin's docs ever promised as a restore point - so it's fine to
+# remove all four unconditionally here, whether or not the sed calls
+# above actually ran this time.
+rm -f /etc/fstab.rb-mount-bak /etc/fstab.rb-unmount-bak /etc/fstab.rb-reformat-bak /etc/fstab.rb-uninstall-bak
+
 # --- Figure out where backups live before settings.json disappears -----
 DEST_MOUNT=""
 if [ -f "${PLUGINDIR}/data/settings.json" ] && command -v jq >/dev/null 2>&1; then
