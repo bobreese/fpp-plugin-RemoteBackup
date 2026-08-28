@@ -2,11 +2,13 @@
 
 [← Back to README](../README.md)
 
-A working list of what stands between Remote Backup as it is today and fully replacing
-FPP's native backup and restore tools, kept here to revisit and re-evaluate as the
-plugin matures. This is a plain-language audit, not a benchmark - each finding is rated
-by how much it actually blocks a "replace FPP's native tools" decision, not by how hard
-it would be to fix.
+A working list of what would stand between Remote Backup as it is today and fully
+replacing FPP's native backup and restore tools - not a goal or roadmap of this plugin,
+which has never set out to replace anything, but a plain-language readiness check kept
+here in case FPP's own developers ever want to weigh this plugin as a possibility for
+that role, revisited as the plugin matures. Each finding is rated by how much it would
+actually block a "replace FPP's native tools" decision, not by how hard it would be to
+fix.
 
 Three FPP-side things are in scope for comparison:
 
@@ -36,9 +38,10 @@ Three FPP-side things are in scope for comparison:
    content backup, restorable via File Copy Restore like anything else, but not through
    that same curated single-click "restore my settings" experience, and not extractable
    as a standalone artifact without the whole media backup alongside it. The optional
-   system-config capture (`/etc/fpp`, network config as a raw `.tar.gz`) covers the
-   OS/network layer separately and isn't something FPP's restore flow can read back in
-   either.
+   system-config capture (`/etc/fpp`, network config as a raw `.tar.gz`) has the same
+   restore gap, one layer further down: getting it back onto a system means manually
+   untarring the archive and copying files into place by hand - there's no guided restore
+   for it from FPP or this plugin, only the raw material to do it yourself.
    - *Severity worth reconsidering:* this is a real gap in convenience and portability,
      not in whether the underlying settings data survives a disaster - meaningfully
      narrower than "no equivalent... to config-only backup" originally implied. Whether
