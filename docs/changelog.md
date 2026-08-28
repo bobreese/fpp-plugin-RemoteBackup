@@ -5,6 +5,19 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** corrected two findings in [Replacing FPP's Native Backup: A Readiness
+  Assessment](backup-replacement-assessment.md) that overstated their severity. Finding
+  #1 ("no equivalent to FPP's own config-only backup") missed that FPP's own settings
+  under `/home/fpp/media/config/` are already inside the tree Remote Backup pulls
+  wholesale - the data survives, just not through FPP's own packaged single-file
+  export/restore flow, which narrows the gap from "settings aren't backed up" to
+  "settings aren't backed up in FPP's own portable format." Finding #4 ("one Host is a
+  single point of failure") missed that **Clone Backups to a Second Drive** already
+  partially mitigates the data-loss half (an off-site rotated copy protects existing
+  backups from Host/drive destruction) - the real open gap is narrower: operational
+  continuity if the Host itself goes down, which Clone can't help with since it also
+  runs from that same Host.
+
 - **Added:** switching Config's destination away from SD Card/System Storage now offers to
   clean up the backups left behind there - a popup fires the moment a different storage
   radio is clicked (not deferred until Save Settings), offering "Leave Them" or "Remove
