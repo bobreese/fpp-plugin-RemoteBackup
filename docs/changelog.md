@@ -5,6 +5,24 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** Dry Run massively over-reported the transfer size for rolling-mode remotes
+  (the default mode) that already had a previous backup - reported in the wild as a Dry
+  Run showing ~2.1GB "to transfer" for remotes whose very next real run only transferred a
+  handful of MB. Root cause: a real rolling-mode run renames the previous day's dated
+  backup folder to today's name *before* rsync runs, so rsync only ever sees the small
+  day-over-day delta against content that's already there - but Dry Run (which correctly
+  never renames or creates anything on disk) was comparing against that not-yet-existing
+  today-dated folder instead, so rsync graded the remote's entire media tree as "new"
+  every single day rather than crediting yesterday's backup. Confirmed against a real
+  side-by-side: a Dry Run and the real run five minutes later, log-for-log, showing the
+  exact same remotes with a ~150-200x size discrepancy between "estimated" and "actually
+  transferred." Fixed by pointing the dry-run comparison at the existing previous backup
+  folder instead (when there is one), matching what a real run's rename already achieves -
+  the same logic the pre-flight space check before every real run already used correctly
+  (`estimate_one()`), just not yet applied to the user-visible Dry Run path (`backup_one()`)
+  until now. The automatic pre-flight space check itself was never affected by this bug -
+  only the number shown in the Dry Run Result panel and a Dry Run's own per-remote log.
+
 - **Documented:** real-device progress on the fixed-pixel-widths Open finding in Plugin
   Guidelines Compliance - confirmed looking correct on an iPad, with a note that an iPad's
   portrait width doesn't actually test the narrow ~320-375px phone case the finding is
