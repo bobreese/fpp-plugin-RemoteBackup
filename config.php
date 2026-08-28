@@ -239,6 +239,7 @@ $rbPlugin = basename(__DIR__);
         <button type="button" class="btn btn-primary" id="rb-save">Save Settings</button>
         <a class="btn btn-outline-secondary" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status Page</a>
         <span id="rb-saveMsg" class="ms-2"></span>
+        <span id="rb-sdcard-purge-note" class="ms-2 small"></span>
         <label class="small text-muted mb-0 ms-auto" style="cursor:pointer; white-space:nowrap;">
             <input type="checkbox" id="rb-floatingSaveToggle"> Keep floating while scrolling
         </label>
@@ -324,6 +325,87 @@ $rbPlugin = basename(__DIR__);
             el.innerHTML = '<span class="text-muted">Not currently active - the drive at <code>/mnt/Backups</code> ' +
                 'must be mounted and saved as the destination above for this to take effect.</span>';
         }
+    }
+
+    // Offer to remove leftover SD Card/System Storage backups when
+    // switching away from it as the destination. Scoped deliberately to
+    // just this one transition (leaving "/") - a real external drive
+    // being swapped out already physically leaves with its data either
+    // way, so there's nothing to clean up there; the SD card fallback is
+    // the one case where forgotten backups quietly eat into the Host's
+    // own limited system storage indefinitely.
+    //
+    // null = no pending choice (either not applicable, or already reset
+    // by a successful save); true = remove on save; false = leave on save.
+    // Staged here rather than acted on immediately - nothing actually
+    // deletes anything until Save Settings is clicked and the save
+    // succeeds, consistent with "nothing takes effect until you Save
+    // Settings" everywhere else on this page.
+    var rbPendingSdCardPurge = null;
+
+    function renderSdCardPurgeNote() {
+        var el = document.getElementById('rb-sdcard-purge-note');
+        if (!el) return;
+        if (rbPendingSdCardPurge === true) {
+            el.textContent = 'SD Card backups will be removed when you save.';
+            el.className = 'ms-2 small text-danger';
+        } else if (rbPendingSdCardPurge === false) {
+            el.textContent = 'SD Card backups will be left in place.';
+            el.className = 'ms-2 small text-muted';
+        } else {
+            el.textContent = '';
+        }
+    }
+
+    function rbShowSdCardLeavePopup() {
+        var modalId = 'rb-sdcard-leave-modal';
+        DoModalDialog({
+            id: modalId,
+            title: 'Leaving SD Card / System Storage as Destination',
+            class: 'modal-m',
+            backdrop: true,
+            body: 'Your existing backups under <code>/home/fpp/media/backups</code> will be left in place ' +
+                'unless you choose to remove them. This only affects backups on the SD card - nothing on ' +
+                'your new destination is touched either way.<br><br>' +
+                'Nothing happens immediately either way - your choice takes effect when you click ' +
+                '<b>Save Settings</b>, same as every other Config change.',
+            buttons: {
+                'Leave Them': {
+                    class: 'btn-secondary',
+                    click: function () {
+                        rbPendingSdCardPurge = false;
+                        CloseModalDialog(modalId);
+                        renderSdCardPurgeNote();
+                    }
+                },
+                'Remove Them Now': {
+                    class: 'btn-danger',
+                    click: function () {
+                        rbPendingSdCardPurge = true;
+                        CloseModalDialog(modalId);
+                        renderSdCardPurgeNote();
+                    }
+                }
+            }
+        });
+    }
+
+    // Fired on every storage radio change - compares against the
+    // SERVER-SAVED destination (state.settings), not whatever else may
+    // have been clicked in between, so switching between two non-SD-card
+    // drives after already answering once doesn't re-ask (the SD card
+    // content in question hasn't changed), and clicking back to "/"
+    // clears any pending choice since there'd then be nothing to remove.
+    function rbCheckSdCardLeaveTransition(newMount) {
+        var savedMount = state.settings && state.settings.destinationMount;
+        if (newMount === '/') {
+            rbPendingSdCardPurge = null;
+            renderSdCardPurgeNote();
+            return;
+        }
+        if (savedMount !== '/') return;
+        if (rbPendingSdCardPurge !== null) return;
+        rbShowSdCardLeavePopup();
     }
 
     // "Backup destination missing" popup - a self-contained mirror of the
@@ -687,6 +769,17 @@ $rbPlugin = basename(__DIR__);
         }
 
         el.innerHTML = html;
+
+        // Offer to clean up leftover SD Card/System Storage backups the
+        // moment a different destination is picked - not deferred to Save
+        // Settings, so it's never a surprise buried behind a click that
+        // might happen much later (especially now that Save can float far
+        // below where this radio list is). See rbCheckSdCardLeaveTransition
+        // for the actual decision + rbPendingSdCardPurge for how the
+        // choice is staged until Save Settings actually commits it.
+        Array.prototype.forEach.call(document.getElementsByName('rb-storage-choice'), function (radio) {
+            radio.addEventListener('change', function () { rbCheckSdCardLeaveTransition(radio.value); });
+        });
 
         Array.prototype.forEach.call(document.getElementsByClassName('rb-unmount-usb'), function (btn) {
             btn.addEventListener('click', function () {
@@ -1646,6 +1739,7 @@ $rbPlugin = basename(__DIR__);
             autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
             enableRestoreBindMount: document.getElementById('rb-enableRestoreBindMount').checked,
             onboardingTourEnabled: document.getElementById('rb-onboardingTourEnabled').checked,
+            purgeSdCardBackups: rbPendingSdCardPurge === true,
             remotePlayingPolicy: document.getElementById('rb-playPolicy-skip').checked ? 'skip' : 'stop',
             scheduleMasterAddress: currentScheduleMasterAddress(),
             maxConcurrent: parseInt(document.getElementById('rb-maxConcurrent').value, 10) || 2,
@@ -1669,6 +1763,15 @@ $rbPlugin = basename(__DIR__);
                 msg.textContent = 'Saved.';
                 msg.className = 'ms-2 text-success';
                 $.jGrowl('Remote Backup settings saved.', { life: 6000, themeState: 'success' });
+                // The purge (if any) already ran server-side as part of
+                // this same saveSettings call - reset the staged choice
+                // either way now that it's been acted on (or deliberately
+                // not acted on), so a future transition asks fresh.
+                if (typeof res.sdCardBackupsPurged === 'number' && res.sdCardBackupsPurged > 0) {
+                    $.jGrowl('Removed ' + res.sdCardBackupsPurged + ' old backup folder(s) from the SD Card / System Storage.', { life: 6000, themeState: 'info' });
+                }
+                rbPendingSdCardPurge = null;
+                renderSdCardPurgeNote();
                 // Don't wait for the next 15s poll to reflect a just-saved
                 // destinationMount/enableRestoreBindMount change - the
                 // server already reconciled the bind mount as part of

@@ -30,6 +30,7 @@ fpp-plugin-RemoteBackup/
     list_backups.sh           enumerates existing backups for the Status page's "Backed Up" dropdown
     get_backup_info.sh        size/file-count/contents for one backup selected from that dropdown
     delete_backup.sh          deletes one specific backup folder, with its own independent safety checks
+    purge_sdcard_backups.sh   removes leftover SD Card/System Storage backups after switching away from it
   commands/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh
   data/                      created on install

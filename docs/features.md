@@ -213,6 +213,7 @@ Plain-language summary first; click anything to jump straight to the full explan
 - [While a backup is running, restores are automatically paused](#restore-visibility-automatically-paused-during-a-run)
 - [Deleting a backup requires an explicit confirmation](#deleting-a-backup-requires-an-explicit-confirmation)
 - [A real backup refuses to run unless Host Mode is enabled](#a-real-backup-refuses-to-run-unless-host-mode-is-enabled)
+- [Leaving the SD Card as destination offers to clean up old backups there](#leaving-the-sd-card-as-destination-offers-to-clean-up-old-backups-there)
 
 ### Won't start while a remote is playing a sequence
 
@@ -366,5 +367,23 @@ way to trigger a run - the Status page and Scheduler command just add an earlier
 refusal in front of it. **Dry Run is deliberately exempt** and always works regardless of
 this setting: it never writes anything to any destination, so there's nothing unsafe about
 running one to sanity-check a system before flipping Host Mode on for the first time.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Leaving the SD Card as destination offers to clean up old backups there
+
+Scoped specifically to switching *away from* SD Card / System Storage - a real external
+drive being swapped out already physically leaves with its data either way, but the SD
+card fallback's backups (`/home/fpp/media/backups`) live on the Host's own limited system
+storage, so forgotten ones just sit there indefinitely eating into space FPP itself needs.
+The moment you click a different storage radio on the Config page (not deferred until
+Save Settings, so it's never a surprise buried behind a click that might happen much
+later), a popup offers **Leave Them** or **Remove Them Now**. Nothing actually happens
+either way until you click **Save Settings** - the choice is just recorded until then,
+consistent with every other Config change - and a small note next to the Save button
+reflects whichever you picked so it's not a forgotten, silent decision. Choosing "Remove
+Them Now" only ever deletes folders that actually match this plugin's own backup naming
+pattern, the same safety check `fpp_uninstall.sh --purge-backups` already uses elsewhere -
+never a blind wipe of the whole directory.
 
 [↑ Back to Safe Guards list](#safe-guards)

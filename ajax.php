@@ -843,7 +843,35 @@ switch ($action) {
         // hiccup here should never fail the settings save itself.
         rb_run("$SCRIPTS_DIR/bindmount_backups.sh", ['reconcile'], 15);
 
-        echo json_encode(['ok' => true, 'data' => $settings]);
+        // Config's storage picker offers to clean up leftover SD Card/
+        // System Storage backups the moment that radio is switched away
+        // from "/" (see rbCheckSdCardLeaveTransition in config.php) - but
+        // nothing actually deletes anything until the save this choice
+        // was staged for actually lands, and only if it's still true that
+        // this save is the one making that exact transition (re-checked
+        // here server-side, not just trusted from the client, in case the
+        // destination changed again in between for some other reason).
+        // purge_sdcard_backups.sh - not delete_backup.sh - since the
+        // latter only trusts the CURRENTLY-configured destinationMount as
+        // its safety boundary and would refuse to touch this path the
+        // instant $settings['destinationMount'] (just saved above) is no
+        // longer "/".
+        $sdCardBackupsPurged = null;
+        if (!empty($body['purgeSdCardBackups']) && $prevDestinationMount === '/' &&
+            isset($settings['destinationMount']) && $settings['destinationMount'] !== '/') {
+            $purgeOut = rb_run("$SCRIPTS_DIR/purge_sdcard_backups.sh", ['I_UNDERSTAND_THIS_DELETES_THE_BACKUPS'], 30);
+            $purgeData = json_decode((string)$purgeOut, true);
+            if (is_array($purgeData) && !empty($purgeData['ok'])) {
+                $sdCardBackupsPurged = isset($purgeData['purged']) ? (int)$purgeData['purged'] : 0;
+                rb_log_line("SD CARD PURGE: removed $sdCardBackupsPurged backup folder(s) from " . RB_BIND_TARGET . " after switching destination away from it");
+            } else {
+                rb_log_line('SD CARD PURGE FAILED: ' . (string)$purgeOut);
+            }
+        }
+
+        $response = ['ok' => true, 'data' => $settings];
+        if ($sdCardBackupsPurged !== null) $response['sdCardBackupsPurged'] = $sdCardBackupsPurged;
+        echo json_encode($response);
         break;
     }
 
