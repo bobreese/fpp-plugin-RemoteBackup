@@ -5,6 +5,37 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** two real bugs surfaced by the new email status updates in their first real-world
+  test - reported in the wild as three remotes showing FAILED with emails full of raw rsync
+  progress spam instead of a useful reason.
+  - **Root cause:** every content-pulling rsync call used `-a` (archive mode), which
+    implies `-o -g` (preserve owner/group) - something this pull can never actually honor,
+    since it connects as an ordinary unprivileged user (`sshUser`, normally `fpp`), and
+    chown-ing a file to an owner other than yourself requires root/`CAP_CHOWN` on the
+    receiving side. Any remote with root-owned (or otherwise differently-owned) files under
+    `/home/fpp/media` - confirmed in the wild with Apache log files, a plugin's
+    `__pycache__`, and a config file owned by a service account - made rsync exit 23 ("some
+    files/attrs were not transferred") on every one of them, reported as a hard FAILED
+    state even though the file *content* had already transferred completely; only the
+    chown step failed. Fixed by adding `--no-owner --no-group` to every rsync call that
+    pulls actual remote content (the real transfer, the pre-flight/dry-run estimate, the
+    post-run verification pass, and the system-logs extras pull) - backup/restore here only
+    ever needs content, not exact Linux uid/gid fidelity, so rsync now stops attempting
+    something guaranteed to fail instead of failing at it on every run. Deliberately *not*
+    applied to the system-config extras pull, which intentionally preserves real ownership
+    via a genuinely privileged rsync (local sudo, or sudo on the remote).
+  - **Separately:** `--info=progress2` updates the same line with a bare `\r` (no `\n`)
+    while a file transfers, and rsync's own error text can land directly after the last
+    update with no separator at all, not even a `\r`. grep/tail (which only ever split on
+    `\n`) saw a slow/large file's dozens of `\r`-separated progress snapshots as ONE giant
+    "line" - once real error text landed on the end of it, that whole multi-KB blob of
+    repeated `2.55M 26% ... (xfr#111, to-chk=0/919)` noise became the `errorDetail` shown
+    on Status and emailed in the summary, instead of the actual error. Fixed by normalizing
+    `\r` to `\n` first, then stripping the progress-line pattern itself wherever it still
+    appears (including glued directly onto real error text with no separator, which `\r`
+    normalization alone can't split apart) - `error_detail` extraction now reliably lands
+    on the actual trailing error text regardless of cause.
+
 - **Fixed:** the Config page walkthrough advanced to the next step the instant you clicked
   *anywhere* inside the currently-highlighted fieldset - since a step's highlight often
   covers several checkboxes/inputs/radios at once (e.g. Backup Options), checking a box or
