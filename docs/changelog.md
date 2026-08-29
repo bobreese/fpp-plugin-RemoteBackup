@@ -5,6 +5,22 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Backup Status table forced the whole page to scroll sideways on a phone
+  screen (reported in the wild with a real screenshot) - its 7 columns had no
+  `.table-responsive` wrapper at all. Discovered while fixing it: FPP ships a customized
+  Bootstrap build that doesn't actually define `.table-responsive` (confirmed against FPP
+  core source) - the guidelines' own prescribed fix would have compiled fine and done
+  nothing on a real device. Used `class="overflow-x-auto"` instead (a class FPP's build
+  does ship), which gives the table its own contained horizontal scrollbar instead of the
+  whole page scrolling. Also fixed in the same pass: the error cell's `max-width` +
+  ellipsis truncation could cut off even a short friendly error label mid-word (confirmed
+  with a real report) - changed to wrap onto a second line instead, for any length, with
+  the full text still available as the cell's own tooltip. Verified against the actual
+  post-fix code (not a hand-written approximation) rendered in real headless Chromium with
+  FPP's real CSS at 320px/375px/1280px in both themes before shipping - see
+  [Plugin Guidelines Compliance](plugin-guidelines-compliance.md) for the full write-up
+  and what's still open (`config.php`'s manual-remote-add fields, a separate finding).
+
 - **Added:** the Status page shows a plain-language label instead of the raw ssh/rsync
   error text for a handful of recognized connection-failure patterns - e.g. "Failed to
   connect (unreachable on network)" instead of `ssh: connect to host 192.168.1.88 port 22:

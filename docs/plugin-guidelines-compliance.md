@@ -226,35 +226,61 @@ on dialogs/toasts/alerts, not every inline `style=`. Replaced with Bootstrap's
 theme-aware `border-top` utility class; a full sweep of every `style="..."` in the plugin
 found no other hex/named/`rgb()` colors anywhere.
 
-### Open: several fixed-pixel widths, partially verified on real devices
+### Fixed: the Backup Status table forced the whole page to scroll sideways on a phone
 
-The same sweep found a handful of fixed-pixel dimensions in inline styles:
-`config.php`'s manual-remote-add fields (`width:180px`/`width:150px`, side by side - the
-two most likely to actually cause horizontal overflow on a ~320px phone, since they're an
-absolute width pair rather than a cap), plus `min-width`/`max-width`/`max-height` values
-in `status.php` (a storage-device select, a couple of truncating table/progress
-containers, and the log viewer's scroll box). Not fixed as part of this pass: a `max-width`
-or `max-height` cap doesn't force overflow the way a plain fixed `width` or a `min-width`
-floor can, so these aren't uniformly equally risky, and getting a responsive-layout change
-right needs actually looking at it on a real narrow viewport in both themes - something
-this pass didn't have a way to do safely without risking a change that reads fine in the
-diff but breaks visually. Left as a concrete, scoped to-do rather than guessed at blind.
+Reported in the wild with a real screenshot: on a ~375px-wide screen, the Backup Status
+table's 7 columns (several holding long content - full IP addresses, full backup-folder
+paths) had nowhere to go, so the *entire page* scrolled horizontally to reach
+Progress/Files/Backup Folder - exactly what guideline 8.3 forbids (*"Pages must work from
+a ~320px phone to a large desktop with no horizontal page scroll"*). The table had no
+`.table-responsive` wrapper at all.
 
-Re-checked against new UI added since: the Config page walkthrough's popup uses `width:
-320px` but pairs it with `max-width: calc(100vw - 16px)`, so it shrinks to fit rather than
-forcing overflow - same reasoning as the `max-width`/`max-height` values above, not a new
-instance of the riskier bare-fixed-width pattern. Re-checked again this pass against the
-Email Settings section, the verify checkbox, and the Status page's verify badge - none of
-the three added any `width`/`height`/`min-width` styling at all (the badge is plain text
-in a `<br>`-separated `<span>`), so the fixed-pixel-width list above is unchanged from the
-previous pass.
+**A real discovery while fixing this, worth remembering for next time:** the guidelines'
+own prescribed fix - wrap the table in `class="table-responsive"` - does not work on an
+actual FPP box. FPP ships a customized, trimmed Bootstrap build
+(`www/css/fpp-bootstrap/dist/fpp-bootstrap-5-3.css`), and that class is not defined in it
+at all (confirmed by grepping FPP core source, not assumed) - it would compile fine, read
+correctly in a code diff, and silently do nothing on a real device. Fixed with
+`class="overflow-x-auto"` instead - a utility class FPP's build actually ships, producing
+the identical effect (the table gets its own contained horizontal scrollbar; the page
+itself never scrolls). Worth checking `fpp-bootstrap-5-3.css` directly for any Bootstrap
+class this plugin plans to rely on, rather than trusting stock Bootstrap docs or the
+guidelines' own example code alone - this build doesn't match stock Bootstrap 1:1.
 
-**Real-device check in progress:** confirmed looking correct on an iPad. Worth being
-precise about what that does and doesn't cover, though - an iPad's portrait CSS width
-(roughly 768-820px) is well above the ~320-375px phone width this finding specifically
-named as the actual risk, so an iPad pass is good news but doesn't yet verify the narrow
-case the two fixed-width manual-add fields could realistically overflow on. iPhone
-checking is still pending and is the one that actually tests that.
+Also fixed in the same pass: the "Current File"/error cell's `max-width:320px` combined
+with `overflow:hidden;text-overflow:ellipsis;white-space:nowrap` could truncate even a
+short, deliberately-friendly error label (confirmed with a real report: "Failed to connect
+(unreachable on network)" got cut off mid-word on a plain desktop screen) - changed to
+`white-space:normal` so text wraps onto a second line instead of being clipped, for any
+length, with no width to outgrow. The full text remains available as this cell's own
+tooltip either way, unchanged.
+
+**Verified, not just reasoned about:** extracted the actual post-fix HTML/CSS/JS from
+`status.php` (not a hand-written approximation), fed it sample data matching the reported
+bug, and rendered it in real headless Chromium against FPP's own actual CSS file at
+320px/375px (the guideline's own stated phone-width range) and 1280px (desktop), in both
+light and dark theme. Confirmed: page itself never scrolls sideways at any width; the
+table's own scrollbar appears only when content actually overflows; the error label reads
+in full; desktop is visually unaffected. This finding was open across several previous
+passes specifically because nobody had a way to check a real narrow viewport safely -
+that capability (a static reproduction + real Chromium + FPP's real CSS) is what actually
+closed it this time, not just re-reading the code more carefully.
+
+### Open: `config.php`'s manual-remote-add fields still use fixed pixel widths
+
+Not addressed by the fix above (different page, different issue): the manual "Add a
+remote" fields use `width:180px`/`width:150px` side by side - the more risky pattern of
+the two `config.php`/`status.php` findings originally grouped together here, since a bare
+fixed `width` (unlike a `max-width` cap) can force overflow outright rather than just
+capping it. Now that a real verification method exists (see above), this is a concrete
+next candidate to check the same way, rather than something to keep guessing at.
+
+Also still true: **the real-device check remains partial.** A previous pass confirmed
+Config looking correct on an iPad, but an iPad's portrait CSS width (roughly 768-820px) is
+well above the ~320-375px phone width this finding is actually about, so that check
+doesn't cover the narrow case these two fields could realistically overflow on. A real
+phone/narrow-browser check (or the same synthetic-Chromium method used above) is still the
+next step for this specific finding.
 
 ### Open: extensive use of `sudo` outside the install/uninstall lifecycle
 

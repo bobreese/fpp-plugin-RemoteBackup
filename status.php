@@ -71,6 +71,23 @@ $rbPlugin = basename(__DIR__);
             <style>
                 #rb-status-table th, #rb-status-table td { padding: 0.55rem 0.9rem; }
             </style>
+            <!-- 7 columns (including full IP addresses and full backup-folder
+                 paths) don't fit a ~320-375px phone width - confirmed in the
+                 wild (a real screenshot showed the whole PAGE scrolling
+                 sideways to reach Progress/Files/Backup Folder). FPP's
+                 plugin guidelines' own prescribed fix is `.table-responsive`,
+                 but FPP's actual shipped Bootstrap build
+                 (www/css/fpp-bootstrap/dist/fpp-bootstrap-5-3.css) doesn't
+                 define that class at all - confirmed by inspecting FPP core
+                 source, not assumed - so it would compile fine and do
+                 nothing on a real device. `overflow-x-auto` is the utility
+                 class FPP's build actually ships (same effect: the TABLE
+                 gets its own contained horizontal scrollbar instead of the
+                 whole page scrolling sideways). Verified with real
+                 screenshots (headless Chromium, FPP's actual CSS, sample
+                 data matching the reported bug) at 320px/375px/1280px in
+                 both themes before this was applied here. -->
+            <div class="overflow-x-auto">
             <table class="table table-sm" id="rb-status-table">
                 <thead>
                     <tr>
@@ -87,6 +104,7 @@ $rbPlugin = basename(__DIR__);
                     <tr><td colspan="7">No backup has been run yet.</td></tr>
                 </tbody>
             </table>
+            </div>
         </div>
     </fieldset>
 
@@ -576,7 +594,16 @@ $rbPlugin = basename(__DIR__);
                     '<td>' + (r.hostname || r.id) + '</td>' +
                     '<td>' + (r.address || '') + '</td>' +
                     '<td>' + label + verifyBadge + '</td>' +
-                    '<td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + ((r.currentFile || r.errorDetail || '')).replace(/"/g, '&quot;') + '">' + fileCell + '</td>' +
+                    // Reported in the wild: a friendly error label (e.g.
+                    // "Failed to connect (unreachable on network)") was
+                    // itself getting cut off by this cell's own ellipsis
+                    // truncation, on a plain desktop screen, defeating the
+                    // point of a short at-a-glance label. white-space:normal
+                    // (was nowrap+ellipsis) lets it wrap onto a second line
+                    // within the column instead - works for any length, no
+                    // width to outgrow. The full text is still this cell's
+                    // own tooltip either way, unchanged.
+                    '<td style="max-width:320px;white-space:normal;" title="' + ((r.currentFile || r.errorDetail || '')).replace(/"/g, '&quot;') + '">' + fileCell + '</td>' +
                     '<td>' + progressCell + '</td>' +
                     '<td>' + xfer + '</td>' +
                     '<td>' + (r.target || '') + '</td>' +
