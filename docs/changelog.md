@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed:** the Email Settings confirmation line on Config used to print FPP's own
+  configured destination address in plain text right on the page ("FPP Setting > Email is
+  configured to send to `you@example.com`"). Shortened to "FPP Setting > Email is
+  configured." with a small `(?)` next to it - click it to reveal the address, click again
+  to hide it. The address isn't needed to confirm email is set up at all, only to double-
+  check *which* address, so it stays out of sight of anyone glancing at the screen unless
+  someone actually asks for it. Click-to-reveal rather than a hover tooltip since this page
+  has to work on a phone, where hover isn't a thing.
+
 - **Fixed:** the two "Format drive" confirmation modals (initial mount and re-format) had a
   narrower version of the same underlying problem, caught by actually rendering them rather
   than assuming a modal was safe from it. The Filesystem dropdown's own option text ("exFAT
