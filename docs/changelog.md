@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** diagnostic checkpoints in `fpp_install.sh` after three real incidents where
+  `data/settings.json` and both of its independent backups turned up empty/corrupt,
+  resetting Config to defaults. Two of the three lined up within seconds-to-minutes of an
+  automatic plugin upgrade (confirmed from the actual FPP logs - `fpp_plugin_manager.log`,
+  `syslog`, `fppd.log` - not guessed), but nothing in this script's own code touches
+  `data/` destructively, so the exact step was still unclear. `fpp_install.sh` now logs a
+  read-only fingerprint (size/mtime/md5) of the live settings file and both backups at
+  four points - script start, immediately before and after the `data/` ownership/
+  permissions pass, and script end (right before FPP restarts) - to `fpp_plugin_manager.log`
+  (tagged `SETTINGS_CHECK`, no new log file to go looking for), so the next occurrence
+  pins the exact step instead of only surfacing hours later.
+
 - **Changed:** the Email Settings confirmation line on Config used to print FPP's own
   configured destination address in plain text right on the page ("FPP Setting > Email is
   configured to send to `you@example.com`"). Shortened to "FPP Setting > Email is
