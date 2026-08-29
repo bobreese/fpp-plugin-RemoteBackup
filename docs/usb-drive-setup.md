@@ -61,13 +61,14 @@ A few related things:
 
 ### Seeing current backups without unmounting the drive
 
-Turning on the checkbox under Backup Destination Storage makes the drive's content
-visible at FPP's own fixed backups path *while it stays mounted here* - so a remote can
-still be backed up to it and FPP's own File Copy Backup/Restore (or another remote pulling
-a restore, with **Remote Storage** left on "None") can see the current contents, at the
-same time, without you unmounting anything in between. Off by default.
+The checkbox under Backup Destination Storage makes the drive's content visible at FPP's
+own fixed backups path *while it stays mounted here* - so a remote can still be backed up
+to it and FPP's own File Copy Backup/Restore (or another remote pulling a restore, with
+**Remote Storage** left on "None") can see the current contents, at the same time, without
+you unmounting anything in between. On by default, for whatever drive ends up being the
+saved destination - the built-in safeguard below is what makes that safe to leave on.
 
-A few things worth knowing before turning it on:
+A few things worth knowing:
 
 - It only ever applies to **this drive** (the primary destination) - the second, clone
   drive above is unaffected.
@@ -94,6 +95,11 @@ A few things worth knowing before turning it on:
   window rather than the usual "Currently active on..." line. A crash or an unclean stop
   mid-run can't leave it stuck paused either - the next backup attempt (or a settings
   save) reconciles it back to normal automatically.
+- **If that pause itself ever fails** (the underlying `umount` can't complete - most likely
+  something else has a file on the drive open right now, e.g. an active restore or File
+  Manager browsing it) it doesn't fail silently: the Status page shows a clear warning for
+  as long as the condition lasts, rather than only a line in the log nobody's watching in
+  the moment. It clears itself automatically the next time a teardown succeeds.
 
 ## Cloning backups to a second drive
 

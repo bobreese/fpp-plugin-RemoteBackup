@@ -68,6 +68,16 @@ $rbPlugin = basename(__DIR__);
     <fieldset class="border rounded p-2 mt-2">
         <legend>Backup Status</legend>
         <div class="p-2">
+            <!-- Persistent, not a one-time popup like the modals below - this
+                 reflects a still-ongoing condition (the bind mount is still up
+                 because it couldn't be torn down) rather than a single past
+                 event, and clears itself the moment lib_common.sh's
+                 rb_bindmount_backups_teardown() next succeeds. See
+                 config.php's "Let remotes and FPP's own File Copy Backup/
+                 Restore see current backups..." toggle - this is what "not
+                 loud enough, only logged" for that specific failure used to
+                 look like. -->
+            <div id="rb-bindMountWarning" class="callout callout-danger mb-2 d-none"></div>
             <style>
                 #rb-status-table th, #rb-status-table td { padding: 0.55rem 0.9rem; }
             </style>
@@ -450,6 +460,25 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // Persistent banner, not a one-time modal like the others above - see
+    // the matching comment on #rb-bindMountWarning itself. Just reflects
+    // whatever ajax.php's 'status' action reports on the current poll;
+    // no "shown once" tracking needed since it's meant to stay visible
+    // for as long as the underlying condition is actually still true.
+    function rbHandleBindMountWarning(res) {
+        var el = document.getElementById('rb-bindMountWarning');
+        if (!el) return;
+        var w = res && res.ok ? res.bindMountWarning : null;
+        if (!w) { el.classList.add('d-none'); el.innerHTML = ''; return; }
+        el.innerHTML = '<strong>Could not pause "see current backups without unmounting" for this run</strong> ' +
+            '(as of ' + formatLocalTime(w.failedAt) + '): the drive is still visible at FPP\'s normal backups ' +
+            'path while this backup writes to it, instead of being paused for the duration like it normally is - ' +
+            'something else likely has a file open on it right now (File Manager, an active restore). ' +
+            'Avoid browsing/restoring from it until this clears on its own once a backup finishes cleanly.' +
+            (w.detail ? ' <small class="text-muted">(' + w.detail.replace(/</g, '&lt;') + ')</small>' : '');
+        el.classList.remove('d-none');
+    }
+
     function humanBytes(n) {
         n = parseInt(n || 0, 10);
         if (!n) return '0 B';
@@ -698,6 +727,7 @@ $rbPlugin = basename(__DIR__);
             if (res.ok) rbHandleDestinationStatus(res);
             if (res.ok) rbHandleLowSpaceStatus(res);
             if (res.ok) rbHandlePlayOutcomeStatus(res);
+            if (res.ok) rbHandleBindMountWarning(res);
             if (res.ok && lastActiveSeen && !res.active) {
                 // A run just finished - refresh the Backed Up list so new/updated folders show up.
                 if (typeof loadBackedUpList === 'function') loadBackedUpList(true);

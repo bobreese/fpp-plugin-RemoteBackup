@@ -215,6 +215,16 @@ RB_SDCARD_MIN_FREE_BYTES=524288000
 # own start/end/exit-trap below) calls it again afterward.
 RB_BIND_SOURCE="/mnt/Backups"
 RB_BIND_TARGET="$RB_SDCARD_FALLBACK_DIR"
+# Written only when a teardown that actually needed to happen (see (d)
+# above) fails - i.e. a real run is starting and the bind mount is still
+# up because `umount` itself failed (most likely "target is busy": File
+# Manager or a remote's restore has something under it open right now).
+# That's the one case this whole mechanism exists to prevent, so it's
+# surfaced on Status/Config (ajax.php's 'status' action reads this file),
+# not just logged where nobody would see it in time. Cleared automatically
+# the moment any teardown call resolves cleanly - self-heals the same way
+# the "paused" flag already does, nothing to manually clear.
+RB_BIND_WARNING_FILE="${DATA_DIR}/bindmount_warning.json"
 
 # True only if RB_BIND_TARGET itself (not some ancestor directory) is
 # currently a mountpoint - i.e. our bind mount (or something else's) is
@@ -309,10 +319,17 @@ rb_bindmount_backups_teardown() {
         if sudo umount "$RB_BIND_TARGET" 2>/tmp/rb_bindunmount_err_$$; then
             rm -f /tmp/rb_bindunmount_err_$$
             rb_log "bindmount: unbound $RB_BIND_TARGET"
+            rm -f "$RB_BIND_WARNING_FILE"
         else
-            rb_log "bindmount teardown FAILED for $RB_BIND_TARGET : $(cat /tmp/rb_bindunmount_err_$$ 2>/dev/null)"
+            local err
+            err=$(cat /tmp/rb_bindunmount_err_$$ 2>/dev/null)
             rm -f /tmp/rb_bindunmount_err_$$
+            rb_log "bindmount teardown FAILED for $RB_BIND_TARGET : $err"
+            jq -n --arg t "$(rb_now_iso)" --arg detail "$err" \
+                '{failedAt: $t, detail: $detail}' > "$RB_BIND_WARNING_FILE" 2>/dev/null
         fi
+    else
+        rm -f "$RB_BIND_WARNING_FILE"
     fi
 }
 
