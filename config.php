@@ -262,7 +262,12 @@ $rbPlugin = basename(__DIR__);
             <input type="text" id="rb-scheduleMasterCustom" placeholder="Custom address (hostname or IP)" style="display:none;max-width:16em">
             <button type="button" class="btn btn-sm btn-secondary" id="rb-checkSchedule">Check Schedule</button>
             <span id="rb-scheduleStatus" class="ms-2"></span>
-            <div id="rb-scheduleResults" class="mt-2"></div>
+            <!-- overflow-x-auto: renderScheduleResults() below builds a 7-column
+                 bordered table (one per day of week) that forces the whole page
+                 to scroll sideways on a phone screen without it - same missing-
+                 wrapper bug as the Remote Systems table above and the Backup
+                 Status table (see status.php's own comment on this). -->
+            <div id="rb-scheduleResults" class="mt-2 overflow-x-auto"></div>
             <div id="rb-scheduleCheckTimeWrap" class="mt-2" style="display:none">
                 <b>Check a specific time:</b>
                 <select id="rb-scheduleCheckDay">

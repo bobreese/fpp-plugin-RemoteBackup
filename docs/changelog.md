@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** while checking the Config page for any other table with this same
+  missing-wrapper bug, found the "Show Schedule Conflict Check" panel's results table was
+  the worst instance of it - a 7-column bordered table (one per day of week) with no
+  wrapper at all, forcing the whole page to a fixed 841px wide regardless of screen size
+  (confirmed: `body.scrollWidth` was 841 at both 320px and 375px, instead of matching the
+  viewport). Same `overflow-x-auto` fix as the two tables below. Checked the storage-device
+  lists (`renderStorage`/`renderStorage2`) too - those render as wrapping `<div>`s, not a
+  table, so they don't have this failure mode and needed no change.
+
 - **Fixed:** the Config page's "Remote Systems to Back Up" table had the same
   missing-wrapper bug as the Backup Status table below - reported in the wild right after
   that fix shipped ("the config page Remote Systems to Back Up is still broken" on a

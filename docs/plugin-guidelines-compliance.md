@@ -293,6 +293,29 @@ viewport exactly at both widths (no page-level horizontal overflow), the table's
 scrollbar is contained within the fieldset, and the manual-add fields wrap cleanly without
 overflowing.
 
+### Fixed: `config.php`'s Schedule Conflict Check table had the same missing-wrapper bug, worse
+
+While fixing the Remote Systems table above, grepped `config.php` for every other `<table`
+to check whether the same bug existed elsewhere rather than assuming it was isolated. Found
+three more tables: two 2-column tables inside the "Format drive" modal dialogs (short
+labels plus auto-sized form controls, judged low risk - a modal is already width-capped and
+these aren't the wide-table pattern the bug depends on), and one real instance in
+`renderScheduleResults()` (the "Show Schedule Conflict Check" panel) - a 7-column bordered
+table, one column per day of week, with generous `px-3` padding and no wrapper at all.
+
+This was actually the worst of the three tables fixed in this general pass: verified with
+real headless Chromium (`headless_shell`) against FPP's real CSS, `body.scrollWidth` was
+**841px at both 320px and 375px viewport widths** - a fixed page width regardless of screen
+size, not just an occasional overflow. Fixed the same way: `overflow-x-auto` added to
+`#rb-scheduleResults`'s existing static class (this container's class is never touched by
+JS, unlike `#rb-remoteList`, so the class lives directly in the static HTML rather than
+being set in `renderScheduleResults()`). Re-verified after the fix: `body.scrollWidth`
+matches the viewport exactly at both 320px and 375px.
+
+Also checked `renderStorage()`/`renderStorage2()` (the storage-device lists) in the same
+pass, since they render similar-looking device listings. They build wrapping `<div>`s, not
+a `<table>`, so they don't have this failure mode at all and needed no change.
+
 ### Open: extensive use of `sudo` outside the install/uninstall lifecycle
 
 `scripts/mount_usb.sh`, `unmount_usb.sh`, `format_usb.sh`, and `run_backup.sh` all shell
