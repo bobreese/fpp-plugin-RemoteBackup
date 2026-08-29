@@ -262,7 +262,12 @@ $rbPlugin = basename(__DIR__);
             <input type="text" id="rb-scheduleMasterCustom" placeholder="Custom address (hostname or IP)" style="display:none;max-width:16em">
             <button type="button" class="btn btn-sm btn-secondary" id="rb-checkSchedule">Check Schedule</button>
             <span id="rb-scheduleStatus" class="ms-2"></span>
-            <div id="rb-scheduleResults" class="mt-2"></div>
+            <!-- overflow-x-auto: renderScheduleResults() below builds a 7-column
+                 bordered table (one per day of week) that forces the whole page
+                 to scroll sideways on a phone screen without it - same missing-
+                 wrapper bug as the Remote Systems table above and the Backup
+                 Status table (see status.php's own comment on this). -->
+            <div id="rb-scheduleResults" class="mt-2 overflow-x-auto"></div>
             <div id="rb-scheduleCheckTimeWrap" class="mt-2" style="display:none">
                 <b>Check a specific time:</b>
                 <select id="rb-scheduleCheckDay">
@@ -1285,7 +1290,16 @@ $rbPlugin = basename(__DIR__);
 
     function renderRemotes() {
         var el = document.getElementById('rb-remoteList');
-        el.className = 'mt-2';
+        // overflow-x-auto: this table has 6 columns (checkbox, hostname,
+        // address, source, a Push SSH Key button, a Remove button) and
+        // forced the whole page to scroll sideways on a phone screen -
+        // reported in the wild, same underlying bug as the Backup Status
+        // table (see status.php's own comment on this - FPP's actual
+        // shipped Bootstrap build doesn't define .table-responsive at all,
+        // confirmed against FPP core source, so overflow-x-auto is used
+        // instead: a class FPP's build does ship, giving the table its own
+        // contained horizontal scrollbar rather than the page scrolling.
+        el.className = 'mt-2 overflow-x-auto';
         if (!state.remotes.length) { el.innerHTML = '<em>No remotes found yet. Rescan, or add one manually below.</em>'; return; }
         var html = '<table class="table table-sm"><tr>' +
             '<th style="padding-right:1.5em;"><label class="d-flex align-items-center gap-1 mb-0" style="font-weight:normal; white-space:nowrap; cursor:pointer;" ' +

@@ -266,21 +266,55 @@ passes specifically because nobody had a way to check a real narrow viewport saf
 that capability (a static reproduction + real Chromium + FPP's real CSS) is what actually
 closed it this time, not just re-reading the code more carefully.
 
-### Open: `config.php`'s manual-remote-add fields still use fixed pixel widths
+### Fixed: `config.php`'s "Remote Systems to Back Up" table had the same missing-wrapper bug
 
-Not addressed by the fix above (different page, different issue): the manual "Add a
-remote" fields use `width:180px`/`width:150px` side by side - the more risky pattern of
-the two `config.php`/`status.php` findings originally grouped together here, since a bare
-fixed `width` (unlike a `max-width` cap) can force overflow outright rather than just
-capping it. Now that a real verification method exists (see above), this is a concrete
-next candidate to check the same way, rather than something to keep guessing at.
+Same root cause as the Status page fix above, different page: reported in the wild after
+the Status fix shipped - "the config page Remote Systems to Back Up is still broken" on a
+phone. `renderRemotes()` built a 6-column table (checkbox/All, Hostname, Address, Source,
+a Push SSH Key button, a Remove button) directly into `#rb-remoteList` with no responsive
+wrapper at all, so it forced the whole config page to scroll sideways on a narrow screen -
+same failure mode, same fix: `el.className = 'mt-2 overflow-x-auto';` gives the table its
+own contained horizontal scrollbar instead of the page scrolling.
 
-Also still true: **the real-device check remains partial.** A previous pass confirmed
-Config looking correct on an iPad, but an iPad's portrait CSS width (roughly 768-820px) is
-well above the ~320-375px phone width this finding is actually about, so that check
-doesn't cover the narrow case these two fields could realistically overflow on. A real
-phone/narrow-browser check (or the same synthetic-Chromium method used above) is still the
-next step for this specific finding.
+Checked the manual "Add a remote" fields (`width:180px`/`width:150px` side by side) in the
+same pass, since they were flagged here as the more risky pattern (a bare fixed `width`
+can force overflow outright, unlike a capped `max-width`). Verified: they wrap onto their
+own line by default at 320px and 375px with no fix needed - the earlier concern here was
+based on a since-discovered-unreliable test render at the wrong viewport width, not a real
+bug in these two fields.
+
+**Verified, not just reasoned about:** extracted the actual post-fix HTML/CSS/JS from
+`config.php` (not a hand-written approximation, and re-extracted fresh after an earlier
+test-harness mistake silently kept testing stale JS), fed it sample remote data, and
+rendered it in real headless Chromium (specifically `headless_shell`, after confirming the
+full `chrome` binary silently ignores `--window-size` in this environment) against FPP's
+own actual CSS file at true 320px and 375px. Confirmed: `body.scrollWidth` equals the
+viewport exactly at both widths (no page-level horizontal overflow), the table's own
+scrollbar is contained within the fieldset, and the manual-add fields wrap cleanly without
+overflowing.
+
+### Fixed: `config.php`'s Schedule Conflict Check table had the same missing-wrapper bug, worse
+
+While fixing the Remote Systems table above, grepped `config.php` for every other `<table`
+to check whether the same bug existed elsewhere rather than assuming it was isolated. Found
+three more tables: two 2-column tables inside the "Format drive" modal dialogs (short
+labels plus auto-sized form controls, judged low risk - a modal is already width-capped and
+these aren't the wide-table pattern the bug depends on), and one real instance in
+`renderScheduleResults()` (the "Show Schedule Conflict Check" panel) - a 7-column bordered
+table, one column per day of week, with generous `px-3` padding and no wrapper at all.
+
+This was actually the worst of the three tables fixed in this general pass: verified with
+real headless Chromium (`headless_shell`) against FPP's real CSS, `body.scrollWidth` was
+**841px at both 320px and 375px viewport widths** - a fixed page width regardless of screen
+size, not just an occasional overflow. Fixed the same way: `overflow-x-auto` added to
+`#rb-scheduleResults`'s existing static class (this container's class is never touched by
+JS, unlike `#rb-remoteList`, so the class lives directly in the static HTML rather than
+being set in `renderScheduleResults()`). Re-verified after the fix: `body.scrollWidth`
+matches the viewport exactly at both 320px and 375px.
+
+Also checked `renderStorage()`/`renderStorage2()` (the storage-device lists) in the same
+pass, since they render similar-looking device listings. They build wrapping `<div>`s, not
+a `<table>`, so they don't have this failure mode at all and needed no change.
 
 ### Open: extensive use of `sudo` outside the install/uninstall lifecycle
 

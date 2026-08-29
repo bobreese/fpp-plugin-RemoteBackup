@@ -5,6 +5,27 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** while checking the Config page for any other table with this same
+  missing-wrapper bug, found the "Show Schedule Conflict Check" panel's results table was
+  the worst instance of it - a 7-column bordered table (one per day of week) with no
+  wrapper at all, forcing the whole page to a fixed 841px wide regardless of screen size
+  (confirmed: `body.scrollWidth` was 841 at both 320px and 375px, instead of matching the
+  viewport). Same `overflow-x-auto` fix as the two tables below. Checked the storage-device
+  lists (`renderStorage`/`renderStorage2`) too - those render as wrapping `<div>`s, not a
+  table, so they don't have this failure mode and needed no change.
+
+- **Fixed:** the Config page's "Remote Systems to Back Up" table had the same
+  missing-wrapper bug as the Backup Status table below - reported in the wild right after
+  that fix shipped ("the config page Remote Systems to Back Up is still broken" on a
+  phone). Same fix: `overflow-x-auto` on the table's container instead of no wrapper at
+  all, so the table scrolls in its own contained box instead of the whole page. Also
+  checked the manual "Add a remote" fields (fixed-width inputs side by side, flagged as
+  the more risky pattern) - they wrap onto their own line correctly at 320px/375px with no
+  changes needed. Verified with real headless Chromium (`headless_shell`, after finding
+  the full `chrome` binary silently ignores requested viewport widths in this environment)
+  against FPP's real CSS at true 320px/375px - `body.scrollWidth` matches the viewport
+  exactly at both, confirming no page-level horizontal scroll.
+
 - **Fixed:** the Backup Status table forced the whole page to scroll sideways on a phone
   screen (reported in the wild with a real screenshot) - its 7 columns had no
   `.table-responsive` wrapper at all. Discovered while fixing it: FPP ships a customized
@@ -18,8 +39,7 @@ than tagging releases, so this is a running list rather than versioned entries):
   the full text still available as the cell's own tooltip. Verified against the actual
   post-fix code (not a hand-written approximation) rendered in real headless Chromium with
   FPP's real CSS at 320px/375px/1280px in both themes before shipping - see
-  [Plugin Guidelines Compliance](plugin-guidelines-compliance.md) for the full write-up
-  and what's still open (`config.php`'s manual-remote-add fields, a separate finding).
+  [Plugin Guidelines Compliance](plugin-guidelines-compliance.md) for the full write-up.
 
 - **Added:** the Status page shows a plain-language label instead of the raw ssh/rsync
   error text for a handful of recognized connection-failure patterns - e.g. "Failed to
