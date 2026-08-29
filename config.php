@@ -391,8 +391,29 @@ $rbPlugin = basename(__DIR__);
         if (!status) return;
         if (!enabled) { status.innerHTML = ''; return; }
         if (state.fppEmailToEmail) {
-            status.innerHTML = '<span class="text-success">&#10003; FPP Setting &gt; Email is configured to send to <code>' +
-                state.fppEmailToEmail + '</code>.</span>';
+            // Address kept out of sight by default - this box can be visible to
+            // anyone glancing at the screen, and the destination address isn't
+            // needed to confirm email is set up, only to double-check *which*
+            // address. Click-to-reveal (not hover: this page has to work on a
+            // phone, and hover isn't a thing there) rather than the
+            // fpp-help-popover "?" icons used elsewhere on this page - those are
+            // wired up once, early in page load, from icons already in the DOM
+            // at that time, and this status line (and its icon) don't exist yet
+            // at that point since it's only built once FPP's own settings have
+            // loaded.
+            status.innerHTML = '<span class="text-success">&#10003; FPP Setting &gt; Email is configured. ' +
+                '<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="rb-emailAddrToggle" ' +
+                'title="Show the address it sends to">(?)</button>' +
+                '<span id="rb-emailAddrReveal" class="d-none"> Sends to <code>' + state.fppEmailToEmail + '</code>.</span></span>';
+            var toggle = document.getElementById('rb-emailAddrToggle');
+            var reveal = document.getElementById('rb-emailAddrReveal');
+            if (toggle && reveal) {
+                toggle.addEventListener('click', function () {
+                    var wasHidden = reveal.classList.contains('d-none');
+                    reveal.classList.toggle('d-none');
+                    toggle.textContent = wasHidden ? '(hide)' : '(?)';
+                });
+            }
         } else {
             status.innerHTML = '<span class="text-warning">FPP Setting &gt; Email has no destination address configured yet - ' +
                 'these settings will save, but nothing will actually be emailed until that\'s set up.</span>';
