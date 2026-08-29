@@ -634,12 +634,22 @@ backup_one() {
         # point-in-time snapshot the way real settings/config content is -
         # restoring an old log onto a fresh system isn't useful the way it
         # would be for actual show content.
+        #
+        # data/label_cache.json is the same story once more, caught by the
+        # very next run's VERIFY right after the fix above shipped: a ~30s
+        # TTL cache of volume labels (see ajax.php's rb_volume_label()),
+        # rewritten by any Config/Status page poll (probeStorage etc.)
+        # entirely independent of a backup even running - per
+        # directory-layout.md, once this is added, settings.json is the
+        # only thing left under data/ that's actually meaningful to back
+        # up; everything else there is this same class of live, run-
+        # independent operational state.
         if [ -n "$media_real" ]; then
             local plugin_rel="${PLUGIN_DIR#"$media_real"/}"
             host_exclude+=(--exclude="/${plugin_rel}/data/pids" --exclude="/${plugin_rel}/data/*.lock" \
                 --exclude="/${plugin_rel}/data/run_active.json" --exclude="/${plugin_rel}/data/clone_active.json" \
                 --exclude="/${plugin_rel}/data/logs" --exclude="/${plugin_rel}/data/status" \
-                --exclude="/${plugin_rel}/data/tmp_verify_*")
+                --exclude="/${plugin_rel}/data/tmp_verify_*" --exclude="/${plugin_rel}/data/label_cache.json")
         fi
     fi
 

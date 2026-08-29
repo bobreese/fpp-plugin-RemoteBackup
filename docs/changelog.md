@@ -5,6 +5,13 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** one more instance of the Host self-backup verify false-positive below - the
+  very next run after that fix shipped still flagged `data/label_cache.json`. Same root
+  cause: a ~30s-TTL cache of volume labels, rewritten by any Config/Status page poll
+  entirely independent of a backup even running. Added to the same exclude list - per
+  `directory-layout.md`, `settings.json` is now the only thing left under `data/` that's
+  actually meaningful to back up.
+
 - **Fixed:** the Host's own local backup could show "N file(s) still differ from source"
   on post-run verify even though nothing was actually wrong - reported in the wild:
   `VERIFY Pi5Backup: 6 file(s) still differ...` listing its own `engine.log`, another
