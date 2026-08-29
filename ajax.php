@@ -204,6 +204,21 @@ function rb_bindmount_is_active() {
     return $srcDev !== null && $tgtDev !== null && $srcDev === $tgtDev;
 }
 
+// Reads the warning lib_common.sh's rb_bindmount_backups_teardown() leaves
+// behind when a teardown that actually needed to happen (a real run
+// starting) fails to unmount - i.e. the bind mount is still up while a
+// backup is about to write to the same drive, the one scenario this whole
+// mechanism exists to prevent. Null once resolved: that function clears
+// its own file the moment any later teardown call succeeds, so this never
+// needs its own separate expiry logic here.
+function rb_bindmount_warning() {
+    global $DATA_DIR;
+    $raw = @file_get_contents("$DATA_DIR/bindmount_warning.json");
+    if (!$raw) return null;
+    $d = json_decode($raw, true);
+    return is_array($d) ? $d : null;
+}
+
 // Sanitizes a user-supplied filesystem volume label before it ever
 // reaches a shell command: strips anything but alphanumerics/space/
 // hyphen/underscore (mkfs.exfat/mkfs.ext4 both reject or mangle some
@@ -387,17 +402,27 @@ function rb_default_settings() {
         // is never consulted by run_backup.sh or any run guard, only by
         // that one Config panel when a human clicks "Check Schedule."
         'scheduleMasterAddress' => '',
-        // Opt-in, default off: bind-mounts the primary destination drive's
-        // content onto FPP's own fixed backups path while it's mounted AND
-        // it's the saved destinationMount, so remotes/File Manager can see
-        // current backups on it without unmounting first. See
+        // Default ON: bind-mounts the primary destination drive's content
+        // onto FPP's own fixed backups path while it's mounted AND it's the
+        // saved destinationMount, so remotes/File Manager can see current
+        // backups on it without unmounting first. See
         // rb_bindmount_backups_ensure() in lib_common.sh for the mechanics
-        // and the safety invariant it depends on. Reconciled (bound/unbound
-        // as needed) by bindmount_backups.sh, called after every settings
-        // change that could affect it (saveSettings/useFailover/
-        // useDestination below) and after every primary-drive mount/
-        // unmount/format.
-        'enableRestoreBindMount' => false,
+        // and the safety invariant it depends on - it's automatically
+        // paused for the duration of every real run (and now surfaced
+        // loudly, not just logged, on the rare occasion that pause itself
+        // fails - see rb_bindmount_warning()/bindMountWarning below), which
+        // is what makes leaving this on safe enough to default. Applies to
+        // whatever's actually saved as destinationMount, whatever storage
+        // that ends up being - nothing further to configure. Reconciled
+        // (bound/unbound as needed) by bindmount_backups.sh, called after
+        // every settings change that could affect it (saveSettings/
+        // useFailover/useDestination below) and after every primary-drive
+        // mount/unmount/format. array_merge() below backfills this default
+        // into every EXISTING settings.json missing the key - i.e. a
+        // system that's never touched this checkbox picks up the new
+        // default; anyone who already explicitly saved it off keeps their
+        // own choice, same reasoning as onboardingSeen.
+        'enableRestoreBindMount' => true,
         // Gates the first-run Config page walkthrough (config.php's tour
         // engine). Deliberately defaults to true HERE, not false - this
         // default is what array_merge() backfills into every EXISTING
@@ -1374,6 +1399,7 @@ switch ($action) {
             // (RB_BIND_SOURCE is only ever bound while it IS
             // destinationMount).
             'bindMountActive' => rb_bindmount_is_active(),
+            'bindMountWarning' => rb_bindmount_warning(),
             'haltedReason' => isset($settings['haltedReason']) ? $settings['haltedReason'] : null,
             'lowSpaceReason' => isset($settings['lowSpaceReason']) ? $settings['lowSpaceReason'] : null,
             'lowSpaceEstimatedBytes' => isset($settings['lowSpaceEstimatedBytes']) ? $settings['lowSpaceEstimatedBytes'] : null,

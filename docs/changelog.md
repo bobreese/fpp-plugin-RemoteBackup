@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed:** "Let remotes and FPP's own File Copy Backup/Restore see current backups on
+  this drive without unmounting it first" (Config > Backup Destination Storage) now
+  defaults to on, for whatever drive ends up being the saved destination - previously off
+  by default. The built-in safeguard (automatically paused for the full duration of every
+  real backup run, so FPP's native restore can never read a partially-written snapshot) is
+  what makes this safe to leave on; array_merge() backfills the new default into every
+  existing settings.json missing the key, same as onboardingSeen - anyone who already
+  explicitly saved it off keeps their own choice.
+- **Added:** that safeguard's pause can itself fail (the underlying `umount` can't
+  complete - most likely something else has a file on the drive open right now) and used
+  to only be logged, easy to miss in the moment. Now surfaced as a persistent warning
+  banner on the Status page for as long as the condition lasts, clearing itself
+  automatically the next time a teardown succeeds.
+
 - **Fixed:** one more instance of the Host self-backup verify false-positive below - the
   very next run after that fix shipped still flagged `data/label_cache.json`. Same root
   cause: a ~30s-TTL cache of volume labels, rewritten by any Config/Status page poll

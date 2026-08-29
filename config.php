@@ -113,7 +113,7 @@ $rbPlugin = basename(__DIR__);
                 Let remotes and FPP's own File Copy Backup/Restore see current backups on this drive
                 <strong>without unmounting it first</strong></label>
             <div class="ms-3">
-                <small class="text-muted">Off by default. When on (and this drive is mounted and selected as the
+                <small class="text-muted">On by default. When on (and this drive is mounted and selected as the
                     destination above), its contents are made visible at FPP's normal backups path automatically -
                     no more choosing between "leave it mounted for backups" and "unmount it so restores can see it."
                     Turning this off (or switching the destination away from this drive) reverts to the previous
@@ -121,7 +121,9 @@ $rbPlugin = basename(__DIR__);
                     <strong>Built-in safeguard:</strong> it's automatically paused for the duration of every backup
                     run and restored the moment the run finishes, so FPP's native restore can never read an
                     in-progress, partly-written backup off this drive - only ever a complete one from before the
-                    current run started. See
+                    current run started. On the rare occasion that pause itself can't complete (something else has
+                    a file on this drive open right now), the Status page shows a clear warning rather than this
+                    staying silent. See
                     <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/usb-drive-setup.md" target="_blank" rel="noopener">USB Drive Setup</a> for details.</small>
                 <div id="rb-bindMountStatus" class="mt-1"></div>
             </div>

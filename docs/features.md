@@ -351,18 +351,25 @@ for the full story.
 
 ### Restore visibility automatically paused during a run
 
-The optional "see current backups without unmounting" toggle (Config > Backup Destination
-Storage - see [Setting up a USB backup
-drive](usb-drive-setup.md#seeing-current-backups-without-unmounting-the-drive)) makes a
-mounted drive's current contents visible to FPP's native restore without unmounting it
-first. That visibility is automatically paused for the entire duration of every backup run
-- manual, scheduled, or Command-triggered - and restored the instant the run finishes, so
-FPP's native restore (or a remote's own File Copy Backup/Restore) can never read a
-partially-written, in-progress backup through this path. This is expected behavior, not a
-malfunction: the Config page shows "Temporarily paused - a backup run is in progress"
-during that window instead of the usual "active" status. A crash, a kill, or power loss
-mid-run can't leave it stuck paused either - it's guaranteed to reconcile back to normal
-automatically, whether that run finished cleanly or not.
+The "see current backups without unmounting" toggle (Config > Backup Destination Storage -
+see [Setting up a USB backup
+drive](usb-drive-setup.md#seeing-current-backups-without-unmounting-the-drive)), on by
+default, makes a mounted drive's current contents visible to FPP's native restore without
+unmounting it first. That visibility is automatically paused for the entire duration of
+every backup run - manual, scheduled, or Command-triggered - and restored the instant the
+run finishes, so FPP's native restore (or a remote's own File Copy Backup/Restore) can
+never read a partially-written, in-progress backup through this path. This is expected
+behavior, not a malfunction: the Config page shows "Temporarily paused - a backup run is in
+progress" during that window instead of the usual "active" status. A crash, a kill, or
+power loss mid-run can't leave it stuck paused either - it's guaranteed to reconcile back
+to normal automatically, whether that run finished cleanly or not.
+
+If the pause itself ever can't complete - the underlying `umount` fails, most likely
+because something else has a file on the drive open right now - that's the one scenario
+this safeguard exists to prevent, so it isn't left silent: the Status page shows a clear
+warning for as long as the condition lasts (something else likely has a file open on the
+drive - File Manager, an active restore), clearing itself automatically the next time a
+teardown succeeds.
 
 [↑ Back to Safe Guards list](#safe-guards)
 
