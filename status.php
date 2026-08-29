@@ -474,6 +474,29 @@ $rbPlugin = basename(__DIR__);
         'done-with-warnings': 'Done (warnings)'
     };
 
+    // Translates a known ssh/rsync connection-failure pattern in errorDetail
+    // into a short, plain-language label for the visible cell - the raw
+    // technical message stays available either way, via this cell's own
+    // tooltip (set where fileCell is built) and in the full log. Each known
+    // cause keeps its own distinct label rather than folding everything
+    // into one generic "Failed to Connect": "No route to host" (unreachable
+    // on the network - check it's powered on/connected) is a genuinely
+    // different problem, with a different fix, than "Connection refused"
+    // (host answers, nothing's listening on the port) or a host key
+    // mismatch - collapsing them together would lose exactly the detail
+    // that tells you which one you're looking at. Returns null (shows the
+    // raw detail as-is) for anything not recognized, rather than guessing.
+    function rbFriendlyErrorLabel(detail) {
+        if (!detail) return null;
+        if (/Host key verification failed/i.test(detail)) return 'Host key mismatch';
+        if (/Permission denied/i.test(detail)) return 'Authentication failed';
+        if (/Connection refused/i.test(detail)) return 'Connection refused';
+        if (/No route to host/i.test(detail)) return 'Failed to connect (unreachable on network)';
+        if (/Could not resolve/i.test(detail)) return 'Failed to connect (couldn\'t resolve hostname)';
+        if (/Connection timed out/i.test(detail)) return 'Failed to connect (timed out)';
+        return null;
+    }
+
     function updateLogOptions(remotes) {
         var sel = document.getElementById('rb-log-which');
         var current = sel.value;
@@ -526,8 +549,17 @@ $rbPlugin = basename(__DIR__);
                     verifyBadge = '<br><span class="text-danger small" title="' + (r.verifyDetail || '').replace(/"/g, '&quot;') + '">&#9888; Verify failed</span>';
                 }
                 var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
+                // For a real error, show a friendlier label when the detail
+                // matches a known ssh/rsync connection-failure pattern - the
+                // raw technical text is never lost, just moved: it's still
+                // this cell's own tooltip (below) whenever a label replaces
+                // it as the visible text.
+                var errorText = r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log');
+                if (r.state === 'error') {
+                    errorText = rbFriendlyErrorLabel(r.errorDetail) || errorText;
+                }
                 var fileCell = (r.state === 'error' || r.state === 'skipped' || r.state === 'done-with-warnings')
-                    ? '<span class="' + (r.state === 'error' ? 'text-danger' : 'text-warning') + '" title="' + (r.logFile || '') + '">' + (r.errorDetail || 'Unknown error - see data/logs/ajax.log or ' + (r.logFile || 'the run log')) + '</span>'
+                    ? '<span class="' + (r.state === 'error' ? 'text-danger' : 'text-warning') + '" title="' + (r.logFile || '') + '">' + errorText + '</span>'
                     : (r.currentFile || '');
                 var progressCell = '';
                 if (r.percent != null) {

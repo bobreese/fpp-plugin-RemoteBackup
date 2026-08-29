@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** the Status page shows a plain-language label instead of the raw ssh/rsync
+  error text for a handful of recognized connection-failure patterns - e.g. "Failed to
+  connect (unreachable on network)" instead of `ssh: connect to host 192.168.1.88 port 22:
+  No route to host`. Deliberately kept as several distinct labels rather than one generic
+  "Failed to Connect" for every case: "No route to host" (remote unreachable at the network
+  layer - check it's powered on/connected), "Connection refused" (host answers, nothing's
+  listening on the port), "Connection timed out", "Could not resolve" (DNS/hostname
+  lookup), "Permission denied" (authentication), and "Host key verification failed" (a real
+  key mismatch) are genuinely different problems with different fixes - collapsing them
+  into one message would cost exactly the detail that tells you which one you're looking
+  at. The raw technical text is never actually lost either way - it's still this cell's own
+  tooltip whenever a label replaces it as the visible text, same as it always was. An
+  unrecognized error is shown as-is rather than guessed at. New `rbFriendlyErrorLabel()` in
+  `status.php`.
+
 - **Fixed:** re-ran the Pre-submission Checklist / Plugin Guidelines Compliance audit
   against the live guidelines and current codebase. Found and fixed one real regression
   introduced by this session's own email status updates feature: `rb_fpp_setting()`
