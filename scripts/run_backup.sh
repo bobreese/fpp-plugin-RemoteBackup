@@ -619,10 +619,27 @@ backup_one() {
         # backs up itself while other remotes' backups are still running
         # concurrently. Excluded unconditionally, not just in the
         # destination-inside-media case above.
+        #
+        # Same reasoning extends to data/logs, data/status, and the verify
+        # pass's own data/tmp_verify_* scratch files - confirmed in the
+        # wild: a real run's own VERIFY flagged its own engine.log, this
+        # same run's still-being-written per-remote log files, other
+        # remotes' status JSON still updating mid-run, and literally the
+        # verify pass's own temp file (created, then immediately compared
+        # against a destination captured moments earlier - guaranteed to
+        # "differ" every single time) as "differing." Every one of them is
+        # a moving target this exact run keeps writing to after the Host's
+        # own copy already ran, not a real backup problem. data/logs
+        # specifically also grows forever rather than being a stable
+        # point-in-time snapshot the way real settings/config content is -
+        # restoring an old log onto a fresh system isn't useful the way it
+        # would be for actual show content.
         if [ -n "$media_real" ]; then
             local plugin_rel="${PLUGIN_DIR#"$media_real"/}"
             host_exclude+=(--exclude="/${plugin_rel}/data/pids" --exclude="/${plugin_rel}/data/*.lock" \
-                --exclude="/${plugin_rel}/data/run_active.json" --exclude="/${plugin_rel}/data/clone_active.json")
+                --exclude="/${plugin_rel}/data/run_active.json" --exclude="/${plugin_rel}/data/clone_active.json" \
+                --exclude="/${plugin_rel}/data/logs" --exclude="/${plugin_rel}/data/status" \
+                --exclude="/${plugin_rel}/data/tmp_verify_*")
         fi
     fi
 

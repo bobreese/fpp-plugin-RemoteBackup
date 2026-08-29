@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Host's own local backup could show "N file(s) still differ from source"
+  on post-run verify even though nothing was actually wrong - reported in the wild:
+  `VERIFY Pi5Backup: 6 file(s) still differ...` listing its own `engine.log`, another
+  remote's still-in-progress per-remote log file, other remotes' status JSON still being
+  updated mid-run, and literally the verify pass's own `tmp_verify_*` scratch file. All
+  four are the plugin backing up itself while its OWN operational state (which lives
+  inside the same media tree being backed up) keeps changing during the very same run -
+  the Host's copy of `engine.log` is captured, then other remotes finish and append more
+  lines to the live one; the verify pass creates its own temp file, then immediately
+  compares against a destination snapshot taken before that file existed - guaranteed to
+  "differ" every time. Extended the existing `data/pids`/`data/*.lock`/
+  `run_active.json`/`clone_active.json` exclude (added for the exact same reason,
+  previously) to also cover `data/logs`, `data/status`, and `data/tmp_verify_*`.
+
 - **Fixed:** `fpp_install.sh` computed its own working directory as
   `$FPPDIR/plugins/fpp-plugin-RemoteBackup`, which is only correct for a plugin bundled
   with FPP itself - a user-installed, git-managed plugin like this one actually lives
