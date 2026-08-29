@@ -3,15 +3,35 @@ set -e
 
 # fpp-plugin-RemoteBackup install script
 
-# If FPPDIR isn't already set (plugin manager sets it), try to infer a
-# sensible default so the installer can be run manually from the plugin
-# tree (useful when debugging or running over SSH). FPP's layout places
-# plugins under "$FPPDIR/plugins/<plugin>", so walk up from this
-# script's location to find $FPPDIR.
+# PLUGINDIR is always derived from this script's own on-disk location, NOT
+# from "$FPPDIR/plugins/<plugin>" - a real, confirmed bug (found via the
+# rb_settings_checkpoint diagnostic below printing an unexpectedly stale
+# file): "$FPPDIR/plugins/<plugin>" is only where FPP's OWN bundled plugins
+# live. A user-installed, git-managed plugin like this one lives under FPP's
+# media tree instead (/home/fpp/media/plugins/<plugin> on a stock layout) -
+# a completely different, unrelated parent directory, not something
+# reachable by any relative-path formula from $FPPDIR. Every previous
+# install/upgrade on a real system was silently creating and touching a
+# phantom "$FPPDIR/plugins/fpp-plugin-RemoteBackup/data/" (confirmed on a
+# live box: no ajax.php, no scripts/, nothing but that one orphaned data/
+# directory) while the actual, git-pulled, web-served copy of this plugin -
+# confirmed against ajax.log's own command lines and a live git rev-parse
+# HEAD comparison - sat elsewhere, never touched by this script's chown/
+# chmod/settings-seeding at all. Self-deriving from $0 instead means this
+# script always operates on wherever it is ACTUALLY physically running
+# from, which is the one thing guaranteed to be correct regardless of how
+# a given FPP layout relates $FPPDIR to installed plugins.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGINDIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# $FPPDIR itself is still needed separately (scripts/common, setSetting).
+# The plugin manager always provides it; this fallback only covers a
+# manual run (e.g. over SSH while debugging) where it wasn't set - /opt/fpp
+# is FPP's fixed install root on every real system, so it's a safe default
+# rather than another guess relative to a plugin location we now know
+# isn't reliably related to it.
 if [ -z "${FPPDIR:-}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    PLUGINDIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-    FPPDIR="$(cd "$PLUGINDIR/.." && pwd)"
+    FPPDIR="/opt/fpp"
 fi
 
 # Source FPP-wide helpers if available; if not, continue with a warning
@@ -22,18 +42,21 @@ else
     echo "WARNING: ${FPPDIR}/scripts/common not found; continuing without it"
 fi
 
-PLUGINDIR="${FPPDIR}/plugins/fpp-plugin-RemoteBackup"
-
 # --- Diagnostic: settings.json fingerprint checkpoints -------------------
 # Added after three real incidents (2026-08-26, 08-27, 08-29) where
 # data/settings.json AND both of its independent backups (see ajax.php's
 # rb_settings_backup_path()/rb_settings_external_backup_path()) were found
 # empty/corrupt, ajax.php's own reactive detection resetting everything to
-# defaults. Two of the three lined up within seconds-to-minutes of an
-# automatic plugin upgrade (this script running as part of it) - but
-# nothing in THIS script's own code touches data/ destructively, so the
-# exact moment it happens is still unknown. Read-only (existence/size/
-# mtime/md5, never touches the files themselves), logged to stdout so
+# defaults. This diagnostic's very first real run turned out to still be
+# watching the WRONG file - because PLUGINDIR itself was wrong (see the
+# big comment above) - which is exactly what exposed that bug: the file
+# it checkpointed hadn't changed in a week, while the real one (confirmed
+# via ajax.log) was being saved to every few minutes. Now that PLUGINDIR
+# points at the real, git-managed plugin directory, this is watching the
+# file that actually matters, so the original mystery - three occasions
+# where it AND both backups went empty at once - is still genuinely open
+# and this is what will finally catch the next one. Read-only (existence/
+# size/mtime/md5, never touches the files themselves), logged to stdout so
 # upgrade_plugin's startPluginLog captures it into fpp_plugin_manager.log
 # alongside everything else this script prints - no new log file to go
 # looking for. Bracketing every step from git pull finishing (script

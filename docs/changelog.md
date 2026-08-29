@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `fpp_install.sh` computed its own working directory as
+  `$FPPDIR/plugins/fpp-plugin-RemoteBackup`, which is only correct for a plugin bundled
+  with FPP itself - a user-installed, git-managed plugin like this one actually lives
+  under FPP's media tree (`/home/fpp/media/plugins/<plugin>` on a stock layout), a
+  different, unrelated parent directory. Every install/upgrade on a real system had
+  silently been creating and touching a phantom `$FPPDIR/plugins/fpp-plugin-RemoteBackup/
+  data/` directory - confirmed on a live box: no `ajax.php`, no `scripts/`, nothing but
+  that one orphaned `data/` - while the actual, web-served copy of the plugin sat
+  elsewhere, never touched by this script's `chown`/`chmod`/settings-seeding at all.
+  Caught by the diagnostic checkpoints below printing an unexpectedly stale
+  `settings.json` on their very first real run - it hadn't changed in a week, while the
+  live one (confirmed via `ajax.log`) was being saved every few minutes. Fixed by always
+  deriving the plugin's own directory from where this script is actually physically
+  running from, rather than guessing a path relative to `$FPPDIR`.
+
 - **Added:** diagnostic checkpoints in `fpp_install.sh` after three real incidents where
   `data/settings.json` and both of its independent backups turned up empty/corrupt,
   resetting Config to defaults. Two of the three lined up within seconds-to-minutes of an
