@@ -27,6 +27,11 @@ MultiSync remotes from a central Host.
   after runs - all runs or scheduled-only, and for any outcome from "at least one failed"
   up to every run - reusing FPP's own outbound email (`FPP Settings > Email`) rather than
   managing delivery itself.
+- **No integrity check vs. an optional verify pass.** FPP File Copy Backup has no way to
+  confirm a completed copy actually matches the source. Remote Backup can optionally run a
+  second, read-only rsync comparison right after each backup and flag anything still
+  different, shown as a small badge on the Status page - off by default, since it adds a
+  second directory-listing pass over SSH to every remote's run.
 - **Restoring stays the same.** Remote Backup doesn't replace FPP's own File Copy Restore -
   it's already proven reliable, so there's no reason to.
 
