@@ -24,9 +24,44 @@ fi
 
 PLUGINDIR="${FPPDIR}/plugins/fpp-plugin-RemoteBackup"
 
+# --- Diagnostic: settings.json fingerprint checkpoints -------------------
+# Added after three real incidents (2026-08-26, 08-27, 08-29) where
+# data/settings.json AND both of its independent backups (see ajax.php's
+# rb_settings_backup_path()/rb_settings_external_backup_path()) were found
+# empty/corrupt, ajax.php's own reactive detection resetting everything to
+# defaults. Two of the three lined up within seconds-to-minutes of an
+# automatic plugin upgrade (this script running as part of it) - but
+# nothing in THIS script's own code touches data/ destructively, so the
+# exact moment it happens is still unknown. Read-only (existence/size/
+# mtime/md5, never touches the files themselves), logged to stdout so
+# upgrade_plugin's startPluginLog captures it into fpp_plugin_manager.log
+# alongside everything else this script prints - no new log file to go
+# looking for. Bracketing every step from git pull finishing (script
+# start) through immediately before FPP restarts fppd (script end) means
+# the next occurrence pins the exact step instead of only being noticed
+# hours later by ajax.php.
+rb_settings_checkpoint() {
+    local label="$1"
+    local f
+    echo "SETTINGS_CHECK [$label]"
+    for f in "${PLUGINDIR}/data/settings.json" "${PLUGINDIR}/data/settings.json.bak" "/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"; do
+        if [ -f "$f" ]; then
+            local size mtime md5
+            size=$(stat -c %s "$f" 2>/dev/null || echo '?')
+            mtime=$(stat -c %y "$f" 2>/dev/null || echo '?')
+            md5=$(md5sum "$f" 2>/dev/null | cut -c1-12 || echo '?')
+            echo "SETTINGS_CHECK [$label]   $f: size=${size} mtime=${mtime} md5=${md5}"
+        else
+            echo "SETTINGS_CHECK [$label]   $f: MISSING"
+        fi
+    done
+}
+
 echo "=================================================================="
 echo " Remote Backup plugin - installing"
 echo "=================================================================="
+
+rb_settings_checkpoint "script-start"
 
 # --- Make sure required tools are present -----------------------------
 # Deliberately a plain `apt-get install`, NOT declared in pluginInfo.json's
@@ -73,11 +108,15 @@ if [ ! -f "${PLUGINDIR}/data/settings.json" ]; then
 SETTINGSEOF
 fi
 
+rb_settings_checkpoint "pre-chmod"
+
 chown -R fpp:fpp "${PLUGINDIR}/data" 2>/dev/null || true
 # FPP is a single-user appliance; the web server user varies by build
 # (fpp, www-data, etc.), so open data/ up rather than guess wrong and
 # leave Config Save / status writes silently failing.
 chmod -R 0777 "${PLUGINDIR}/data" 2>/dev/null || true
+
+rb_settings_checkpoint "post-chmod"
 
 for f in run_backup.sh dry_run.sh probe_storage.sh probe_remotes.sh ssh_setup.sh mount_usb.sh unmount_usb.sh format_usb.sh list_backups.sh get_backup_info.sh delete_backup.sh purge_sdcard_backups.sh lib_common.sh clone_backups.sh; do
     chmod +x "${PLUGINDIR}/scripts/${f}" 2>/dev/null || true
@@ -112,6 +151,8 @@ find /home/fpp/.ssh -maxdepth 1 -type f -name 'known_hosts.*' -delete 2>/dev/nul
 # without it, the live-reload path skips this plugin entirely, so the flag
 # is what makes a fresh install actually usable without a separate manual
 # restart nobody would otherwise know to do.
+rb_settings_checkpoint "script-end"
+
 if command -v setSetting >/dev/null 2>&1; then
     setSetting restartFlag 1
 else
