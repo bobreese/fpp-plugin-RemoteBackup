@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the two "Format drive" confirmation modals (initial mount and re-format) had a
+  narrower version of the same underlying problem, caught by actually rendering them rather
+  than assuming a modal was safe from it. The Filesystem dropdown's own option text ("exFAT
+  (recommended - readable on Windows/Mac/Linux)") is wide enough that the table it sits in
+  sized itself to fit it - on a phone that's wider than the modal itself, and the modal's
+  own `overflow-x:hidden` silently *clipped* the dropdown instead of the page scrolling
+  (confirmed: the control rendered ~375px wide inside a 320px-wide modal, part of it
+  permanently unreachable). Fixed with `table-layout:fixed` on the table plus
+  `max-width:100%` on each control, so every field stays within the modal at any width.
+
 - **Fixed:** while checking the Config page for any other table with this same
   missing-wrapper bug, found the "Show Schedule Conflict Check" panel's results table was
   the worst instance of it - a 7-column bordered table (one per day of week) with no
