@@ -9,6 +9,8 @@ pulling backups from one or more of your other FPP systems onto local storage.
 - Won't back up a system while it's playing a show, so playback is never put at risk.
 - Built-in safeguards keep backups from overwriting the wrong drive, running two at once,
   or leaving things in a broken state.
+- Optional email status updates after a run, sent through FPP's own Email settings —
+  no separate mail setup for this plugin to configure.
 
 ## Documentation
 
