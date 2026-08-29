@@ -297,11 +297,10 @@ overflowing.
 
 While fixing the Remote Systems table above, grepped `config.php` for every other `<table`
 to check whether the same bug existed elsewhere rather than assuming it was isolated. Found
-three more tables: two 2-column tables inside the "Format drive" modal dialogs (short
-labels plus auto-sized form controls, judged low risk - a modal is already width-capped and
-these aren't the wide-table pattern the bug depends on), and one real instance in
-`renderScheduleResults()` (the "Show Schedule Conflict Check" panel) - a 7-column bordered
-table, one column per day of week, with generous `px-3` padding and no wrapper at all.
+three more tables: two 2-column tables inside the "Format drive" modal dialogs, and one real
+instance in `renderScheduleResults()` (the "Show Schedule Conflict Check" panel) - a
+7-column bordered table, one column per day of week, with generous `px-3` padding and no
+wrapper at all.
 
 This was actually the worst of the three tables fixed in this general pass: verified with
 real headless Chromium (`headless_shell`) against FPP's real CSS, `body.scrollWidth` was
@@ -315,6 +314,41 @@ matches the viewport exactly at both 320px and 375px.
 Also checked `renderStorage()`/`renderStorage2()` (the storage-device lists) in the same
 pass, since they render similar-looking device listings. They build wrapping `<div>`s, not
 a `<table>`, so they don't have this failure mode at all and needed no change.
+
+The two "Format drive" modal tables were initially judged low risk on the reasoning that a
+modal is already width-capped so the wide-table-forces-page-scroll pattern doesn't apply -
+that reasoning was checked against real FPP source rather than left as an assumption, and
+turned out to be wrong about the failure mode, not about there being a real bug.
+
+### Fixed: the "Format drive" modal tables silently clipped the Filesystem dropdown on a phone
+
+Fetched FPP core's actual `DoModalDialog` source (not guessed) to see what DOM it builds:
+the `class: 'modal-m'` option passed by `runFormatFlow()`/`runFormatFlow2()` lands on the
+*outer* `.modal` wrapper - and `.modal-m` isn't defined in FPP's Bootstrap build either (the
+same kind of gap the `.table-responsive` finding above already flagged), so it's a no-op.
+`.modal-dialog` itself gets no size class at all, and FPP's Bootstrap build only caps its
+width above the 576px breakpoint - below that it's `width:auto`, sized to content.
+
+Crucially, `.modal` itself has `overflow-x:hidden` (confirmed in the CSS) - so unlike the
+page-level bug above, a too-wide modal doesn't force the *page* to scroll. It just clips its
+own content with no scrollbar and no way to reach it. Verified with real headless Chromium
+using FPP's real CSS and the actual `DoModalDialog` DOM structure: the Filesystem `<select>`
+rendered ~375px wide (sized to fit its own longest option, "exFAT (recommended - readable on
+Windows/Mac/Linux)") inside a 320px-wide modal on a phone - confirmed clipped, part of the
+control permanently unreachable, not just visually truncated.
+
+Root cause: `table-borderless` with default (`auto`) table layout sizes each column to fit
+its widest content, so the `<select>`'s own intrinsic width won the table's layout instead
+of being bound by it - a `max-width:100%` tried alone had no effect, because "100% of an
+auto-sized parent" is circular and content still wins. Fixed by adding
+`table-layout:fixed;width:100%` to the table (so its columns are bound to the table's own,
+properly-constrained width instead of their content) *together with* `max-width:100%` on
+each `<select>`/`<input>` (so each control then actually respects that bound). Verified both
+were required: table-layout:fixed alone left the `<select>` overflowing its now-fixed cell;
+max-width:100% alone did nothing without it. Re-verified after the combined fix:
+`modal.scrollWidth` matches `modal.clientWidth` exactly at 320px and 375px - nothing
+clipped - and the dropdown's own native popup (rendered by browser/OS chrome, unaffected by
+this page's CSS) still shows the full option text when opened.
 
 ### Open: extensive use of `sudo` outside the install/uninstall lifecycle
 

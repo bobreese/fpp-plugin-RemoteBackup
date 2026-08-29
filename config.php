@@ -917,16 +917,25 @@ $rbPlugin = basename(__DIR__);
             var modalId = 'rb-format-modal';
             var bodyHtml =
                 '<div class="callout callout-danger mb-2">This will <b>ERASE ALL DATA</b> on ' + device + ' (' + size + ').' + warnExtra + ' This cannot be undone.</div>' +
-                '<table class="table table-sm table-borderless mb-0">' +
+                // table-layout:fixed - without it this table sizes its columns to fit the
+                // Filesystem <select>'s own content ("exFAT (recommended - readable on
+                // Windows/Mac/Linux)"), which is wider than the modal itself on a phone -
+                // the modal's own overflow-x:hidden then silently CLIPS the dropdown
+                // instead of the page scrolling (confirmed with real headless Chromium:
+                // the select rendered ~375px wide inside a 320px modal, unreachable past
+                // the edge). Fixing columns to the table's own (already modal-bounded)
+                // width, combined with max-width:100% on each control below, keeps every
+                // control within the modal instead.
+                '<table class="table table-sm table-borderless mb-0" style="table-layout:fixed;width:100%">' +
                 '<tr><td>Filesystem:</td><td>' +
-                '<select id="rb-format-fstype" class="form-select form-select-sm d-inline-block w-auto">' +
+                '<select id="rb-format-fstype" class="form-select form-select-sm d-inline-block w-auto" style="max-width:100%">' +
                 '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
                 '<option value="ext4">ext4 (Linux only)</option>' +
                 '</select></td></tr>' +
                 '<tr><td>Volume label:</td><td>' +
-                '<input type="text" id="rb-format-label" class="form-control form-control-sm d-inline-block w-auto" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
+                '<input type="text" id="rb-format-label" class="form-control form-control-sm d-inline-block w-auto" style="max-width:100%" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
                 '<tr><td>Type <code>' + device + '</code> to confirm:</td><td>' +
-                '<input type="text" id="rb-format-confirm" class="form-control form-control-sm d-inline-block w-auto" autocomplete="off"></td></tr>' +
+                '<input type="text" id="rb-format-confirm" class="form-control form-control-sm d-inline-block w-auto" style="max-width:100%" autocomplete="off"></td></tr>' +
                 '</table>';
 
             DoModalDialog({
@@ -1095,16 +1104,20 @@ $rbPlugin = basename(__DIR__);
             var modalId = 'rb-format2-modal';
             var bodyHtml =
                 '<div class="callout callout-danger mb-2">This will <b>ERASE ALL DATA</b> on ' + device + ' (' + size + ').' + warnExtra + ' This cannot be undone.</div>' +
-                '<table class="table table-sm table-borderless mb-0">' +
+                // See runFormatFlow()'s identical table above for why table-layout:fixed
+                // and max-width:100% are needed here - without them the Filesystem
+                // <select> silently gets clipped by the modal's overflow-x:hidden on a
+                // phone screen instead of the page scrolling.
+                '<table class="table table-sm table-borderless mb-0" style="table-layout:fixed;width:100%">' +
                 '<tr><td>Filesystem:</td><td>' +
-                '<select id="rb-format2-fstype" class="form-select form-select-sm d-inline-block w-auto">' +
+                '<select id="rb-format2-fstype" class="form-select form-select-sm d-inline-block w-auto" style="max-width:100%">' +
                 '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
                 '<option value="ext4">ext4 (Linux only)</option>' +
                 '</select></td></tr>' +
                 '<tr><td>Volume label:</td><td>' +
-                '<input type="text" id="rb-format2-label" class="form-control form-control-sm d-inline-block w-auto" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
+                '<input type="text" id="rb-format2-label" class="form-control form-control-sm d-inline-block w-auto" style="max-width:100%" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
                 '<tr><td>Type <code>' + device + '</code> to confirm:</td><td>' +
-                '<input type="text" id="rb-format2-confirm" class="form-control form-control-sm d-inline-block w-auto" autocomplete="off"></td></tr>' +
+                '<input type="text" id="rb-format2-confirm" class="form-control form-control-sm d-inline-block w-auto" style="max-width:100%" autocomplete="off"></td></tr>' +
                 '</table>';
 
             DoModalDialog({
