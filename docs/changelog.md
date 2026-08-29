@@ -5,6 +5,22 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** re-ran the Pre-submission Checklist / Plugin Guidelines Compliance audit
+  against the live guidelines and current codebase. Found and fixed one real regression
+  introduced by this session's own email status updates feature: `rb_fpp_setting()`
+  (`lib_common.sh`) and `rb_fpp_email_to()` (`ajax.php`) both read FPP's own settings file
+  (`/home/fpp/media/settings`) directly to get `emailtoemail` - exactly the anti-pattern
+  the guidelines call out ("never read or write the underlying files directly ... use the
+  documented HTTP API"), written that way by pattern-matching FPP's own *internal*
+  `getSetting()` helper instead of the API surface a plugin is meant to go through. Fixed
+  on both sides: `ajax.php` now captures `$settings['emailtoemail']` from FPP's own
+  already-populated global at the very top of the file, before this plugin's own code can
+  shadow that variable name; `lib_common.sh` now calls `GET /api/settings/emailtoemail`
+  via `curl` (5s timeout) instead. Everything else re-checked clean, including a fresh
+  sweep of every UI addition since the last pass (Email Settings, the verify checkbox, the
+  Status page's verify badge) for hardcoded colors/fixed-pixel widths - see
+  [Plugin Guidelines Compliance](plugin-guidelines-compliance.md) for the full write-up.
+
 - **Documented:** the email status updates feature (added earlier but missing from two
   places): a new "Email Status Updates" category in the in-app Help page
   (`help/help.php`), between Scheduling and Log Files, and a new bullet in

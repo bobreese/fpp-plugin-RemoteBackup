@@ -460,16 +460,21 @@ rb_parse_rsync_bytes() {
 # this subject/body" API in FPP core to call instead, so this reuses the
 # exact same underlying mechanism directly.
 
-# rb_fpp_setting <name>: reads one value from FPP's OWN settings file
-# (/home/fpp/media/settings - a plain `key = "value"` per line format,
-# NOT this plugin's own JSON settings.json), the same way FPP's own
-# getSetting() bash helper (scripts/common) does. Deliberately a plain
-# grep/sed rather than sourcing all of FPP's own scripts/common, which
-# pulls in far more environment setup than reading one setting needs.
+# rb_fpp_setting <name>: reads one value from FPP's OWN settings via its
+# documented HTTP API (GET /api/settings/<name>, which returns an object
+# with the current value under .value) - the plugin guidelines' own
+# preference for a script reading FPP state ("use the documented HTTP API
+# ... never read or write the underlying files directly"). An earlier
+# version of this read FPP's own settings file directly (matching what
+# FPP's own internal getSetting() bash helper does) - guideline-compliant
+# from FPP's own point of view, since that helper IS the implementation,
+# but not from a plugin's, which is meant to go through the API surface
+# instead of FPP's internal files. 5s timeout: this blocks a real backup
+# run, and localhost should always answer near-instantly if fppd is up at
+# all - failing fast beats hanging the whole run on a slow/wedged fppd.
 rb_fpp_setting() {
-    local name="$1" f="/home/fpp/media/settings"
-    [ -f "$f" ] || return 0
-    grep -i --binary-files=text "^${name}\s*=.*" "$f" 2>/dev/null | head -1 | sed -E -e "s/^${name}\s*=\s*(.*)/\1/" -e 's/"//g'
+    local name="$1"
+    curl -s -m 5 "http://localhost/api/settings/${name}" 2>/dev/null | jq -r '.value // empty' 2>/dev/null
 }
 
 # rb_send_status_email <subject> <body>: pipes body to the `mail` command

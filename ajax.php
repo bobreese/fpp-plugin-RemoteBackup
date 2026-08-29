@@ -14,6 +14,17 @@ ob_start();
 error_reporting(E_ALL);
 ini_set('display_errors', '0'); // never let PHP notices/warnings leak into the JSON body
 
+// FPP's own www/config.php (always required by plugin.php before this file
+// runs, per the comment above) has already populated the global $settings
+// array from FPP's own settings. Captured into a distinctly-named variable
+// HERE, before anything below runs: every case further down that touches
+// settings does $settings = rb_load_settings(...) for THIS plugin's own
+// settings object, reusing the same variable name - the first such
+// reassignment would otherwise silently shadow FPP's global for the rest of
+// the request. See rb_fpp_email_to() below for why this needs to be a real
+// value, not a re-read of FPP's settings file ourselves.
+$RB_FPP_EMAIL_TO = isset($settings['emailtoemail']) ? (string)$settings['emailtoemail'] : '';
+
 $PLUGIN_DIR = __DIR__;
 $DATA_DIR = "$PLUGIN_DIR/data";
 $SCRIPTS_DIR = "$PLUGIN_DIR/scripts";
@@ -288,31 +299,21 @@ function rb_resolve_log_file($which) {
     return $AJAX_LOG;
 }
 
-// rb_fpp_email_to(): reads FPP's OWN "emailtoemail" setting (FPP Setting >
-// Email's "Default TO Address") directly from its settings file - a plain
-// `key = "value"` per line format at /home/fpp/media/settings, NOT this
-// plugin's own data/settings.json. Deliberately reads the file fresh
-// rather than trusting FPP's own already-populated global $settings
-// (populated by www/config.php, which plugin.php always requires before
-// this file runs): every case below that touches settings does
-// `$settings = rb_load_settings(...)` for THIS plugin's own settings
-// object, using the same variable name - the first such reassignment
-// would silently shadow FPP's global for the rest of the request. Reading
-// the file directly here sidesteps that shadowing hazard entirely. Used
-// only so Config can show whether FPP's own email is configured at all -
-// the actual send (scripts/lib_common.sh's rb_send_status_email) reads
-// this same file itself, independently, from the bash side.
+// rb_fpp_email_to(): FPP's OWN "emailtoemail" setting (FPP Setting >
+// Email's "Default TO Address"), captured into $RB_FPP_EMAIL_TO at the very
+// top of this file (see there) from FPP's own already-populated global
+// $settings - per the plugin guidelines' own preference ("From a PHP page:
+// call FPP's PHP helper functions directly - $settings[...] ... the
+// cheapest and most stable path"), not by hand-parsing FPP's settings file
+// ourselves, which an earlier version of this function did and which the
+// guidelines separately warn against ("never read or write the underlying
+// files directly"). Used only so Config can show whether FPP's own email is
+// configured at all - the actual send (scripts/lib_common.sh's
+// rb_send_status_email) reads it via FPP's own HTTP API instead, the
+// equivalent guideline-sanctioned path for a bash script.
 function rb_fpp_email_to() {
-    $f = '/home/fpp/media/settings';
-    if (!is_file($f)) return '';
-    $lines = @file($f, FILE_IGNORE_NEW_LINES);
-    if (!$lines) return '';
-    foreach ($lines as $line) {
-        if (preg_match('/^emailtoemail\s*=\s*"?([^"]*)"?\s*$/i', $line, $m)) {
-            return trim($m[1]);
-        }
-    }
-    return '';
+    global $RB_FPP_EMAIL_TO;
+    return $RB_FPP_EMAIL_TO;
 }
 
 function rb_default_settings() {
