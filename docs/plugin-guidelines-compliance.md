@@ -9,22 +9,26 @@ and
 from FPP's own template plugin repository - with the reasoning behind each result, not
 just a pass/fail list. Re-run periodically against the live guidelines text (which the
 guidelines themselves say can change without notice), not just re-stated from memory -
-this pass fetched both documents fresh and re-checked every claim below against the
-current codebase rather than trusting the previous write-up.
+this pass (and the one before it) fetched both documents fresh and re-checked every claim
+below against the current codebase rather than trusting the previous write-up. Guidelines
+text unchanged since the previous pass for every section quoted below - this pass's one
+real finding was in the plugin's own code (new since last time), not a guidelines change.
 
 ## Passing
 
 - **`pluginInfo.json` is valid JSON and has every mandatory field** (`repoName`, `name`,
   `author`, `description`, `homeURL`, `srcURL`, `bugURL`, `versions`). `iconURL` resolves
   to a real committed `icon.png` at the repo root, confirmed 256x256.
-- **No hardcoded colors** as of this pass - two rounds of findings so far (one hex color in
-  an early pass, three more reintroduced by new code - the Config page walkthrough - in
-  this one; see Findings below for both) - the Config/Status pages otherwise use FPP's own
-  Bootstrap-based dialog, toast, and CSS color idioms (or, for the walkthrough's own accent,
-  the `--bs-primary` CSS variable) instead of bare hex/RGB values, so they adapt correctly
-  to FPP's dark theme. New UI added between audits is exactly where this tends to slip back
-  in, so worth re-checking specifically on every future pass, not just assuming it still
-  holds from last time.
+- **No hardcoded colors** as of this pass - two rounds of findings in earlier passes (one
+  hex color, then three more reintroduced by the Config page walkthrough; see Findings
+  below for both) - the Config/Status pages otherwise use FPP's own Bootstrap-based dialog,
+  toast, and CSS color idioms (or, for the walkthrough's own accent, the `--bs-primary` CSS
+  variable) instead of bare hex/RGB values, so they adapt correctly to FPP's dark theme.
+  Re-checked specifically this pass against every UI addition since the last one (the Email
+  Settings section, the verify checkbox, the Status page's verify badge) - all use semantic
+  classes (`text-success`/`text-warning`/`text-danger`), no new hex/RGB values found. New UI
+  added between audits is exactly where this tends to slip back in, so worth re-checking
+  specifically on every future pass, not just assuming it still holds from last time.
 - **No cron jobs, systemd units, or symlinks** are created outside FPP's own plugin
   lifecycle hooks and `commands/descriptions.json` mechanism - confirmed by inspection of
   `fpp_install.sh`/`fpp_uninstall.sh` (no `systemctl`, `crontab`, or `ln -s` anywhere in
@@ -41,7 +45,11 @@ current codebase rather than trusting the previous write-up.
   and `pluginInfo.json` all checked, no matches for PayPal/Ko-fi/Venmo/Patreon/GitHub
   Sponsors/etc.
 - **No bundled analytics/telemetry SDK or usage phone-home** - no matches for any
-  telemetry vendor name or a home-rolled reporting endpoint anywhere in the plugin.
+  telemetry vendor name or a home-rolled reporting endpoint anywhere in the plugin. Worth
+  naming explicitly given the new email status updates feature: that's not telemetry - it's
+  off by default, sends only to an address the user themselves configured under FPP's own
+  Setting > Email, carries only this one install's own backup outcomes (not usage
+  statistics), and goes nowhere near this plugin's author or any third party.
 - **No advertising** - the plugin's pages don't promote any other product, vendor, or
   plugin (including its own, beyond normal self-description).
 - **No third-party tunneling/remote-access service** (Tailscale, ngrok, Cloudflare
@@ -56,8 +64,10 @@ current codebase rather than trusting the previous write-up.
   of fppd's raw internal port (`:32322`) and no hand-reading/writing of FPP's own core
   config files (`channeloutputs.json`, `model-overlays.json`, the settings file, etc.) -
   remote/system state is read via `/api/fppd/multiSyncSystems`, `/api/system/status`,
-  `/api/schedule`, and FPP's own `copy_settings_to_storage.sh`/backup-device API for the
-  cases that touch another FPP system at all.
+  `/api/schedule`, `/api/settings/:name` (this Host's own `emailtoemail`, for the email
+  status updates feature - see this pass's Findings for the fix that got it there), and
+  FPP's own `copy_settings_to_storage.sh`/backup-device API for the cases that touch
+  another FPP system at all.
 - **`dependencies.packages` is deliberately left empty** (`[]`) in `pluginInfo.json`, and
   the current guidelines explicitly confirm this is fine either way ("optional this year
   ... installing everything yourself from `fpp_install.sh` remains completely fine").
@@ -81,6 +91,42 @@ current codebase rather than trusting the previous write-up.
   CPU - nothing here has ever needed declaring.
 
 ## Findings
+
+### Fixed: the email feature read FPP's own settings file directly instead of its API
+
+New since the previous pass (the email status updates and post-run verification
+features). §3.4/§3.3: *"For any FPP data, use the API - never read or write the
+underlying files directly ... To read FPP state, use the documented HTTP API."*
+`rb_fpp_setting()` (`lib_common.sh`, used to read FPP Setting > Email's
+`emailtoemail` before sending a status email) and `rb_fpp_email_to()` (`ajax.php`,
+used so Config can show whether that's configured) both parsed
+`/home/fpp/media/settings` directly - a plain `key = "value"` file - exactly the
+anti-pattern the guidelines call out, even though both were read-only. Written
+that way originally by pattern-matching FPP's own *internal* `getSetting()` bash
+helper (`scripts/common`) as if it were the sanctioned approach for a plugin to
+use, when it's actually FPP's own implementation of the API surface a plugin is
+supposed to go through instead.
+
+Fixed on both sides, using the path the guidelines actually name for each context:
+
+- **`ajax.php`** (§3.1, "From a PHP page ... call FPP's PHP helper functions
+  directly - `$settings[...]` ... the cheapest and most stable path"): now
+  captures `$settings['emailtoemail']` from FPP's own already-populated global
+  into `$RB_FPP_EMAIL_TO`, at the very top of the file before anything else runs
+  - specifically before any of this plugin's own code reassigns the same
+    `$settings` variable name to its own settings object (every case in the
+    action dispatch below does `$settings = rb_load_settings(...)`), which would
+    otherwise silently shadow FPP's global the moment any case ran.
+- **`lib_common.sh`** (§3.3, "use the documented HTTP API"): now calls
+  `GET /api/settings/emailtoemail` via `curl` (5s timeout - this blocks a real
+  backup run, and localhost should answer near-instantly if `fppd` is up at all)
+  and reads the value out of the JSON response's `.value` key, matching
+  `GetSetting()`'s actual response shape (confirmed against FPP core source).
+
+Swept the rest of the plugin for the same pattern (any other direct read of
+`/home/fpp/media/settings`, `channeloutputs.json`, `model-overlays.json`, or
+fppd's internal `:32322` port) - found nothing else; this was the only instance,
+confined to the one feature added since the last pass.
 
 ### Fixed: three hardcoded colors introduced by the Config page walkthrough
 
@@ -197,7 +243,11 @@ diff but breaks visually. Left as a concrete, scoped to-do rather than guessed a
 Re-checked against new UI added since: the Config page walkthrough's popup uses `width:
 320px` but pairs it with `max-width: calc(100vw - 16px)`, so it shrinks to fit rather than
 forcing overflow - same reasoning as the `max-width`/`max-height` values above, not a new
-instance of the riskier bare-fixed-width pattern.
+instance of the riskier bare-fixed-width pattern. Re-checked again this pass against the
+Email Settings section, the verify checkbox, and the Status page's verify badge - none of
+the three added any `width`/`height`/`min-width` styling at all (the badge is plain text
+in a `<br>`-separated `<span>`), so the fixed-pixel-width list above is unchanged from the
+previous pass.
 
 **Real-device check in progress:** confirmed looking correct on an iPad. Worth being
 precise about what that does and doesn't cover, though - an iPad's portrait CSS width
