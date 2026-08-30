@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** [Network Shares and Virtual Machines](network-shares-and-virtualization.md) -
+  a plain-language explainer for two questions that come up without an obvious answer
+  anywhere else: why a NAS/SMB/NFS share never shows up in the storage list (nothing in
+  FPP or this plugin knows how to mount one - FPP only lets other computers reach *into*
+  its own files via Samba/CIFS/FTP, never the other way around), and why this doesn't work
+  running FPP itself under Docker, Hyper-V, or another VM (FPP's own project states plainly
+  that only real Raspberry Pi/BeagleBone hardware is supported - this plugin inherits that
+  same boundary, not a separate limitation of its own). Linked from the README, from
+  Requirements, and from Troubleshooting.
+
 - **Fixed:** the Host's own local backup could report "some files vanished before they
   could be transferred" (rsync exit code 24) - reported in the wild, and a real instance of
   a failure mode already predicted (but not yet actually hit) in the exclude list below:

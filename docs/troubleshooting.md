@@ -17,6 +17,7 @@
 - [Remote Playing a Sequence](#remote-playing-a-sequence)
 - [Settings Reset to Defaults](#settings-reset-to-defaults)
 - [A USB/SSD Drive Shows Two Partitions](#a-usbssd-drive-shows-two-partitions)
+- [My Network Share Doesn't Show Up as a Destination / This Doesn't Work in Docker or a VM](#my-network-share-doesnt-show-up-as-a-destination--this-doesnt-work-in-docker-or-a-vm)
 
 ## SSH key failures
 
@@ -378,3 +379,12 @@ task) repeatedly touching this plugin's `data/` directory, not a rare fluke. Thi
 no visibility into what that is; if it keeps happening, it's worth checking `syslog`/
 `journalctl` (or whatever your FPP build uses) for anything scheduled around the times it
 occurs.
+
+[↑ Back to top](#troubleshooting)
+
+## My Network Share Doesn't Show Up as a Destination / This Doesn't Work in Docker or a VM
+
+Both expected, not a bug - see [Network Shares and Virtual
+Machines](network-shares-and-virtualization.md) for the plain-language explanation of why a
+NAS/SMB/NFS share never appears in the storage list, and why running FPP itself under
+Docker, Hyper-V, or another VM isn't something this plugin (or FPP) supports.
