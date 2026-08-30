@@ -7,10 +7,9 @@ assignees: ''
 
 ---
 
-**Describe the bug**
 Thanks for taking the time to fill out this bug report!
-
 **Tell us what happened**
+
 
 "Log Files"
 Please upload the Remote Plugin and if possible the FPP Log Files"
