@@ -20,6 +20,7 @@ pulling backups from one or more of your other FPP systems onto local storage.
 - [Features & Safe Guards](docs/features.md)
 - [Requirements, Install, and Uninstall (incl. Known minor gaps)](docs/requirements-install-uninstall.md)
 - [Setting up a USB backup drive / Cloning backups to a second drive](docs/usb-drive-setup.md)
+- [Network Shares and Virtual Machines (what's not supported, and why)](docs/network-shares-and-virtualization.md)
 - [Scheduling backups](docs/scheduling.md)
 - [Show Schedule Conflict Check](docs/schedule-conflict-check.md)
 - [Estimated Backup Times](docs/estimated-backup-times.md)

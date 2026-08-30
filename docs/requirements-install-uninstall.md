@@ -20,6 +20,11 @@
 - Remotes are backed up from `/home/fpp/media` (config, sequences, effects, music,
   video, playlists, plugins) - this is the standard location for essentially all
   user-generated FPP content.
+- The Backup Host itself needs to be real, FPP-supported hardware (Raspberry Pi or
+  BeagleBone) with a local drive attached - see [Network Shares and Virtual
+  Machines](network-shares-and-virtualization.md) for what's not supported here and why
+  (network shares as a destination, and running FPP itself under Docker/Hyper-V/another
+  VM).
 
 ## Install
 
