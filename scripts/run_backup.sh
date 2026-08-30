@@ -639,17 +639,33 @@ backup_one() {
         # very next run's VERIFY right after the fix above shipped: a ~30s
         # TTL cache of volume labels (see ajax.php's rb_volume_label()),
         # rewritten by any Config/Status page poll (probeStorage etc.)
-        # entirely independent of a backup even running - per
-        # directory-layout.md, once this is added, settings.json is the
-        # only thing left under data/ that's actually meaningful to back
-        # up; everything else there is this same class of live, run-
+        # entirely independent of a backup even running.
+        #
+        # data/tmp_extras_<id>_* is the "vanished mid-transfer" case the
+        # comment above predicted, actually happening: each remote's own
+        # "Include system config" extras pull gets its own scratch
+        # directory under data/ (see mktemp -d further below) that's
+        # created and removed entirely within THAT remote's own run.
+        # Confirmed in the wild: the Host's own local backup (running
+        # concurrently with other remotes, maxConcurrent > 1) scanned
+        # another remote's still-live tmp_extras_ directory, then found
+        # every file in it gone by the time it tried to actually copy
+        # them - that other remote's own run had already finished and
+        # cleaned up its scratch dir in between, rsync correctly reporting
+        # exit code 24 ("some files vanished") for something that was
+        # never a real backup problem.
+        #
+        # Per directory-layout.md, settings.json is now the only thing
+        # left under data/ that's actually meaningful to back up -
+        # everything else there is this same class of live, run-
         # independent operational state.
         if [ -n "$media_real" ]; then
             local plugin_rel="${PLUGIN_DIR#"$media_real"/}"
             host_exclude+=(--exclude="/${plugin_rel}/data/pids" --exclude="/${plugin_rel}/data/*.lock" \
                 --exclude="/${plugin_rel}/data/run_active.json" --exclude="/${plugin_rel}/data/clone_active.json" \
                 --exclude="/${plugin_rel}/data/logs" --exclude="/${plugin_rel}/data/status" \
-                --exclude="/${plugin_rel}/data/tmp_verify_*" --exclude="/${plugin_rel}/data/label_cache.json")
+                --exclude="/${plugin_rel}/data/tmp_verify_*" --exclude="/${plugin_rel}/data/label_cache.json" \
+                --exclude="/${plugin_rel}/data/tmp_extras_*")
         fi
     fi
 

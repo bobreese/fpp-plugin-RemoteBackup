@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Host's own local backup could report "some files vanished before they
+  could be transferred" (rsync exit code 24) - reported in the wild, and a real instance of
+  a failure mode already predicted (but not yet actually hit) in the exclude list below:
+  every remote's "Include system config" extras pull gets its own `data/tmp_extras_<id>_*`
+  scratch directory, created and removed entirely within that one remote's own run. With
+  more than one remote running concurrently, the Host's own local backup could scan
+  another remote's still-live scratch directory, then find its files gone by the time it
+  tried to actually copy them - that remote's run had already finished and cleaned up in
+  between. Added `data/tmp_extras_*` to the same `host_exclude` list as the other
+  operational-state exclusions - verified rsync's own transfer plan no longer includes
+  anything under it at all, so the race can't happen regardless of timing.
+
 - **Changed:** "Let remotes and FPP's own File Copy Backup/Restore see current backups on
   this drive without unmounting it first" (Config > Backup Destination Storage) now
   defaults to on, for whatever drive ends up being the saved destination - previously off
