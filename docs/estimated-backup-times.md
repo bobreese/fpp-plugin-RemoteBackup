@@ -59,41 +59,6 @@ Host and the remote it's pulling from), lined up against the exact backup window
 `data/logs/engine.log`. More get added here as they're captured on different device
 combinations.
 
-### How to capture your own
-
-On each device you want to compare, a simple loop samples `top` and the network counters
-every few seconds and appends them to a log file:
-
-```bash
-while true; do
-    date '+%Y-%m-%d %H:%M:%S'
-    top -bn1 | head -6
-    echo "--- NETWORK ---"
-    grep -E 'eth0|wlan0' /proc/net/dev
-    sleep 5
-done >> /tmp/system_monitor.log
-```
-
-Start it on the Host and on whichever remote you want to compare, let it run through a
-real backup, then stop it and pull both log files off (over SSH or `scp`, since `/tmp`
-isn't reachable through FPP's own File Manager). Line the timestamps up against
-`engine.log`'s own `starting rsync for <remote>` / `finished rsync` lines to know exactly
-which samples fall inside the real transfer window - everything outside that window is
-just idle baseline, useful for contrast but not the number that matters.
-
-**Keep the monitor's own log out of `/home/fpp/media` entirely.** Every device backs up
-from `/home/fpp/media` (see [Requirements](requirements-install-uninstall.md#requirements)),
-so a log file written under there - `logs/system_monitor.log`, say - is live source content:
-still being appended to *while* the very backup that's supposed to capture it is running,
-the same "still changing during this exact run" class of issue this plugin's own
-operational files hit internally (see the [changelog](changelog.md)), just on your own
-script this time. `/tmp` above sidesteps the problem outright, on the Host and on every
-remote, with nothing to configure - it's simply never part of what gets backed up, so it
-can never show up as a false "still differs" on Status/VERIFY. If you'd rather keep the log
-under `/home/fpp/media` anyway (e.g. so FPP's own File Manager can reach it), add its path
-to Config's Exclude patterns instead - that setting is shared across the Host and every
-remote's backup in one place, so it only needs adding once, not per device.
-
 ### 2026-08-31: Pi5Backup (Host) vs. FPPBeagleBlack (remote)
 
 Both boards 32-bit. Backup window from `engine.log`: FPPBeagleBlack's own transfer ran
@@ -180,6 +145,49 @@ process that needs it) stayed flat around 670-690 MB the entire time - the free-
 the Linux page cache doing its job (buffering the incoming write), not the Host running low on
 usable RAM. Load average again lags CPU%, peaking a sample or two after the run's actual busiest
 moment.
+
+### 2026-08-31: PiMaster (Host) vs. SantaFPP (remote, 64-bit)
+
+Roles flipped from the example above: PiMaster is now the Host, and both it and SantaFPP are
+64-bit, on what looks like real Gigabit Ethernet rather than a Fast-Ethernet-limited link. Backup
+window from `engine.log`: SantaFPP's own transfer ran 10:19:15-10:19:39, sending 940 MB across
+30 files - the fastest transfer captured across these examples so far.
+
+**SantaFPP (remote, 64-bit, 1844.8 MB RAM)**
+
+| Time | Load avg | CPU busy | Mem used | Network (out) |
+|---|---|---|---|---|
+| 10:19:08 | 0.55 | 2% | 345.2 MB | ~3 KB/s (idle) |
+| 10:19:14 | 0.50 | 4% | 345.4 MB | ~5 KB/s (just before start) |
+| **10:19:19** | 0.54 | **51%** | 413.0 MB | **~76.4 MB/s** ← peak send |
+| 10:19:24 | 0.50 | 36% | 419.6 MB | ~27.0 MB/s |
+| **10:19:29** | 0.46 | 2% | 391.7 MB | **~57.5 MB/s** ← still sending, CPU already dropped |
+| 10:19:35 | 0.42 | 2% | 383.4 MB | ~22.4 MB/s (tailing off) |
+| 10:19:40 | 0.39 | 2% | 370.1 MB | ~25 KB/s (finished 10:19:39) |
+| 10:19:45 | 0.36 | 4% | 356.0 MB | ~3 KB/s (idle again) |
+
+**PiMaster (Host, 1844.8 MB RAM)**
+
+| Time | Load avg | CPU busy | Mem used | Mem free | Network (in) |
+|---|---|---|---|---|---|
+| 10:19:11 | 0.06 | 14% | 362.1 MB | 885.5 MB | ~7 KB/s (idle) |
+| 10:19:16 | 0.13 | 36% | 388.1 MB | 831.8 MB | ~7.0 MB/s (ramping up) |
+| **10:19:21** | 0.52 | **51%** | 442.7 MB | 490.2 MB | **~70.3 MB/s** ← peak receive |
+| 10:19:26 | 0.80 | 50% | 476.4 MB | 184.5 MB | ~60.0 MB/s |
+| **10:19:31** | 1.30 | 54% | 446.8 MB | **100.3 MB** | ~23.6 MB/s |
+| 10:19:37 | 1.60 | 4% | 401.7 MB | 65.2 MB | ~22.4 MB/s (near the end) |
+| 10:19:42 | 1.47 | 2% | 403.9 MB | 63.0 MB | ~23 KB/s (idle again) |
+
+**What this shows**: on a healthy Gigabit pair, throughput dwarfs anything in the earlier
+examples - peaking around 70 MB/s received on the Host and 76 MB/s sent from SantaFPP in the
+same 5-second window. Neither side got close to pegged: CPU busy topped out around 50-54% on
+each end rather than the 80-94% seen on the Host in the 32-bit/920 MB-RAM example above. Notably,
+SantaFPP's CPU dropped back to near-idle (2%) *while still pushing 57 MB/s* a few seconds later
+- the brief 51% spike at the very start looks like rsync's own file-list/checksum setup work,
+not the data-copy itself, which apparently isn't CPU-bound on this board once the transfer gets
+going. PiMaster's free memory dropped from ~885 MB to ~63 MB over the run - the same page-cache
+pattern as every earlier example, just with more headroom to fall through given its 1844.8 MB
+total. Both VERIFY passes came back clean this run.
 
 ## Bottom line
 
