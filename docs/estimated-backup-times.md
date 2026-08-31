@@ -51,6 +51,84 @@ share whatever the actual bottleneck is - the Host's network link, or the destin
 drive's write bus - so backing up several remotes at once won't be twice as fast if
 either of those is already saturated by a single transfer.
 
+## Real-World System Load Examples
+
+Everything above is a reasoned estimate. This section is the opposite - actual CPU,
+memory, and network measurements captured from both ends of a real transfer at once (the
+Host and the remote it's pulling from), lined up against the exact backup window from
+`data/logs/engine.log`. More get added here as they're captured on different device
+combinations.
+
+### How to capture your own
+
+On each device you want to compare, a simple loop samples `top` and the network counters
+every few seconds and appends them to a log file:
+
+```bash
+while true; do
+    date '+%Y-%m-%d %H:%M:%S'
+    top -bn1 | head -6
+    echo "--- NETWORK ---"
+    grep -E 'eth0|wlan0' /proc/net/dev
+    sleep 5
+done >> /home/fpp/media/logs/system_monitor.log
+```
+
+Start it on the Host and on whichever remote you want to compare, let it run through a
+real backup, then stop it and pull both log files off (over SSH, or FPP's own File
+Manager). Line the timestamps up against `engine.log`'s own `starting rsync for <remote>`
+/ `finished rsync` lines to know exactly which samples fall inside the real transfer
+window - everything outside that window is just idle baseline, useful for contrast but not
+the number that matters.
+
+**Exclude the monitor's own log from the backup itself.** Left under
+`/home/fpp/media/logs/`, this loop's log file is still being appended to *while* the
+backup that's supposed to capture it is running - the same "still changing during this
+exact run" class of issue this plugin's own operational files hit internally (see the
+[changelog](changelog.md)), just on your own script this time. Add
+`logs/system_monitor.log` to Config's Exclude patterns (Remote Systems section) on each
+device you monitor this way, so it stops showing up as a false "still differs" on
+Status/VERIFY.
+
+### 2026-08-31: Pi5Backup (Host) vs. FPPBeagleBlack (remote)
+
+Both boards 32-bit. Backup window from `engine.log`: FPPBeagleBlack's own transfer ran
+06:53:31-06:53:36; the Host's own local backup (no network involved) ran right after,
+06:53:36-06:53:39.
+
+**FPPBeagleBlack (remote, 483 MB RAM)**
+
+| Time | Load avg | CPU busy | Mem used | Network |
+|---|---|---|---|---|
+| 06:53:13 | 0.04 | 31% | 167.6 MB | ~7 KB/s (idle) |
+| 06:53:18 | 0.04 | 100% | 167.5 MB | ~11 KB/s |
+| 06:53:23 | 0.04 | 29% | 167.5 MB | ~6 KB/s |
+| 06:53:29 | 0.03 | 29% | 167.5 MB | ~6 KB/s |
+| **06:53:34** | 0.03 | **100%** | 167.4 MB | **~550 KB/s** ← sending its own transfer |
+| 06:53:40 | 0.03 | 29% | 167.5 MB | ~8 KB/s (already done) |
+| 06:53:45 | 0.02 | 89% | 167.5 MB | ~14 KB/s |
+
+**Pi5Backup (Host, 920 MB RAM)**
+
+| Time | Load avg | CPU busy | Mem used | Network |
+|---|---|---|---|---|
+| 06:53:19 | 0.20 | 6% | 254.2 MB | ~10 KB/s (idle) |
+| 06:53:25 | 0.18 | 4% | 255.3 MB | ~27 KB/s |
+| **06:53:30** | 0.17 | **44%** | 262.9 MB | ~19 KB/s (run just starting) |
+| **06:53:35** | 0.23 | **68%** | 262.5 MB | **~576 KB/s** ← receiving FPPBeagleBlack |
+| 06:53:41 | 0.37 | 11% | 258.2 MB | ~41 KB/s (both transfers done) |
+| 06:53:46 | 0.34 | 35% | 254.1 MB | ~105 KB/s (other remotes still running) |
+| 06:53:51 | 0.40 | 6% | 252.6 MB | ~12 KB/s (run complete) |
+
+**What this shows**: the CPU and network spikes line up exactly across both devices -
+FPPBeagleBlack pegs at 100% CPU and pushes ~550 KB/s out over `eth0` in the same ~5-second
+window the Host's CPU climbs to 68% and pulls in ~576 KB/s - that's the actual rsync
+transfer, visible simultaneously from both ends. Memory was a non-issue on either board:
+FPPBeagleBlack sat essentially flat at 167.5 MB the entire time, and the Host only moved
+from ~253 MB to ~263 MB during the run before dropping right back down - no growth, no
+pressure, well within either 32-bit board's limited RAM. Load average lags CPU% by design
+(a smoothed trailing average), so it rises a beat after the spike rather than during it.
+
 ## Bottom line
 
 Pi3 anywhere in the chain flattens everything else to Fast-Ethernet speed. Beyond that,
