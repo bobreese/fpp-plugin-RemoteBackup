@@ -71,24 +71,28 @@ while true; do
     echo "--- NETWORK ---"
     grep -E 'eth0|wlan0' /proc/net/dev
     sleep 5
-done >> /home/fpp/media/logs/system_monitor.log
+done >> /tmp/system_monitor.log
 ```
 
 Start it on the Host and on whichever remote you want to compare, let it run through a
-real backup, then stop it and pull both log files off (over SSH, or FPP's own File
-Manager). Line the timestamps up against `engine.log`'s own `starting rsync for <remote>`
-/ `finished rsync` lines to know exactly which samples fall inside the real transfer
-window - everything outside that window is just idle baseline, useful for contrast but not
-the number that matters.
+real backup, then stop it and pull both log files off (over SSH or `scp`, since `/tmp`
+isn't reachable through FPP's own File Manager). Line the timestamps up against
+`engine.log`'s own `starting rsync for <remote>` / `finished rsync` lines to know exactly
+which samples fall inside the real transfer window - everything outside that window is
+just idle baseline, useful for contrast but not the number that matters.
 
-**Exclude the monitor's own log from the backup itself.** Left under
-`/home/fpp/media/logs/`, this loop's log file is still being appended to *while* the
-backup that's supposed to capture it is running - the same "still changing during this
-exact run" class of issue this plugin's own operational files hit internally (see the
-[changelog](changelog.md)), just on your own script this time. Add
-`logs/system_monitor.log` to Config's Exclude patterns (Remote Systems section) on each
-device you monitor this way, so it stops showing up as a false "still differs" on
-Status/VERIFY.
+**Keep the monitor's own log out of `/home/fpp/media` entirely.** Every device backs up
+from `/home/fpp/media` (see [Requirements](requirements-install-uninstall.md#requirements)),
+so a log file written under there - `logs/system_monitor.log`, say - is live source content:
+still being appended to *while* the very backup that's supposed to capture it is running,
+the same "still changing during this exact run" class of issue this plugin's own
+operational files hit internally (see the [changelog](changelog.md)), just on your own
+script this time. `/tmp` above sidesteps the problem outright, on the Host and on every
+remote, with nothing to configure - it's simply never part of what gets backed up, so it
+can never show up as a false "still differs" on Status/VERIFY. If you'd rather keep the log
+under `/home/fpp/media` anyway (e.g. so FPP's own File Manager can reach it), add its path
+to Config's Exclude patterns instead - that setting is shared across the Host and every
+remote's backup in one place, so it only needs adding once, not per device.
 
 ### 2026-08-31: Pi5Backup (Host) vs. FPPBeagleBlack (remote)
 
