@@ -59,41 +59,6 @@ Host and the remote it's pulling from), lined up against the exact backup window
 `data/logs/engine.log`. More get added here as they're captured on different device
 combinations.
 
-### How to capture your own
-
-On each device you want to compare, a simple loop samples `top` and the network counters
-every few seconds and appends them to a log file:
-
-```bash
-while true; do
-    date '+%Y-%m-%d %H:%M:%S'
-    top -bn1 | head -6
-    echo "--- NETWORK ---"
-    grep -E 'eth0|wlan0' /proc/net/dev
-    sleep 5
-done >> /tmp/system_monitor.log
-```
-
-Start it on the Host and on whichever remote you want to compare, let it run through a
-real backup, then stop it and pull both log files off (over SSH or `scp`, since `/tmp`
-isn't reachable through FPP's own File Manager). Line the timestamps up against
-`engine.log`'s own `starting rsync for <remote>` / `finished rsync` lines to know exactly
-which samples fall inside the real transfer window - everything outside that window is
-just idle baseline, useful for contrast but not the number that matters.
-
-**Keep the monitor's own log out of `/home/fpp/media` entirely.** Every device backs up
-from `/home/fpp/media` (see [Requirements](requirements-install-uninstall.md#requirements)),
-so a log file written under there - `logs/system_monitor.log`, say - is live source content:
-still being appended to *while* the very backup that's supposed to capture it is running,
-the same "still changing during this exact run" class of issue this plugin's own
-operational files hit internally (see the [changelog](changelog.md)), just on your own
-script this time. `/tmp` above sidesteps the problem outright, on the Host and on every
-remote, with nothing to configure - it's simply never part of what gets backed up, so it
-can never show up as a false "still differs" on Status/VERIFY. If you'd rather keep the log
-under `/home/fpp/media` anyway (e.g. so FPP's own File Manager can reach it), add its path
-to Config's Exclude patterns instead - that setting is shared across the Host and every
-remote's backup in one place, so it only needs adding once, not per device.
-
 ### 2026-08-31: Pi5Backup (Host) vs. FPPBeagleBlack (remote)
 
 Both boards 32-bit. Backup window from `engine.log`: FPPBeagleBlack's own transfer ran
