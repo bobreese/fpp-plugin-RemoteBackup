@@ -129,6 +129,54 @@ from ~253 MB to ~263 MB during the run before dropping right back down - no grow
 pressure, well within either 32-bit board's limited RAM. Load average lags CPU% by design
 (a smoothed trailing average), so it rises a beat after the spike rather than during it.
 
+### 2026-08-31: Pi5Backup (Host) vs. PiMaster (remote, 64-bit)
+
+PiMaster is 64-bit (unlike the 32-bit FPPBeagleBlack in the example above). Backup window
+from `engine.log`: PiMaster's own transfer ran 09:08:17-09:08:32, sending 136 MB across 188
+files - by far the largest single transfer in this run (the two remotes running concurrently
+with it under the default 2-concurrent-remote queue, Santa-Sleigh and SantaFPP, moved 0 bytes
+and 237 KB respectively), so the Host's network/CPU load below is effectively all PiMaster.
+
+As a bonus, this run's own `engine.log` shows exactly the false-positive the "How to capture
+your own" section above warns about: `VERIFY PiMaster: 1 file(s) still differ from source
+after backup: logs/system_monitor.log` - the monitoring loop's own log file, caught mid-write.
+Confirms the guidance is worth following, not just theoretical.
+
+**PiMaster (remote, 64-bit, 1844.8 MB RAM)**
+
+| Time | Load avg | CPU busy | Mem used | Network (out) |
+|---|---|---|---|---|
+| 09:08:13 | 0.08 | 6% | 354.3 MB | ~3 KB/s (idle) |
+| 09:08:18 | 0.07 | 7% | 373.0 MB | ~1.66 MB/s (rsync started 09:08:17) |
+| **09:08:23** | 0.07 | **11%** | 374.0 MB | **~12.4 MB/s** ← peak send |
+| **09:08:29** | 0.06 | **11%** | 378.6 MB | **~9.7 MB/s** ← still sending |
+| 09:08:34 | 0.06 | 6% | 369.8 MB | ~778 KB/s (finished 09:08:32) |
+| 09:08:39 | 0.05 | 6% | 362.6 MB | ~3 KB/s (idle again) |
+
+**Pi5Backup (Host, 920 MB RAM)**
+
+| Time | Load avg | CPU busy | Mem used | Mem free | Network (in) |
+|---|---|---|---|---|---|
+| 09:08:12 | 0.82 | 39% | 237.6 MB | 116.0 MB | ~23 KB/s (idle) |
+| 09:08:17 | 0.84 | 50% | 247.6 MB | 104.7 MB | ~51 KB/s (PiMaster starting) |
+| **09:08:22** | 0.93 | **80%** | 248.4 MB | **34.5 MB** | **~12.3 MB/s** ← peak receive |
+| **09:08:28** | 1.10 | **94%** | 242.1 MB | **38.4 MB** | **~10.0 MB/s** ← still receiving |
+| 09:08:33 | 1.17 | 56% | 231.8 MB | 43.1 MB | ~2.5 MB/s (finished 09:08:32) |
+| 09:08:39 | 1.24 | 8% | 230.4 MB | 44.5 MB | ~0.6 KB/s (idle) |
+
+**What this shows**: PiMaster's 64-bit CPU barely noticed sending 136 MB at up to ~12.4 MB/s -
+CPU busy peaked at just 11%, and memory moved a modest ~370 MB → 379 MB and back. The Host
+worked considerably harder receiving the same transfer while writing it to the destination
+drive: CPU busy climbed to 94%, and real `wa` (iowait, up to 22%) and `si` (softirq, up to
+17%) time showed up in `top` - both consistent with a drive-write-bound receiver under network
+load, not something the destination-storage-type table above spelled out on its own. Free
+memory on the Host did crater to ~34-38 MB during the peak, but *available* memory (the column
+that accounts for reclaimable buffer/cache, i.e., what the kernel can actually hand back to a
+process that needs it) stayed flat around 670-690 MB the entire time - the free-memory dip is
+the Linux page cache doing its job (buffering the incoming write), not the Host running low on
+usable RAM. Load average again lags CPU%, peaking a sample or two after the run's actual busiest
+moment.
+
 ## Bottom line
 
 Pi3 anywhere in the chain flattens everything else to Fast-Ethernet speed. Beyond that,
