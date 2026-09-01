@@ -239,10 +239,11 @@ $rbPlugin = basename(__DIR__);
                 <label class="ms-3"><input type="radio" name="rb-emailOutcome-choice" id="rb-emailOutcome-all" value="all">
                     Every included run, regardless of outcome.</label><br>
                 <br>
-                <small>A run's email lists every remote's own result. A run refused before any remote started
-                    (halted, no destination, low space, etc.) counts as "failed" here and sends a short reason
-                    instead of a per-remote list. Dry Runs never send email, and a run refused only because another
-                    run was already in progress never does either - that's routine overlap, not a problem.</small>
+                <small>Dry Runs never send email, and a run refused only because another run was already in
+                    progress never does either - that's routine overlap, not a problem. A run's email lists every
+                    remote's own result. A run refused before any remote started (halted, no destination, low
+                    space, etc.) counts as "failed" here and sends a short reason instead of a per-remote
+                    list.</small>
             </div>
         </div>
     </fieldset>
