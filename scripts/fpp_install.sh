@@ -63,21 +63,37 @@ fi
 # start) through immediately before FPP restarts fppd (script end) means
 # the next occurrence pins the exact step instead of only being noticed
 # hours later by ajax.php.
+#
+# Only prints when the fingerprint set actually changed since the previous
+# checkpoint (always printed for the first one, "script-start", since
+# there's no previous to compare against). On a normal run nothing ever
+# changes between these four points, so this stays silent after the initial
+# baseline instead of repeating the same three identical lines four times -
+# a real divergence still gets logged in full, pinned to whichever
+# checkpoint first shows it, which is the entire point of this diagnostic.
+RB_PREV_CHECKPOINT_FINGERPRINT=""
 rb_settings_checkpoint() {
     local label="$1"
-    local f
-    echo "SETTINGS_CHECK [$label]"
+    local f fingerprint=""
     for f in "${PLUGINDIR}/data/settings.json" "${PLUGINDIR}/data/settings.json.bak" "/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"; do
         if [ -f "$f" ]; then
             local size mtime md5
             size=$(stat -c %s "$f" 2>/dev/null || echo '?')
             mtime=$(stat -c %y "$f" 2>/dev/null || echo '?')
             md5=$(md5sum "$f" 2>/dev/null | cut -c1-12 || echo '?')
-            echo "SETTINGS_CHECK [$label]   $f: size=${size} mtime=${mtime} md5=${md5}"
+            fingerprint="${fingerprint}${f}: size=${size} mtime=${mtime} md5=${md5}
+"
         else
-            echo "SETTINGS_CHECK [$label]   $f: MISSING"
+            fingerprint="${fingerprint}${f}: MISSING
+"
         fi
     done
+
+    if [ "$label" = "script-start" ] || [ "$fingerprint" != "$RB_PREV_CHECKPOINT_FINGERPRINT" ]; then
+        echo "SETTINGS_CHECK [$label]"
+        echo "$fingerprint" | sed "s/^/SETTINGS_CHECK [$label]   /" | grep -v '^SETTINGS_CHECK \[.*\]   $'
+    fi
+    RB_PREV_CHECKPOINT_FINGERPRINT="$fingerprint"
 }
 
 echo "=================================================================="
