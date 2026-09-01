@@ -70,6 +70,7 @@ $rbPlugin = basename(__DIR__);
     </style>
 
     <div class="d-flex justify-content-end align-items-center mb-2">
+        <a href="#" id="rb-onboardingReplay" class="small me-2">Replay walkthrough</a>
         <label class="small text-muted mb-0">
             <input type="checkbox" id="rb-onboardingTourEnabled">
             Show the setup walkthrough
@@ -78,12 +79,11 @@ $rbPlugin = basename(__DIR__);
             data-help-title="Show the setup walkthrough" style="font-size:0.8em; cursor:help;"></i>
         <div id="rb-help-onboarding" class="d-none">
             <div class="fpp-help-content">
-                <p class="mb-0">Checking this box starts the walkthrough right now, so you can step back through
-                    it anytime you want a refresher - checking it again later runs it again. It also keeps the
-                    walkthrough enabled to show automatically, once, the next time this plugin is installed fresh
-                    on a system that's never seen it. Unchecking it doesn't stop anything already on screen - after
-                    you Save Settings, it just means that automatic first-run popup won't happen on a future fresh
-                    install either.</p>
+                <p class="mb-0">"Replay walkthrough" steps through it again right now, regardless of this box's
+                    state. The checkbox itself controls something different: whether the walkthrough keeps showing
+                    automatically, once, the next time this plugin is installed fresh on a system that's never seen
+                    it. Unchecking it doesn't stop anything already on screen - after you Save Settings, it just
+                    means that automatic first-run popup won't happen on a future fresh install either.</p>
             </div>
         </div>
     </div>
@@ -2104,15 +2104,25 @@ $rbPlugin = basename(__DIR__);
     window.addEventListener('resize', function () { if (rbTourIndex >= 0) rbTourPosition(); });
     window.addEventListener('scroll', function () { if (rbTourIndex >= 0) rbTourPosition(); }, true);
 
-    // Checking the box is the explicit recall action - it starts the tour
-    // immediately, every time it transitions to checked, regardless of
-    // onboardingSeen (that flag only gates the automatic first-run popup
-    // in loadAllAfterHostInfo above, not this deliberate click). Setting
-    // .checked programmatically (the loadAllAfterHostInfo init line) never
-    // fires 'change', so this only ever runs from a real user click, never
-    // from the page just loading with the box already checked.
+    // Checking the box also starts the tour immediately, every time it
+    // transitions to checked, regardless of onboardingSeen (that flag only
+    // gates the automatic first-run popup in loadAllAfterHostInfo above,
+    // not this deliberate click). Setting .checked programmatically (the
+    // loadAllAfterHostInfo init line) never fires 'change', so this only
+    // ever runs from a real user click, never from the page just loading
+    // with the box already checked.
     document.getElementById('rb-onboardingTourEnabled').addEventListener('change', function () {
         if (this.checked) rbTourStart();
+    });
+
+    // Explicit replay action, independent of the checkbox's checked state -
+    // without this, replaying the tour while the box is already checked
+    // (the common case, since it defaults to checked) needs an uncheck
+    // click that does nothing followed by a re-check click that does,
+    // since a checkbox only fires 'change' on an actual state transition.
+    document.getElementById('rb-onboardingReplay').addEventListener('click', function (e) {
+        e.preventDefault();
+        rbTourStart();
     });
 
     // Same fpp-help-popover wiring status.php uses for its own "?" icons -
