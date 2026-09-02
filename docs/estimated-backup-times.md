@@ -189,6 +189,24 @@ going. PiMaster's free memory dropped from ~885 MB to ~63 MB over the run - the 
 pattern as every earlier example, just with more headroom to fall through given its 1844.8 MB
 total. Both VERIFY passes came back clean this run.
 
+### 2026-09-02: Full 8-device run - spreadsheet
+
+The examples above are single device pairs, shown inline. This one is a full run instead: all
+8 devices (Pi5Backup as Host plus 7 remotes, runId `20260902-074613`), every VERIFY clean,
+transfer stats and real CPU/memory/network peaks side by side in one file rather than split
+across separate write-ups.
+
+[**run-20260902-074613-full-stats.xlsx**](assets/run-20260902-074613-full-stats.xlsx)
+
+Per device: duration, files, bytes/MB transferred, and throughput from `engine.log`, plus peak
+CPU busy%, peak memory used, minimum free memory, and peak network throughput pulled from each
+device's own `top`/`/proc/net/dev` monitor log during its actual transfer window. One caveat is
+baked into the sheet itself (a visible note row plus cell comments on the affected cells): the
+Host's own local self-backup row's CPU/Mem/Network figures reflect the whole Host machine's
+concurrent load at that moment - another remote was still mid-transfer through that same
+window - not the local copy in isolation, since a local copy (`local=1`) never touches the
+network interface at all.
+
 ## Bottom line
 
 Pi3 anywhere in the chain flattens everything else to Fast-Ethernet speed. Beyond that,
