@@ -1934,7 +1934,10 @@ $rbPlugin = basename(__DIR__);
             selector: '#rb-fieldset-hostmode',
             title: 'Backup Host Mode',
             text: 'Check this box on the ONE system that should pull backups from your others. ' +
-                'Leave it unchecked on every other system - only one Host is supported at a time.'
+                'Leave it unchecked on every other system - only one Host is supported at a time. ' +
+                'This isn\'t just a label: with it unchecked, this system refuses every real backup ' +
+                'run - scheduled or manual - with a clear error. Dry Run still works either way, so ' +
+                'it\'s safe to test with before you flip this on for the first time.'
         },
         {
             selector: '#rb-fieldset-storage',
