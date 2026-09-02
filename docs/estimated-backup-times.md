@@ -200,7 +200,13 @@ across separate write-ups.
 
 Per device: duration, files, bytes/MB transferred, and throughput from `engine.log`, plus peak
 CPU busy%, peak memory used, minimum free memory, and peak network throughput pulled from each
-device's own `top`/`/proc/net/dev` monitor log during its actual transfer window. One caveat is
+device's own `top`/`/proc/net/dev` monitor log during its actual transfer window, plus each
+device's board model and CPU architecture (one 32-bit BeagleBone Black, one 32-bit Pi3B, five
+Pi4Bs - four 64-bit and one 32-bit - and one 64-bit Pi5B). Worth a look in context of that
+BeagleBone Black row specifically: it's the one board pegged at 100% CPU for a comparatively
+small 58 MB transfer - a single-core AM335x, well below any of the (multi-core) Pi boards here
+on raw CPU throughput, so it's plausibly a genuinely under-powered board rather than anything
+backup-specific. One caveat is
 baked into the sheet itself (a visible note row plus cell comments on the affected cells): the
 Host's own local self-backup row's CPU/Mem/Network figures reflect the whole Host machine's
 concurrent load at that moment - another remote was still mid-transfer through that same
