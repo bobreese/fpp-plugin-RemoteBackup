@@ -196,6 +196,10 @@ The examples above are single device pairs, shown inline. This one is a full run
 transfer stats and real CPU/memory/network peaks side by side in one file rather than split
 across separate write-ups.
 
+**813.74 MB across 649 files, 8/8 devices, in 29 seconds wall-clock (~28.1 MB/s aggregate)** -
+the headline number, so it's readable without opening the spreadsheet. Everything behind that
+total - per-device breakdown, timing, and system load - is in the file below.
+
 [**run-20260902-074613-full-stats.xlsx**](assets/run-20260902-074613-full-stats.xlsx)
 
 Per device: duration, files, bytes/MB transferred, and throughput from `engine.log`, plus peak
