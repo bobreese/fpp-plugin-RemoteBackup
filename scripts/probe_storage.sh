@@ -7,13 +7,18 @@
 #
 # Output: single JSON object on stdout:
 # {
-#   "nvme":   [ {path,mountpoint,fstype,sizeBytes,availBytes,label}, ... ],
+#   "nvme":   [ {path,mountpoint,fstype,sizeBytes,availBytes,label,rootDisk}, ... ],
 #   "ssd":    [ ... ],
 #   "usb":    [ ... ],
 #   "sdcard": [ ... ],   // root filesystem + any other mmcblk mounts
 #   "usbUnmounted": [ {path,fstype,uuid,label,sizeBytes,hasFilesystem}, ... ],
 #   "hasPreferred": true|false   // true if any nvme/ssd candidate exists
 # }
+# rootDisk (on every mounted entry, any bucket): true if that partition is
+# on the same physical disk as the OS root filesystem - e.g. an NVMe- or
+# SSD-booted system's /boot/firmware partition. mountpoint != "/" with
+# rootDisk true marks a boot/system partition that must never be offered
+# as a backup destination.
 
 set -o pipefail
 . "$(dirname "$0")/lib_common.sh"
@@ -55,7 +60,17 @@ echo "$LSBLK_JSON" | jq --arg rootdisk "$ROOT_DISK" '
     def is_rootdisk: (.pkname == $rootdisk) or (.name == $rootdisk) or (.mountpoint == "/");
 
     ($devs_r | map(select(.mountpoint != null and .mountpoint != "" and (.fstype != null))
-        | select(.mountpoint | test("^/(proc|sys|dev|run)") | not))) as $mounted
+        | select(.mountpoint | test("^/(proc|sys|dev|run)") | not))
+        # rootDisk: this partition sits on the same physical disk as the OS
+        # root filesystem, whatever bucket (nvme/ssd/usb/sdcard) it lands in
+        # below - e.g. on an NVMe- or SSD-booted system, the tiny
+        # /boot/firmware partition is on-disk with root but is its own
+        # separate nvme/ssd bucket entry, not the sdcard fallback. The UI
+        # uses this (combined with mountpoint != "/") to keep any such
+        # sibling boot partition visible but non-selectable as a backup
+        # destination, the same protection already applied to the SD card
+        # fallback bucket.
+        | map(. + {rootDisk: is_rootdisk})) as $mounted
   # Whole disks that already have at least one partition (e.g. a drive
   # this plugin previously formatted with the GPT-partition fix) should
   # only be represented by their partition(s) here, not ALSO by the raw
