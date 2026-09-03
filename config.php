@@ -443,10 +443,10 @@ $rbPlugin = basename(__DIR__);
         var el = document.getElementById('rb-sdcard-purge-note');
         if (!el) return;
         if (rbPendingSdCardPurge === true) {
-            el.textContent = 'SD Card backups will be removed when you save.';
+            el.textContent = 'SD Card / System Storage backups will be removed when you save.';
             el.className = 'ms-2 small text-danger';
         } else if (rbPendingSdCardPurge === false) {
-            el.textContent = 'SD Card backups will be left in place.';
+            el.textContent = 'SD Card / System Storage backups will be left in place.';
             el.className = 'ms-2 small text-muted';
         } else {
             el.textContent = '';
@@ -461,8 +461,9 @@ $rbPlugin = basename(__DIR__);
             class: 'modal-m',
             backdrop: true,
             body: 'Your existing backups under <code>/home/fpp/media/backups</code> will be left in place ' +
-                'unless you choose to remove them. This only affects backups on the SD card - nothing on ' +
-                'your new destination is touched either way.<br><br>' +
+                'unless you choose to remove them. This only affects backups on SD Card / System Storage - ' +
+                'nothing on your new destination is touched either way (whether that storage is actually an ' +
+                'SD card, or the root filesystem of an NVMe- or SSD-booted system used as the fallback).<br><br>' +
                 'Nothing happens immediately either way - your choice takes effect when you click ' +
                 '<b>Save Settings</b>, same as every other Config change.',
             buttons: {
