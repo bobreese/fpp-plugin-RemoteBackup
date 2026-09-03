@@ -232,6 +232,7 @@ Plain-language summary first; click anything to jump straight to the full explan
 - [Won't start while a remote is playing a sequence](#wont-start-while-a-remote-is-playing-a-sequence)
 - [If the backup drive goes missing, backups pause instead of failing blind](#missing-destination-detection-and-failover)
 - [Backups refuse to start without enough room - and always leave a cushion on the SD card](#pre-flight-space-check-with-a-safety-margin-on-sd-card-storage)
+- [The boot partition can never be picked as a backup destination](#boot-partition-cant-be-selected-as-a-backup-destination)
 - [Formatting a drive has extra safeguards against erasing the wrong one](#format-safety-checks)
 - [Cloning to a second drive can't overwrite the wrong drive either](#clone-safety-checks)
 - [Only one backup can run at a time](#only-one-backup-run-at-a-time)
@@ -294,6 +295,27 @@ currently detect a non-root eMMC as its own selectable destination.
 
 [↑ Back to Safe Guards list](#safe-guards)
 
+### Boot partition can't be selected as a backup destination
+
+The storage picker (Config > Backup Destination Storage) lists every mounted partition it
+finds via `lsblk`, grouped by storage class - NVMe, SSD, USB Flash Drive, or SD Card/System
+Storage. That includes a boot partition that happens to live on the same physical disk as
+the OS root filesystem - `/boot/firmware` on an NVMe- or SSD-booted system, or `/boot`/
+`bootfs` on a typical SD card image - right alongside the real root partition. Every mounted
+entry is checked against whether it shares a disk with the OS root filesystem, independent
+of which storage-class group it's listed under; any entry that does but isn't the root
+filesystem itself is shown for visibility only, with no checkbox or radio button to select
+it - selecting it would mean writing real backups onto FPP's own tiny boot partition. This
+protects an NVMe- or SSD-booted system's boot partition the exact same way it already
+protected a literal SD card's - a root/boot split on the same physical disk was never unique
+to SD cards.
+
+This is the selection-side half of the protection - the same root/boot disk can also never
+be targeted by the Format flows below; see [Format safety checks](#format-safety-checks) for
+that half.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
 ### Format safety checks
 
 Both the primary and secondary/clone drive Format flows refuse to touch the disk FPP
@@ -305,6 +327,10 @@ alongside the root partition), not just the exact root partition itself. On top 
 every Format dialog's button stays disabled until you type the exact device path shown
 (e.g. `/dev/sda`) into a confirm box - a deliberate extra step before anything that erases a
 drive, not just a single "are you sure?" click.
+
+This is the format-side half of the protection - see
+[Boot partition can't be selected as a backup destination](#boot-partition-cant-be-selected-as-a-backup-destination)
+above for the selection-side half.
 
 [↑ Back to Safe Guards list](#safe-guards)
 
