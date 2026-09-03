@@ -28,6 +28,51 @@ network-accessible copy, this plugin's own "Clone Backups to a Second Drive" fea
 mirror the primary backup onto a second physical drive you rotate out or keep elsewhere -
 see [Setting up a USB backup drive](usb-drive-setup.md).
 
+### Research notes: what it would actually take to add this
+
+Not a roadmap commitment - this is a reference for evaluating the idea, kept here so the
+findings aren't lost between looks at it.
+
+The backup engine itself turns out not to be the obstacle: `run_backup.sh` never touches
+disk types directly, it resolves the configured destination down to a plain filesystem path
+and hands that to `rsync`, which writes into a network-mounted directory exactly the same
+way it writes into a local one. The pre-flight free-space check is filesystem-agnostic the
+same way. None of the actual backup logic would need to change.
+
+Everything *around* that engine, though, currently assumes a local block device, all the way
+down:
+
+- **Discovery** (`probe_storage.sh`) is built entirely on `lsblk` - transport type, partition
+  table, parent disk. A network share has none of that and can't be auto-discovered the way
+  a USB drive is; it would need a manual "Add Network Share" form instead (server address,
+  share/export path, protocol) - closer to how a remote is added manually today than how a
+  drive is picked.
+- **Mount/unmount/format** (`mount_usb.sh`, `unmount_usb.sh`, `format_usb.sh`) are keyed on
+  `/dev/sdX` block-device paths throughout - `lsblk`-read UUID and filesystem type, fstab
+  entries written by UUID. None of that has a CIFS/NFS equivalent; new scripts using
+  `mount -t cifs`/`mount -t nfs` and differently-shaped fstab entries (`_netdev`, a
+  credentials file for CIFS) would be needed. "Format" has no meaning here at all - the
+  remote server owns its own filesystem - so that flow just wouldn't apply.
+- **Credentials.** CIFS needs a username/password. The safer approach is a dedicated `600`,
+  root-owned credentials file referenced from fstab, not inline plaintext - a materially
+  different bar than how the existing SSH password field is stored today.
+- **The storage picker UI** (`config.php`) is structured entirely around the four
+  lsblk-derived groups (NVMe/SSD/USB/SD card); a network share doesn't fit that model and
+  would need its own section.
+- **Operational risks worth weighing, not just missing code:** a hung/unreachable network
+  share can make a mount check *block* rather than fail fast, unlike a missing local drive -
+  the existing missing-destination polling assumes a fast local check, so mount options
+  forcing quick timeouts would matter from day one. Boot-time mounting is flakier (the
+  network has to be up first). A mid-run network hiccup would affect every remote at once,
+  since they'd all share the one destination, unlike today where one remote's own SSH
+  hiccup only ever fails that one remote. And SMB3 can encrypt in transit where NFSv3
+  typically doesn't - worth a decision given this carries show config and sequences.
+
+Net: sizeable, but not blocked on anything fundamental - realistically comparable in scope
+to the original USB-destination support (new discovery/add UI, new mount/unmount scripts,
+credential handling done properly, hardened destination-missing detection), plus a rewrite
+of this page once/if it lands.
+
 ## Why doesn't this work in Docker, Hyper-V, or another virtual machine?
 
 This isn't a limitation specific to this plugin - it's inherited directly from FPP itself.
