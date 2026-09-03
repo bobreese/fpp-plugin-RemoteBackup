@@ -931,7 +931,24 @@ $rbPlugin = basename(__DIR__);
     // needing every log's format to agree on one convention. Client-side
     // only: filters whatever was already fetched, so toggling this doesn't
     // need a fresh request.
-    var LOG_PROBLEM_RE = /abort|error|warn|fail|vanished|low space|recovered|connection refused|no route to host|permission denied|host key verification failed|rc=(?!0\b)\d+/i;
+    //
+    // \b before each bare keyword: reported in the wild - a clone log's only
+    // "problem" line under this filter turned out to be an entirely ordinary,
+    // successfully-copied filename, plugins/fpp-plugin-AdvancedStats/
+    // mqtt_warning.inc.php, matched purely because "warn" appears inside it.
+    // Without \b, .test() matches that substring anywhere in the line,
+    // filename included. \b relies on _ being a JS regex word character
+    // (same class as letters/digits) - "mqtt_warning" has no non-word/word
+    // transition right before "warn" (both the preceding "_" and "w" are
+    // word chars), so \bwarn correctly does NOT match there, while it still
+    // matches every real case this existed for ("WARN:", "Warning:
+    // Permanently added...", "ERROR:", "FAIL:", etc. - always preceded by
+    // whitespace or start-of-line). Deliberately a LEADING boundary only,
+    // not \bwarn\b - a trailing one would break matching "Warning" itself
+    // ("warn"+"ing" are contiguous word characters with no boundary between
+    // them, so \bwarn\b would stop matching the real SSH banner line this
+    // was always meant to catch).
+    var LOG_PROBLEM_RE = /\babort|\berror|\bwarn|\bfail|\bvanished|\blow space|\brecovered|connection refused|no route to host|permission denied|host key verification failed|rc=(?!0\b)\d+/i;
 
     var lastLogContent = '';
 
