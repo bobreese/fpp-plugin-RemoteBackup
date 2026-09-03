@@ -811,18 +811,22 @@ $rbPlugin = basename(__DIR__);
             list.forEach(function (d) {
                 var mp = d.mountpoint;
                 var labelHtml = (d.deviceLabel || mp) + (d.label ? ' &mdash; volume label "' + d.label + '"' : '') + ' &mdash; mounted at ' + mp + ' &mdash; ' + humanBytes(d.availBytes) + ' free';
-                // The "SD Card / System Storage" group is bucketed by
-                // physical disk (probe_storage.sh's is_rootdisk), not just
-                // by mountpoint "/" - on a typical Pi image the boot
-                // partition (e.g. /boot or /boot/firmware, labeled "bootfs")
-                // lives as its own mounted partition on that SAME disk, so
-                // it lands in this same group right alongside the real
-                // fallback. Only "/" is ever an actual valid destination
-                // (backups go into a dedicated subfolder under it - see
-                // below); the boot partition is shown for visibility only,
-                // with no activation control, since selecting it would mean
-                // writing backups onto FPP's own tiny FAT32 boot partition.
-                if (g[0] === 'sdcard' && mp !== '/') {
+                // probe_storage.sh tags every mounted entry with rootDisk:
+                // true if it's on the same physical disk as the OS root
+                // filesystem, regardless of which group (nvme/ssd/usb/
+                // sdcard) it's bucketed into. A typical SD-card Pi image's
+                // boot partition (e.g. /boot or /boot/firmware, labeled
+                // "bootfs") lands in the sdcard group right alongside the
+                // real fallback, but an NVMe- or SSD-booted system's own
+                // /boot/firmware is on-disk with root while still landing
+                // in the "preferred" nvme/ssd group - so this check can't
+                // be scoped to the sdcard group alone. Only "/" is ever an
+                // actual valid destination (backups go into a dedicated
+                // subfolder under it - see below); every other mountpoint
+                // on the root disk is shown for visibility only, with no
+                // activation control, since selecting it would mean writing
+                // backups onto FPP's own tiny boot partition.
+                if (d.rootDisk && mp !== '/') {
                     html += '<div>' + labelHtml + ' <small class="text-muted">(system boot partition - not a valid backup destination)</small></div>';
                     return;
                 }
@@ -1934,7 +1938,10 @@ $rbPlugin = basename(__DIR__);
             selector: '#rb-fieldset-hostmode',
             title: 'Backup Host Mode',
             text: 'Check this box on the ONE system that should pull backups from your others. ' +
-                'Leave it unchecked on every other system - only one Host is supported at a time.'
+                'Leave it unchecked on every other system - only one Host is supported at a time. ' +
+                'This isn\'t just a label: with it unchecked, this system refuses every real backup ' +
+                'run - scheduled or manual - with a clear error. Dry Run still works either way, so ' +
+                'it\'s safe to test with before you flip this on for the first time.'
         },
         {
             selector: '#rb-fieldset-storage',
