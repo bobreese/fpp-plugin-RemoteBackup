@@ -364,14 +364,15 @@ can never require manually clearing a stuck lock before the next backup can star
 
 `data/settings.json` is mirrored on every successful write to both `data/settings.json.bak`
 and an external copy at `/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak` -
-deliberately outside `data/` (and outside this plugin's own directory entirely), since a
-real incident proved a single in-directory backup isn't independent protection against
-whatever's actually causing this (something outside this plugin, entirely outside its
-control, wiping the whole `data/` directory - not just one file in it - on some systems). If
-the live file is ever found empty or unreadable, it's restored automatically from whichever
-backup is still good the next time anything touches it, instead of silently running on
-defaults indefinitely. See [Troubleshooting](troubleshooting.md#settings-reset-to-defaults)
-for the full story.
+deliberately outside `data/` (and outside this plugin's own directory entirely), since a real
+incident proved a single in-directory backup isn't independent protection: FPP deletes this
+plugin's whole `data/` directory - in-dir backup included - as part of its normal uninstall
+flow, which FPP also uses to apply a routine plugin update (uninstall old, install fresh),
+not just a genuine user-requested removal. If the live file is ever found empty or
+unreadable, it's restored automatically from whichever backup is still good the next time
+anything touches it, instead of silently running on defaults indefinitely. See
+[Troubleshooting](troubleshooting.md#settings-reset-to-defaults) for the full story, including
+a real incident traced all the way to root cause.
 
 [↑ Back to Safe Guards list](#safe-guards)
 

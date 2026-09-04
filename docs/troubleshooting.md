@@ -319,11 +319,10 @@ this same situation again) clears it.
 
 If Config suddenly shows every setting back at its default (destination cleared, remote
 list empty, options unchecked) with no changes made on purpose, `data/settings.json` itself
-became empty or invalid - this has been observed to happen from something entirely outside
-this plugin, e.g. an OS/FPP update restarting the web server at exactly the wrong moment.
-Nothing about a normal Save Settings, a halt/failover, or any of this plugin's own writes
-can produce that outcome (they're all atomic write-then-rename), so if it happens it's worth
-suspecting whatever else changed on the system around the same time.
+became empty or invalid. Nothing about a normal Save Settings, a halt/failover, or any of
+this plugin's own writes can produce that outcome (they're all atomic write-then-rename), so
+this always traces back to something else touching `data/` from outside a normal Config page
+interaction.
 
 **Two backups are kept, in two different places, specifically because one alone wasn't
 enough.** The first version of this fix kept a single `data/settings.json.bak` right next
@@ -369,16 +368,28 @@ do it if there's nothing there worth keeping (or back it up elsewhere first).
 
 [↑ Back to top](#troubleshooting)
 
-**If this keeps happening, the backups are a safety net, not a cure.** Two occurrences
-inside about an hour have been observed on one real system, each with the exact same
-signature: a multi-minute total gap in `ajax.log` (no requests logged at all, not a
-slowdown), then the very next request finding `settings.json` already broken. That pattern
-- especially recurring within the same session rather than a one-off - points at something
-scheduled on the system itself (a cron job, an unattended-upgrade, some other maintenance
-task) repeatedly touching this plugin's `data/` directory, not a rare fluke. This plugin has
-no visibility into what that is; if it keeps happening, it's worth checking `syslog`/
-`journalctl` (or whatever your FPP build uses) for anything scheduled around the times it
-occurs.
+**Root-caused, in the wild, to this plugin's own uninstall script.** Two occurrences inside
+about a day were traced on a real system by cross-referencing `data/logs/ajax.log`/
+`engine.log` against that Host's FPP support-zip logs (`logs/fpp_plugin_manager.log`,
+`logs/fppd.log`, `logs/syslog.log`). Both times, `settings.json` turned up broken within
+seconds to minutes of FPP's own plugin manager reinstalling this plugin - an **uninstall**
+of the old version immediately followed by a fresh **install** - which is how FPP applies a
+routine update, not just a genuine user-requested removal. `scripts/fpp_uninstall.sh`
+unconditionally deleted the external settings backup on every uninstall it ran, at the same
+moment FPP's own directory wipe (external to that script, part of FPP's normal uninstall
+flow) took the live file and its in-`data/`-dir backup with it - all three copies gone at
+once, on every routine update, with nothing left for the self-heal logic above to recover
+from.
+
+Fixed: that deletion is now gated behind `--purge-backups`, the same explicit flag already
+required to delete backup folders (FPP's own uninstall flow never passes it, whether for a
+routine update or otherwise). A routine reinstall now leaves the external backup in place,
+so self-heal recovers the live file from it automatically the next time anything touches
+settings - a real, deliberate `fpp_uninstall.sh --purge-backups` still removes it. What
+actually schedules FPP to reinstall this plugin in the first place (an OS-level systemd
+timer/cron job outside FPP's own application source, or something specific to that install)
+wasn't pinned down - but with the deletion itself fixed, it no longer matters: a routine
+reinstall self-heals instead of losing everything.
 
 [↑ Back to top](#troubleshooting)
 

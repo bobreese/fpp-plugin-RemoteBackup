@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** a real, repeated incident where `data/settings.json` reset to bare defaults
+  (destination cleared, remote list emptied, options unchecked) with no user action -
+  root-caused by cross-referencing this plugin's own logs against a Host's FPP support-zip
+  logs (`fpp_plugin_manager.log`, `fppd.log`, `syslog.log`). FPP applies a routine plugin
+  update as a full uninstall-then-reinstall, not just a genuine user-requested removal, and
+  `scripts/fpp_uninstall.sh` was unconditionally deleting the external settings backup
+  (`/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak`) on every uninstall it ran - at
+  the same moment FPP's own directory wipe took the live file and its in-`data/`-dir backup
+  with it, leaving all three copies gone at once on every routine update. That deletion is
+  now gated behind `--purge-backups`, the same explicit flag already required to delete
+  backup folders (FPP's own uninstall flow never passes it) - a routine reinstall now leaves
+  the external backup in place, so the existing self-heal logic recovers the live file from
+  it automatically instead of falling all the way back to defaults.
+
 - **Added:** [Network Shares and Virtual Machines](network-shares-and-virtualization.md) -
   a plain-language explainer for two questions that come up without an obvious answer
   anywhere else: why a NAS/SMB/NFS share never shows up in the storage list (nothing in

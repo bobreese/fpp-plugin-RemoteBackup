@@ -6,17 +6,22 @@
 # script runs, so none of that needs handling here. This script's job
 # is everything the plugin created OUTSIDE its own directory:
 #   - the dedicated SSH keypair under ~fpp/.ssh
-#   - the external settings.json backup under /home/fpp/media
+#   - the external settings.json backup under /home/fpp/media (only with
+#     --purge-backups - see below)
 #   - the optional restore-visibility bind mount, if currently active
 #   - the /etc/fstab entries added when a USB drive was mounted via the
 #     Config page's "Mount as Backups" / "Format & Mount" buttons
 #     (primary destination and/or secondary/clone drive)
 #   - any backup, or clone-to-second-drive, still actively running
 #
-# Backed-up files on your destination storage are left in place by
-# default - uninstalling a backup tool should never be how you lose
-# your backups. Run this manually with --purge-backups if you really
-# want them deleted too (FPP's own uninstall flow never passes that).
+# Backed-up files on your destination storage, and the external
+# settings.json backup, are left in place by default - uninstalling a
+# backup tool should never be how you lose your backups (or its own
+# settings, needed to self-heal if a later reinstall's fresh settings.json
+# ever turns up empty/corrupt - see rb_load_settings() in ajax.php). Run
+# this manually with --purge-backups if you really want them deleted too
+# (FPP's own uninstall flow - including a routine reinstall-to-update,
+# not just a genuine user-requested removal - never passes that).
 
 PLUGINDIR="$(cd "$(dirname "$0")/.." && pwd)"
 PURGE_BACKUPS=0
@@ -64,16 +69,32 @@ echo "Note: that key's public half may still be listed in each remote's"
 echo "~fpp/.ssh/authorized_keys. That's harmless (nothing will use it"
 echo "anymore) but remove it there too if you want it fully gone."
 
-# --- Remove the external settings.json backup ----------------------------
+# --- Remove the external settings.json backup, but only with --purge-backups ---
 # Deliberately kept outside PLUGINDIR (see ajax.php's
 # rb_settings_external_backup_path()/lib_common.sh's
 # SETTINGS_EXTERNAL_BACKUP for why) specifically so FPP's own delete of
-# this plugin's directory can't take it out along with everything else -
-# which means it's this uninstall script's job to clean it up, not FPP's.
+# this plugin's directory can't take it out along with everything else.
+#
+# Reported in the wild: FPP reinstalls a plugin (uninstall then install
+# fresh) to apply an update, not just on a genuine user-requested removal,
+# and FPP's own uninstall flow never passes --purge-backups. Unconditionally
+# deleting this file here meant every routine update deleted the ONE copy
+# specifically kept safe from FPP's own directory wipe - at the same moment
+# FPP was about to wipe the live file and its in-dir backup too, leaving
+# all three gone at once and nothing for rb_load_settings()'s/lib_common.sh's
+# self-heal to recover from. Gating this behind --purge-backups (same flag
+# already required below to delete backup folders, same "uninstalling a
+# backup tool should never be how you lose your backups" reasoning) means a
+# routine reinstall leaves it in place - self-heal then restores the live
+# file from it automatically - while a real, deliberate
+# `fpp_uninstall.sh --purge-backups` still removes it.
 EXTERNAL_SETTINGS_BACKUP="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
-if [ -f "$EXTERNAL_SETTINGS_BACKUP" ]; then
-    echo "Removing settings backup: $EXTERNAL_SETTINGS_BACKUP"
+if [ "$PURGE_BACKUPS" = "1" ] && [ -f "$EXTERNAL_SETTINGS_BACKUP" ]; then
+    echo "!! --purge-backups given: deleting settings backup: $EXTERNAL_SETTINGS_BACKUP"
     rm -f "$EXTERNAL_SETTINGS_BACKUP"
+elif [ -f "$EXTERNAL_SETTINGS_BACKUP" ]; then
+    echo "Settings backup left in place: $EXTERNAL_SETTINGS_BACKUP"
+    echo "(so a future reinstall can self-heal from it - re-run with --purge-backups to delete it too)"
 fi
 
 # --- Tear down the optional restore-visibility bind mount, if active ----
