@@ -548,16 +548,37 @@ function rb_load_settings($SETTINGS_FILE) {
 // instead of silently pretending the save succeeded.
 function rb_save_settings($SETTINGS_FILE, $settings) {
     $json = json_encode($settings, JSON_PRETTY_PRINT);
-    $tmp = $SETTINGS_FILE . '.tmp';
+    if ($json === false) {
+        rb_log_line('SAVE FAILED encoding settings as JSON: ' . json_last_error_msg());
+        return false;
+    }
+    // tempnam() (not a fixed "$SETTINGS_FILE.tmp" name) - two overlapping
+    // saves (e.g. a slow request still finishing, racing a second one fired
+    // moments later) previously both wrote to the exact same tmp path, so
+    // one process's file_put_contents() truncating it while the other was
+    // still writing (or about to rename() it) could turn the live file
+    // empty - reported in the wild as settings.json found completely empty
+    // right after a burst of rapid Config-page saves. Mirrors
+    // lib_common.sh's rb_set_setting()/rb_backup_settings_file(), which
+    // already used mktemp's random suffix for exactly this reason on the
+    // bash side - this was the one spot on the PHP side that hadn't caught
+    // up.
+    $tmp = tempnam(dirname($SETTINGS_FILE), basename($SETTINGS_FILE) . '.tmp_');
+    if ($tmp === false) {
+        rb_log_line('SAVE FAILED creating temp file for ' . $SETTINGS_FILE);
+        return false;
+    }
     $ok = @file_put_contents($tmp, $json);
     if ($ok === false) {
         $err = error_get_last();
         rb_log_line('SAVE FAILED writing ' . $tmp . ': ' . ($err['message'] ?? 'unknown error'));
+        @unlink($tmp);
         return false;
     }
     if (!@rename($tmp, $SETTINGS_FILE)) {
         $err = error_get_last();
         rb_log_line('SAVE FAILED renaming ' . $tmp . ' -> ' . $SETTINGS_FILE . ': ' . ($err['message'] ?? 'unknown error'));
+        @unlink($tmp);
         return false;
     }
     @chmod($SETTINGS_FILE, 0666);
@@ -565,12 +586,18 @@ function rb_save_settings($SETTINGS_FILE, $settings) {
 
     // Best-effort mirrors, in-data-dir and external - see the two path
     // functions above. Never allowed to fail the save itself; they're a
-    // safety net, not the primary write.
+    // safety net, not the primary write. Same tempnam() treatment as the
+    // live file above, and for the same reason - two concurrent saves each
+    // mirroring to the same fixed backup tmp path had exactly the same
+    // torn-write exposure as the live file did.
     foreach ([rb_settings_backup_path($SETTINGS_FILE), rb_settings_external_backup_path()] as $backupFile) {
-        $backupTmp = $backupFile . '.tmp';
+        $backupTmp = @tempnam(dirname($backupFile), basename($backupFile) . '.tmp_');
+        if ($backupTmp === false) continue;
         if (@file_put_contents($backupTmp, $json) !== false) {
             @rename($backupTmp, $backupFile);
             @chmod($backupFile, 0666);
+        } else {
+            @unlink($backupTmp);
         }
     }
 
