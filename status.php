@@ -707,6 +707,29 @@ $rbPlugin = basename(__DIR__);
         if (btnGreenTimers[id]) { clearTimeout(btnGreenTimers[id]); delete btnGreenTimers[id]; }
     }
 
+    // Spinner shown on Dry Run/Start Backup for the gap between the click
+    // and the 'start' POST actually resolving - which can itself take
+    // several seconds (the remote-playing check has its own timeout) - so
+    // there's otherwise no visible sign anything happened until
+    // markButtonActive()/the Backup Status table have something to show.
+    // Reported as wanted, with an easy way to turn it back off: flip
+    // RB_SHOW_START_SPINNER to false to fully revert to the previous plain
+    // behavior (button just sits there unchanged until the request
+    // resolves) without touching anything else here.
+    var RB_SHOW_START_SPINNER = true;
+    var RB_START_BUTTON_LABELS = {
+        'rb-dryrun': { normal: 'Dry Run (selected remotes)', busy: '<i class="fas fa-spinner fa-spin me-1"></i>Checking...' },
+        'rb-start': { normal: 'Start Backup', busy: '<i class="fas fa-spinner fa-spin me-1"></i>Checking...' }
+    };
+    function setStartButtonBusy(id, busy) {
+        if (!RB_SHOW_START_SPINNER) return;
+        var btn = document.getElementById(id);
+        var labels = RB_START_BUTTON_LABELS[id];
+        if (!btn || !labels) return;
+        btn.disabled = busy;
+        btn.innerHTML = busy ? labels.busy : labels.normal;
+    }
+
     // Dry Run and Start Backup share the one primary run/active flag
     // (status.php's poll() below), so which button to revert once that
     // run finishes has to be tracked separately from the flag itself.
@@ -845,9 +868,15 @@ $rbPlugin = basename(__DIR__);
     }
 
     document.getElementById('rb-start').addEventListener('click', function () {
+        setStartButtonBusy('rb-start', true);
         getSelectedRemoteIds().then(function (ids) {
-            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { life: 6000, themeState: 'danger' }); return; }
+            if (!ids.length) {
+                setStartButtonBusy('rb-start', false);
+                $.jGrowl('No remotes are selected. Go to Config and select at least one.', { life: 6000, themeState: 'danger' });
+                return;
+            }
             api('start', { body: { remotes: ids, dryRun: false } }).then(function (res) {
+                setStartButtonBusy('rb-start', false);
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
                 msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
@@ -862,9 +891,15 @@ $rbPlugin = basename(__DIR__);
     });
 
     document.getElementById('rb-dryrun').addEventListener('click', function () {
+        setStartButtonBusy('rb-dryrun', true);
         getSelectedRemoteIds().then(function (ids) {
-            if (!ids.length) { $.jGrowl('No remotes are selected. Go to Config and select at least one.', { life: 6000, themeState: 'danger' }); return; }
+            if (!ids.length) {
+                setStartButtonBusy('rb-dryrun', false);
+                $.jGrowl('No remotes are selected. Go to Config and select at least one.', { life: 6000, themeState: 'danger' });
+                return;
+            }
             api('start', { body: { remotes: ids, dryRun: true } }).then(function (res) {
+                setStartButtonBusy('rb-dryrun', false);
                 var msg = document.getElementById('rb-runMsg');
                 msg.textContent = res.ok ? 'Dry run started.' : ('Error: ' + res.error);
                 msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
