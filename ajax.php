@@ -509,6 +509,28 @@ function rb_settings_external_backup_path() {
     return '/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak';
 }
 
+// rb_describe_file: a size/mtime/perms snapshot for forensic logging when a
+// settings file turns out to be missing/empty/corrupt. Added after a real
+// incident where all three copies (live, in-dir backup, external backup)
+// went empty at the same instant with no corroborating OS or plugin-manager
+// event anywhere in the logs - the next occurrence needs more to go on than
+// just "raw=" empty. clearstatcache() first since this may be the second
+// look at the same path within one request (e.g. the live file, then again
+// after a backup restores it).
+function rb_describe_file($path) {
+    clearstatcache(true, $path);
+    if (!file_exists($path)) return 'MISSING';
+    $size = @filesize($path);
+    $mtime = @filemtime($path);
+    $perms = @fileperms($path);
+    return sprintf(
+        'size=%s mtime=%s perms=%s',
+        ($size === false ? '?' : $size),
+        ($mtime === false ? '?' : date('Y-m-d H:i:s', $mtime)),
+        ($perms === false ? '?' : substr(sprintf('%o', $perms), -4))
+    );
+}
+
 function rb_load_settings($SETTINGS_FILE) {
     if (!file_exists($SETTINGS_FILE)) return rb_default_settings();
     $raw = @file_get_contents($SETTINGS_FILE);
@@ -521,16 +543,17 @@ function rb_load_settings($SETTINGS_FILE) {
     // first (handles a single bad write to the live file alone), then the
     // external one (handles data/ itself being wiped, backup included) -
     // see the two path functions above for why both exist.
-    rb_log_line("WARN: settings.json unreadable or invalid, raw=" . substr((string)$raw, 0, 300));
+    rb_log_line("WARN: settings.json unreadable or invalid [" . rb_describe_file($SETTINGS_FILE) . "], raw=" . substr((string)$raw, 0, 300));
 
     foreach ([rb_settings_backup_path($SETTINGS_FILE), rb_settings_external_backup_path()] as $backupFile) {
         $backupRaw = @file_get_contents($backupFile);
         $backupData = ($backupRaw !== false) ? json_decode($backupRaw, true) : null;
         if (is_array($backupData)) {
-            rb_log_line("RECOVERED settings.json from $backupFile - restoring it as the live file");
+            rb_log_line("RECOVERED settings.json from $backupFile [" . rb_describe_file($backupFile) . "] - restoring it as the live file");
             rb_save_settings($SETTINGS_FILE, $backupData);
             return array_merge(rb_default_settings(), $backupData);
         }
+        rb_log_line("WARN: backup candidate also unusable: $backupFile [" . rb_describe_file($backupFile) . "], raw=" . substr((string)$backupRaw, 0, 300));
     }
 
     // No usable backup either place - fall back to defaults, but persist
