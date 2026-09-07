@@ -27,13 +27,22 @@ rb_log() {
 # RB_SDCARD_FALLBACK_DIR below already trusts.
 SETTINGS_EXTERNAL_BACKUP="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
 
-# Self-heal settings.json if it exists but is empty/corrupt - observed
-# cause: something outside this plugin entirely wipes data/ (or at least
-# settings.json and its in-dir backup together) on a recurring basis, not
-# a one-time fluke - two occurrences inside about an hour on a live
-# system, each preceded by a multi-minute total gap in ajax.log (no
-# requests logged at all). Every script sources this file before doing
-# anything else, so this one check covers every entry point
+# Self-heal settings.json if it exists but is empty/corrupt. Several real
+# incidents where ajax.php's PHP-side rb_load_settings() found the live
+# file (and both backups) apparently empty turned out, once size/mtime/
+# perms logging was added on the PHP side, not to be actual corruption at
+# all: filesize()/filemtime() succeeded (real, non-zero content) but
+# file_get_contents() came back empty, with the file left mode 0600 by
+# whichever bash script wrote it last. mktemp(1) creates its tmp files
+# 0600 by default, and mv preserves that mode onto the destination - so a
+# bash-side write (rb_set_setting[_json] below, from run_backup.sh's
+# scheduled runs) leaves settings.json unreadable to the PHP web server
+# process if it doesn't run as the same user cron does. Every settings
+# writer here now chmods 0666 after mv/cp to match what ajax.php's
+# rb_save_settings() already did on the PHP side, closing that gap - see
+# each function below. This jq-validity self-heal stays as a second line
+# of defense for genuine corruption; every script sources this file before
+# doing anything else, so this one check covers every entry point
 # (run_backup.sh, the FPP Commands, every ajax.php action via its own
 # PHP-side equivalent) rather than needing to be repeated per-script.
 # Tries settings.json.bak first (kept in sync by rb_backup_settings_file()
@@ -44,9 +53,11 @@ SETTINGS_EXTERNAL_BACKUP="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
 if [ -f "$SETTINGS_FILE" ] && ! jq -e . "$SETTINGS_FILE" >/dev/null 2>&1; then
     if [ -f "${SETTINGS_FILE}.bak" ] && jq -e . "${SETTINGS_FILE}.bak" >/dev/null 2>&1; then
         cp "${SETTINGS_FILE}.bak" "$SETTINGS_FILE" 2>/dev/null
+        chmod 0666 "$SETTINGS_FILE" 2>/dev/null || true
         rb_log "RECOVERED settings.json from settings.json.bak (live file was empty/corrupt)"
     elif [ -f "$SETTINGS_EXTERNAL_BACKUP" ] && jq -e . "$SETTINGS_EXTERNAL_BACKUP" >/dev/null 2>&1; then
         cp "$SETTINGS_EXTERNAL_BACKUP" "$SETTINGS_FILE" 2>/dev/null
+        chmod 0666 "$SETTINGS_FILE" 2>/dev/null || true
         rb_log "RECOVERED settings.json from $SETTINGS_EXTERNAL_BACKUP (live file and its in-dir backup were both empty/corrupt)"
     fi
 fi
@@ -81,6 +92,7 @@ rb_backup_settings_file() {
     for dest in "${SETTINGS_FILE}.bak" "$SETTINGS_EXTERNAL_BACKUP"; do
         tmp=$(mktemp "${dest}.tmp_XXXXXX" 2>/dev/null) || continue
         if cp "$SETTINGS_FILE" "$tmp" 2>/dev/null; then
+            chmod 0666 "$tmp" 2>/dev/null || true
             mv "$tmp" "$dest" 2>/dev/null
         else
             rm -f "$tmp"
@@ -99,6 +111,7 @@ rb_set_setting() {
     [ -f "$SETTINGS_FILE" ] || return 1
     tmp=$(mktemp "${SETTINGS_FILE}.tmp_XXXXXX")
     if jq --arg v "$value" "${path} = \$v" "$SETTINGS_FILE" > "$tmp" 2>/dev/null; then
+        chmod 0666 "$tmp" 2>/dev/null || true
         mv "$tmp" "$SETTINGS_FILE"
         rb_backup_settings_file
     else
@@ -117,6 +130,7 @@ rb_set_setting_json() {
     [ -f "$SETTINGS_FILE" ] || return 1
     tmp=$(mktemp "${SETTINGS_FILE}.tmp_XXXXXX")
     if jq --argjson v "$value" "${path} = \$v" "$SETTINGS_FILE" > "$tmp" 2>/dev/null; then
+        chmod 0666 "$tmp" 2>/dev/null || true
         mv "$tmp" "$SETTINGS_FILE"
         rb_backup_settings_file
     else
