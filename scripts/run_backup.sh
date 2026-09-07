@@ -1116,21 +1116,32 @@ backup_one() {
             verify_detail="verification pass itself failed (rc=${verify_rc}) - $(tail -3 "$verify_out" 2>/dev/null | tr '\n' ' | ')"
             rb_log "VERIFY $id: $verify_detail"
         else
-            verify_files=$(grep -m1 -E '^Number of (regular files transferred|files transferred):' "$verify_out" | grep -oE '[0-9,]+' | head -1 | tr -d ',')
-            [ -z "$verify_files" ] && verify_files=0
+            # Itemize-changes lines are a fixed 11-character flags column
+            # then a space then the path (cut -c 12- rather than splitting
+            # on whitespace, so a filename containing spaces still comes
+            # through intact). Restricted to regular-file entries (second
+            # flag column "f") - rsync's itemize also lists directories it
+            # would create/touch (second column "d"), which isn't a file
+            # mismatch. verify_files is counted directly off this filtered
+            # list (not rsync's own "Number of regular files transferred"
+            # stat) so the count always matches what verify_detail lists.
+            #
+            # logs/fppd.log is dropped before counting/listing - it's each
+            # remote's own live FPP daemon log, continuously appended to
+            # by that remote's own fppd while it runs, so this dry-run
+            # re-check (running seconds after the real transfer) will see
+            # new lines written since the backup and report a "mismatch"
+            # on a file that's actually fine, every single run. Same class
+            # of always-a-moving-target issue as the Host's own data/logs
+            # above, but the fix here is narrower: fppd.log still gets
+            # backed up normally (real diagnostic value if a remote ever
+            # needs it) - only this dry-run comparison ignores it.
+            local verify_lines
+            verify_lines=$(grep -E '^[<>ch*]f' "$verify_out" | grep -v -E 'logs/fppd\.log$')
+            verify_files=$(echo "$verify_lines" | grep -c .)
             if [ "$verify_files" -gt 0 ]; then
                 verify_state="mismatch"
-                # Itemize-changes lines are a fixed 11-character flags
-                # column then a space then the path (cut -c 12- rather
-                # than splitting on whitespace, so a filename containing
-                # spaces still comes through intact). Restricted to
-                # regular-file entries (second flag column "f") to match
-                # what verify_files above actually counts - rsync's
-                # itemize also lists directories it would create/touch
-                # (second column "d"), which "Number of regular files
-                # transferred" deliberately excludes, so including those
-                # here would list more paths than the count claims.
-                verify_detail="${verify_files} file(s) still differ from source after backup: $(grep -E '^[<>ch*]f' "$verify_out" | head -20 | cut -c 12- | tr '\n' ' | ')"
+                verify_detail="${verify_files} file(s) still differ from source after backup: $(echo "$verify_lines" | head -20 | cut -c 12- | tr '\n' ' | ')"
                 rb_log "VERIFY $id: $verify_detail"
             else
                 verify_state="clean"
