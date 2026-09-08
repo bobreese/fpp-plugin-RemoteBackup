@@ -125,8 +125,6 @@ for MP in /mnt/Backups /mnt/BackupsCopy; do
     if [ -f /etc/fstab ] && grep -qE "(^|[[:space:]])${MP}([[:space:]]|$)" /etc/fstab 2>/dev/null; then
         echo "Removing $MP entry from /etc/fstab"
         echo "(the drive stays mounted until you unmount/reboot; files untouched)"
-        # No sudo here - uninstall scripts already run as root (FPP's own
-        # lifecycle), so sudo would just be redundant indirection.
         # \#pattern#d (not the usual /pattern/d) - $MP itself contains "/",
         # which would otherwise collide with "/" as the address delimiter
         # and break the command (confirmed by hitting exactly that while
