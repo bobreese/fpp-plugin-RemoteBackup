@@ -27,6 +27,23 @@ PLUGINDIR="$(cd "$(dirname "$0")/.." && pwd)"
 PURGE_BACKUPS=0
 [ "$1" = "--purge-backups" ] && PURGE_BACKUPS=1
 
+# $FPPDIR is needed separately (scripts/common, setSetting - see the
+# restartFlag call near the end of this script). The plugin manager always
+# provides it; this fallback only covers a manual run (e.g. over SSH while
+# debugging) where it wasn't set - /opt/fpp is FPP's fixed install root on
+# every real system.
+if [ -z "${FPPDIR:-}" ]; then
+    FPPDIR="/opt/fpp"
+fi
+
+# Source FPP-wide helpers if available; if not, continue with a warning -
+# the restartFlag call below already has its own fallback for this.
+if [ -f "${FPPDIR}/scripts/common" ]; then
+    . "${FPPDIR}/scripts/common"
+else
+    echo "WARNING: ${FPPDIR}/scripts/common not found; continuing without it"
+fi
+
 echo "=================================================================="
 echo " Remote Backup plugin - uninstalling"
 echo "=================================================================="
@@ -222,6 +239,22 @@ elif [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
     done
     echo " Re-run this script by hand with --purge-backups to delete them."
     echo "------------------------------------------------------------------"
+fi
+
+# --- Ask FPP to restart so the "Run Remote Backup"/"Run Remote Backup Dry
+# Run" commands (commands/descriptions.json) actually disappear from the
+# Scheduler/Playlist/Event command pickers. This plugin has no callbacks
+# script, so FPP's own auto-unload-on-uninstall step (PluginManager::
+# unloadPlugin() in FPP core) has nothing it recognizes as loaded and
+# returns success without withdrawing these commands - they stay live in
+# fppd's command registry, now pointing at scripts this uninstall is about
+# to delete, until fppd actually restarts. Same reasoning as the matching
+# call in fpp_install.sh (see there for the fuller explanation) - this is
+# the uninstall side of the same gap.
+if command -v setSetting >/dev/null 2>&1; then
+    setSetting restartFlag 1
+else
+    echo "WARNING: setSetting not available (${FPPDIR}/scripts/common missing?) - restart FPP manually so the Run Remote Backup commands actually disappear from the Scheduler."
 fi
 
 echo ""
