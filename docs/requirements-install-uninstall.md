@@ -44,8 +44,6 @@ callbacks script (nothing hooks show start/stop), and FPP's install/uninstall
 live-reload only re-registers commands for a plugin that has one - without the flag,
 those commands wouldn't appear until something else happened to restart FPP.
 
-**Be aware this is considered a Beta Test version. Use with care.**
-
 ## Uninstall
 
 Uninstalling through FPP's Plugin Manager first tells fppd to unload this plugin -
