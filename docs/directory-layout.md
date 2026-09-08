@@ -35,11 +35,17 @@ fpp-plugin-RemoteBackup/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh
   data/                      created on install
     settings.json            Config page's saved settings
+    settings.json.bak         in-directory self-heal mirror, refreshed on every
+                               successful save (see rb_save_settings() in ajax.php)
     status/<id>.json         each remote's live status, polled by the Status page
     label_cache.json          volume labels, cached ~30s to avoid re-shelling out to
                                findmnt on every status/cloneStatus poll
+    bindmount_warning.json    restore-visibility bind-mount's own warning state
     run_active.json, clone_active.json, run.lock, clone.lock, pids/
                                run/clone overlap guards
+    clone.pid                 Clone Backups' own PID file - deliberately kept out
+                               of pids/ (see the comment in clone_backups.sh)
+    clone_status.json         Clone Backups' live progress, polled by ajax.php
     known_hosts.lock          serializes concurrent remotes' known_hosts edits
                                (see rb_clear_stale_host_key() in lib_common.sh)
     logs/

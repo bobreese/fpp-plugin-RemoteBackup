@@ -488,9 +488,7 @@ function rb_settings_backup_path($SETTINGS_FILE) {
 
 // rb_settings_external_backup_path: a SECOND mirror, deliberately kept
 // outside data/ (and outside this plugin's directory entirely) at a fixed,
-// hardcoded location on the FPP media tree - the same /home/fpp/media root
-// RB_SDCARD_FALLBACK_DIR in lib_common.sh already trusts as a stable,
-// always-present FPP path.
+// hardcoded location on the FPP media tree.
 //
 // Why a second copy in a different place, not just the one above: a real
 // incident (data/settings.json.bak's own first version) proved the
@@ -505,8 +503,44 @@ function rb_settings_backup_path($SETTINGS_FILE) {
 // directory goes down with it. This second copy living entirely outside
 // data/ - and outside the plugin directory FPP itself replaces wholesale
 // on an update/reinstall - is what actually survives that failure mode.
+//
+// Lives under FPP's own plugindata/ tree (not loose at the media root as
+// this used to) - confirmed against FPP core (scripts/uninstall_plugin,
+// common.php's GetFPPMediaDirNames(), resetConfig.php's separate
+// 'pluginConfigs' vs 'plugins' reset categories) that plugindata/<name> is
+// FPP's own designated location for plugin data that should outlive the
+// plugin's own installed directory: a normal uninstall/reinstall only ever
+// deletes plugins/<name>, never plugindata/<name>. Ensures the directory
+// exists (world-writable, so the bash side can create it too - see
+// lib_common.sh's identical block) and migrates the old flat-file location
+// forward exactly once, so an existing install doesn't lose its current
+// backup content the first time this runs post-upgrade.
 function rb_settings_external_backup_path() {
-    return '/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak';
+    $dir = '/home/fpp/media/plugindata/fpp-plugin-RemoteBackup';
+    $new = $dir . '/settings.json.bak';
+    $old = '/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak';
+
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+        @chmod($dir, 0777);
+    }
+
+    if (!file_exists($new) && file_exists($old)) {
+        $oldContent = @file_get_contents($old);
+        if ($oldContent !== false && json_decode($oldContent, true) !== null) {
+            $tmp = @tempnam($dir, basename($new) . '.tmp_');
+            if ($tmp !== false) {
+                if (@file_put_contents($tmp, $oldContent) !== false && @rename($tmp, $new)) {
+                    @chmod($new, 0666);
+                    rb_log_line("MIGRATED external settings backup from $old to $new");
+                } else {
+                    @unlink($tmp);
+                }
+            }
+        }
+    }
+
+    return $new;
 }
 
 // rb_describe_file: a size/mtime/perms snapshot for forensic logging when a
