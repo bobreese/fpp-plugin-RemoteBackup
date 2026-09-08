@@ -291,6 +291,7 @@ $rbPlugin = basename(__DIR__);
         <a class="btn btn-outline-secondary" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status Page</a>
         <span id="rb-saveMsg" class="ms-2"></span>
         <span id="rb-sdcard-purge-note" class="ms-2 small"></span>
+        <span id="rb-snapshot-prune-note" class="ms-2 small"></span>
         <label class="small text-muted mb-0 ms-auto" style="cursor:pointer; white-space:nowrap;">
             <input type="checkbox" id="rb-floatingSaveToggle"> Keep floating while scrolling
         </label>
@@ -438,6 +439,74 @@ $rbPlugin = basename(__DIR__);
     // succeeds, consistent with "nothing takes effect until you Save
     // Settings" everywhere else on this page.
     var rbPendingSdCardPurge = null;
+    var rbPendingSnapshotPrune = null;
+
+    function renderSnapshotPruneNote() {
+        var el = document.getElementById('rb-snapshot-prune-note');
+        if (!el) return;
+        if (rbPendingSnapshotPrune === true) {
+            el.textContent = 'Old dated snapshots will be pruned to the latest one per remote when you save.';
+            el.className = 'ms-2 small text-danger';
+        } else if (rbPendingSnapshotPrune === false) {
+            el.textContent = 'Existing dated snapshots will be left in place.';
+            el.className = 'ms-2 small text-muted';
+        } else {
+            el.textContent = '';
+        }
+    }
+
+    function rbShowSnapshotModePopup() {
+        var modalId = 'rb-snapshot-mode-modal';
+        DoModalDialog({
+            id: modalId,
+            title: 'Turning Off Dated Snapshot History',
+            class: 'modal-m',
+            backdrop: true,
+            body: 'Every remote\'s existing dated snapshot folders (<code>&lt;Hostname&gt;-YYYYMMDD</code>) will be left in place ' +
+                'unless you choose to prune them now. Rolling mode itself never revisits or cleans up old dated folders on its own - ' +
+                'it will only start reusing the single newest one as its rolling "current" backup going forward, so anything older ' +
+                'would otherwise sit there taking up space until removed by hand from the Status page.<br><br>' +
+                'Pruning keeps each remote\'s single newest dated folder (which becomes the new rolling backup) and removes the rest - ' +
+                'nothing about restoring from what\'s kept changes either way.<br><br>' +
+                'Nothing happens immediately either way - your choice takes effect when you click ' +
+                '<b>Save Settings</b>, same as every other Config change.',
+            buttons: {
+                'Keep All Snapshots': {
+                    class: 'btn-secondary',
+                    click: function () {
+                        rbPendingSnapshotPrune = false;
+                        CloseModalDialog(modalId);
+                        renderSnapshotPruneNote();
+                    }
+                },
+                'Prune to Latest Only': {
+                    class: 'btn-danger',
+                    click: function () {
+                        rbPendingSnapshotPrune = true;
+                        CloseModalDialog(modalId);
+                        renderSnapshotPruneNote();
+                    }
+                }
+            }
+        });
+    }
+
+    // Fired on every change of the Snapshot Mode checkbox - compares
+    // against the SERVER-SAVED value (state.settings), not whatever else
+    // may have been toggled in between, so re-checking it after already
+    // answering once clears the staged choice (there'd then be nothing to
+    // prune) rather than asking again the moment it's unchecked a second
+    // time. Same pattern as rbCheckSdCardLeaveTransition above.
+    function rbCheckSnapshotModeLeaveTransition(nowChecked) {
+        if (nowChecked) {
+            rbPendingSnapshotPrune = null;
+            renderSnapshotPruneNote();
+            return;
+        }
+        if (!(state.settings && state.settings.snapshotMode)) return;
+        if (rbPendingSnapshotPrune !== null) return;
+        rbShowSnapshotModePopup();
+    }
 
     function renderSdCardPurgeNote() {
         var el = document.getElementById('rb-sdcard-purge-note');
@@ -1800,6 +1869,9 @@ $rbPlugin = basename(__DIR__);
     // (which only actually changes once this is saved).
     document.getElementById('rb-enableRestoreBindMount').addEventListener('change', renderBindMountStatus);
     document.getElementById('rb-emailNotifyEnabled').addEventListener('change', renderEmailFppStatus);
+    document.getElementById('rb-snapshotMode').addEventListener('change', function () {
+        rbCheckSnapshotModeLeaveTransition(this.checked);
+    });
 
     document.getElementById('rb-refreshStorage').addEventListener('click', function () {
         setScanning('rb-storageList');
@@ -1874,6 +1946,7 @@ $rbPlugin = basename(__DIR__);
             enableRestoreBindMount: document.getElementById('rb-enableRestoreBindMount').checked,
             onboardingTourEnabled: document.getElementById('rb-onboardingTourEnabled').checked,
             purgeSdCardBackups: rbPendingSdCardPurge === true,
+            pruneOldSnapshots: rbPendingSnapshotPrune === true,
             remotePlayingPolicy: document.getElementById('rb-playPolicy-skip').checked ? 'skip' : 'stop',
             emailNotifyEnabled: document.getElementById('rb-emailNotifyEnabled').checked,
             emailNotifyScope: document.getElementById('rb-emailScope-all').checked ? 'all' : 'scheduled',
@@ -1909,6 +1982,15 @@ $rbPlugin = basename(__DIR__);
                 }
                 rbPendingSdCardPurge = null;
                 renderSdCardPurgeNote();
+                // The prune (if any) already ran server-side as part of
+                // this same saveSettings call - reset the staged choice
+                // either way now that it's been acted on (or deliberately
+                // not acted on), so a future transition asks fresh.
+                if (typeof res.snapshotsPruned === 'number' && res.snapshotsPruned > 0) {
+                    $.jGrowl('Pruned ' + res.snapshotsPruned + ' old dated snapshot folder(s).', { life: 6000, themeState: 'info' });
+                }
+                rbPendingSnapshotPrune = null;
+                renderSnapshotPruneNote();
                 // Don't wait for the next 15s poll to reflect a just-saved
                 // destinationMount/enableRestoreBindMount change - the
                 // server already reconciled the bind mount as part of

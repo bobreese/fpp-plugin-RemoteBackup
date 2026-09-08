@@ -934,6 +934,7 @@ switch ($action) {
         $body = rb_json_body();
         $settings = rb_load_settings($SETTINGS_FILE);
         $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
+        $prevSnapshotMode = !empty($settings['snapshotMode']);
 
         foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount', 'onboardingTourEnabled', 'emailNotifyEnabled', 'verifyAfterRun'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
@@ -1052,8 +1053,32 @@ switch ($action) {
             }
         }
 
+        // Turning Snapshot Mode off is itself the moment each remote's
+        // per-day dated folders stop being extended - Config's
+        // rbShowSnapshotModePopup offers the choice of pruning that
+        // now-frozen history down to just the latest folder right away,
+        // rather than leaving it to sit there taking up space forever
+        // (rolling mode never revisits or cleans up old dated folders on
+        // its own - see prune_snapshots.sh). Re-checked server-side
+        // (prevSnapshotMode captured above vs. the just-applied setting),
+        // same reasoning as purgeSdCardBackups above: never trust the
+        // client's staged choice alone in case snapshotMode changed again
+        // for some other reason in between.
+        $snapshotsPruned = null;
+        if (!empty($body['pruneOldSnapshots']) && $prevSnapshotMode === true && empty($settings['snapshotMode'])) {
+            $pruneData = rb_run_json("$SCRIPTS_DIR/prune_snapshots.sh", [], 60);
+            if (is_array($pruneData) && !empty($pruneData['ok'])) {
+                $snapshotsPruned = isset($pruneData['deleted']) && is_array($pruneData['deleted']) ? count($pruneData['deleted']) : 0;
+                $remotesPruned = isset($pruneData['remotesPruned']) ? (int)$pruneData['remotesPruned'] : 0;
+                rb_log_line("SNAPSHOT PRUNE: removed $snapshotsPruned old dated snapshot folder(s) across $remotesPruned remote(s) after turning off Snapshot Mode");
+            } else {
+                rb_log_line('SNAPSHOT PRUNE FAILED: ' . json_encode($pruneData));
+            }
+        }
+
         $response = ['ok' => true, 'data' => $settings];
         if ($sdCardBackupsPurged !== null) $response['sdCardBackupsPurged'] = $sdCardBackupsPurged;
+        if ($snapshotsPruned !== null) $response['snapshotsPruned'] = $snapshotsPruned;
         echo json_encode($response);
         break;
     }
