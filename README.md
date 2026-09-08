@@ -29,5 +29,4 @@ pulling backups from one or more of your other FPP systems onto local storage.
 - [Troubleshooting](docs/troubleshooting.md)
 - [Directory layout](docs/directory-layout.md)
 - [Changelog](docs/changelog.md)
-- [Pre-submission checklist / Plugin Guidelines compliance](docs/plugin-guidelines-compliance.md)
 - [Replacing FPP's Native Backup: A Readiness Assessment](docs/backup-replacement-assessment.md)
