@@ -22,10 +22,30 @@ rb_log() {
 # rb_settings_external_backup_path() in ajax.php for why: a real incident
 # proved settings.json.bak living in data/ alongside settings.json isn't
 # independent protection, since whatever wiped the live file wiped that
-# backup right along with it (both live in the same directory). This
-# fixed /home/fpp/media path is the same stable FPP media root
-# RB_SDCARD_FALLBACK_DIR below already trusts.
-SETTINGS_EXTERNAL_BACKUP="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
+# backup right along with it (both live in the same directory).
+#
+# Lives under FPP's own plugindata/ tree, which a normal plugin
+# uninstall/reinstall never touches (confirmed against FPP core's
+# scripts/uninstall_plugin) - see the matching comment on
+# rb_settings_external_backup_path() in ajax.php for the fuller rationale.
+# Directory is ensured world-writable here since either side (this bash
+# helper or ajax.php) may be the first to create it. The one-time
+# migration from the old flat-file location mirrors ajax.php's own so an
+# existing install doesn't lose its current backup content post-upgrade
+# regardless of which side runs first.
+SETTINGS_EXTERNAL_BACKUP_DIR="/home/fpp/media/plugindata/fpp-plugin-RemoteBackup"
+SETTINGS_EXTERNAL_BACKUP="${SETTINGS_EXTERNAL_BACKUP_DIR}/settings.json.bak"
+SETTINGS_EXTERNAL_BACKUP_OLD="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
+mkdir -p "$SETTINGS_EXTERNAL_BACKUP_DIR" 2>/dev/null
+chmod 0777 "$SETTINGS_EXTERNAL_BACKUP_DIR" 2>/dev/null || true
+if [ ! -f "$SETTINGS_EXTERNAL_BACKUP" ] && [ -f "$SETTINGS_EXTERNAL_BACKUP_OLD" ] && jq -e . "$SETTINGS_EXTERNAL_BACKUP_OLD" >/dev/null 2>&1; then
+    tmp=$(mktemp "${SETTINGS_EXTERNAL_BACKUP}.tmp_XXXXXX" 2>/dev/null)
+    if [ -n "$tmp" ] && cp "$SETTINGS_EXTERNAL_BACKUP_OLD" "$tmp" 2>/dev/null; then
+        chmod 0666 "$tmp" 2>/dev/null || true
+        mv "$tmp" "$SETTINGS_EXTERNAL_BACKUP" 2>/dev/null
+        rb_log "MIGRATED external settings backup from $SETTINGS_EXTERNAL_BACKUP_OLD to $SETTINGS_EXTERNAL_BACKUP"
+    fi
+fi
 
 # Self-heal settings.json if it exists but is empty/corrupt. Several real
 # incidents where ajax.php's PHP-side rb_load_settings() found the live

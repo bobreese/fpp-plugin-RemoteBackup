@@ -105,12 +105,24 @@ echo "anymore) but remove it there too if you want it fully gone."
 # routine reinstall leaves it in place - self-heal then restores the live
 # file from it automatically - while a real, deliberate
 # `fpp_uninstall.sh --purge-backups` still removes it.
-EXTERNAL_SETTINGS_BACKUP="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
-if [ "$PURGE_BACKUPS" = "1" ] && [ -f "$EXTERNAL_SETTINGS_BACKUP" ]; then
-    echo "!! --purge-backups given: deleting settings backup: $EXTERNAL_SETTINGS_BACKUP"
-    rm -f "$EXTERNAL_SETTINGS_BACKUP"
-elif [ -f "$EXTERNAL_SETTINGS_BACKUP" ]; then
-    echo "Settings backup left in place: $EXTERNAL_SETTINGS_BACKUP"
+#
+# Checks both the current plugindata/ location and the old flat-file
+# location - an install that's never run a script since upgrading to the
+# plugindata/ move (see ajax.php/lib_common.sh) may still only have the old
+# one, and --purge-backups means "delete this backup entirely," not "delete
+# whichever copy happens to be current."
+EXTERNAL_SETTINGS_BACKUP_DIR="/home/fpp/media/plugindata/fpp-plugin-RemoteBackup"
+EXTERNAL_SETTINGS_BACKUP="${EXTERNAL_SETTINGS_BACKUP_DIR}/settings.json.bak"
+EXTERNAL_SETTINGS_BACKUP_OLD="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
+if [ "$PURGE_BACKUPS" = "1" ] && { [ -f "$EXTERNAL_SETTINGS_BACKUP" ] || [ -f "$EXTERNAL_SETTINGS_BACKUP_OLD" ]; }; then
+    echo "!! --purge-backups given: deleting settings backup(s): $EXTERNAL_SETTINGS_BACKUP $EXTERNAL_SETTINGS_BACKUP_OLD"
+    rm -f "$EXTERNAL_SETTINGS_BACKUP" "$EXTERNAL_SETTINGS_BACKUP_OLD"
+    # Clean up the subdirectory we created for it, but only if now empty -
+    # never touch plugindata/ itself, which other plugins may also use.
+    [ -d "$EXTERNAL_SETTINGS_BACKUP_DIR" ] && [ -z "$(ls -A "$EXTERNAL_SETTINGS_BACKUP_DIR" 2>/dev/null)" ] && rmdir "$EXTERNAL_SETTINGS_BACKUP_DIR" 2>/dev/null
+elif [ -f "$EXTERNAL_SETTINGS_BACKUP" ] || [ -f "$EXTERNAL_SETTINGS_BACKUP_OLD" ]; then
+    [ -f "$EXTERNAL_SETTINGS_BACKUP" ] && echo "Settings backup left in place: $EXTERNAL_SETTINGS_BACKUP"
+    [ -f "$EXTERNAL_SETTINGS_BACKUP_OLD" ] && echo "Settings backup left in place: $EXTERNAL_SETTINGS_BACKUP_OLD"
     echo "(so a future reinstall can self-heal from it - re-run with --purge-backups to delete it too)"
 fi
 

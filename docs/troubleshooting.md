@@ -331,9 +331,10 @@ follow-up incident proved it wasn't independent protection: whatever is doing th
 (or replaces) the whole `data/` directory, not just the one file inside it, so a backup
 living in that same directory goes down with it. A second copy is now kept entirely outside
 `data/` - and outside this plugin's own directory altogether - at
-`/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak`, the same persistent FPP media root
-this plugin already trusts elsewhere (e.g. the SD Card/System Storage fallback backups
-folder), specifically so a wipe of the plugin's own directory can't reach it.
+`/home/fpp/media/plugindata/fpp-plugin-RemoteBackup/settings.json.bak`, FPP's own
+designated location for plugin data that should outlive the plugin's own installed
+directory (a normal uninstall/reinstall never touches `plugindata/`, only
+`plugins/<name>`), specifically so a wipe of the plugin's own directory can't reach it.
 
 If the live file is ever found empty or unreadable, it's checked and restored automatically
 the next time anything touches it - a page load, an ajax request, or even just a script

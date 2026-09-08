@@ -75,7 +75,7 @@ RB_PREV_CHECKPOINT_FINGERPRINT=""
 rb_settings_checkpoint() {
     local label="$1"
     local f fingerprint=""
-    for f in "${PLUGINDIR}/data/settings.json" "${PLUGINDIR}/data/settings.json.bak" "/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"; do
+    for f in "${PLUGINDIR}/data/settings.json" "${PLUGINDIR}/data/settings.json.bak" "/home/fpp/media/plugindata/fpp-plugin-RemoteBackup/settings.json.bak"; do
         if [ -f "$f" ]; then
             local size mtime md5
             size=$(stat -c %s "$f" 2>/dev/null || echo '?')

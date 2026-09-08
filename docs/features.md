@@ -363,7 +363,7 @@ can never require manually clearing a stuck lock before the next backup can star
 ### Self-healing plugin settings
 
 `data/settings.json` is mirrored on every successful write to both `data/settings.json.bak`
-and an external copy at `/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak` -
+and an external copy at `/home/fpp/media/plugindata/fpp-plugin-RemoteBackup/settings.json.bak` -
 deliberately outside `data/` (and outside this plugin's own directory entirely), since a real
 incident proved a single in-directory backup isn't independent protection: FPP deletes this
 plugin's whole `data/` directory - in-dir backup included - as part of its normal uninstall
