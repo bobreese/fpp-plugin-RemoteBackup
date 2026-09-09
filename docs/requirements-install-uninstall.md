@@ -46,20 +46,32 @@ those commands wouldn't appear until something else happened to restart FPP.
 
 ## Uninstall
 
-Uninstalling through FPP's Plugin Manager first tells fppd to unload this plugin -
-which explicitly unregisters its "Run Remote Backup" and "Run Remote Backup Dry Run"
-commands (confirmed against FPP's own `www/api/controllers/plugin.php` and
-`src/Plugins.cpp`: `UninstallPlugin()` calls `FPPDPluginLifecycle($plugin, 'unload')`
-before anything else runs, and fppd's `unloadPlugin()` explicitly calls
-`CommandManager::removeCommand()` for each one) - so both disappear from the
-Scheduler's "Run Command" dropdown immediately, with no reboot or fppd restart
-needed. Only then does it run `scripts/fpp_uninstall.sh` before removing the
+Uninstalling through FPP's Plugin Manager first tries to unload this plugin from
+fppd - `UninstallPlugin()` in `www/api/controllers/plugin.php` calls
+`FPPDPluginLifecycle($plugin, 'unload')` before anything else runs. For a plugin
+with a native callbacks script/`.so`, that unload step really does withdraw its
+commands live via `CommandManager::removeCommand()`. This plugin has no such
+callbacks script, though - it's pure PHP/bash - and `PluginManager::unloadPlugin()`
+in FPP core's `src/Plugins.cpp` only reaches that command-removal code for a plugin
+it can find via `findPluginByDir()`, which only ever holds plugins that got a real
+loaded `Plugin*` object (i.e. ones with callbacks). For this plugin, that lookup
+comes back empty and `unloadPlugin()` returns success immediately, having withdrawn
+nothing - so the "Run Remote Backup"/"Run Remote Backup Dry Run" commands stay live
+in fppd's command registry, still pointing at scripts this uninstall is about to
+delete, until fppd actually restarts. That's exactly why `fpp_uninstall.sh` sets
+FPP's `restartFlag` at the end (same reason `fpp_install.sh` already does on
+install) - not immediate, but the next restart (sequenced safely around anything
+already running, same as any other flagged change) clears them.
+
+Only then does the Plugin Manager run `scripts/fpp_uninstall.sh` before removing the
 plugin's own directory. That script:
 
 - Stops any backup that's actively running.
 - Deletes the dedicated SSH keypair it created (`~fpp/.ssh/id_rsa_remotebackup`).
 - Removes the `/etc/fstab` entry it added for a USB backup drive (the drive
   itself stays mounted until you unmount it or reboot - files untouched).
+- Sets FPP's `restartFlag` so the commands above actually disappear from the
+  Scheduler/Playlist/Event pickers once FPP restarts, as described above.
 
 The plugin's own directory removal that follows (confirmed against FPP's own
 `scripts/uninstall_plugin`: it runs the plugin's `fpp_uninstall.sh`, then
@@ -75,6 +87,11 @@ It deliberately leaves alone:
 - **Your backed-up files** on the destination storage. Uninstalling a backup
   tool should never be how you lose your backups. If you genuinely want them
   gone too, run the script by hand afterwards with `--purge-backups`.
+- The external settings backup at
+  `/home/fpp/media/plugindata/fpp-plugin-RemoteBackup/settings.json.bak` - kept
+  outside the plugin's own directory specifically so it survives this uninstall
+  (and a routine reinstall-to-update), letting a fresh install self-heal its
+  settings from it if needed. Also only removed with `--purge-backups`.
 - Installed packages (`rsync`, `jq`, `openssh-client`, `sshpass`,
   `exfatprogs`) - shared with the rest of the system, not plugin-specific.
 - The `/mnt/Backups` mount point directory itself.

@@ -5,6 +5,29 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Corrected:** an earlier entry below claimed uninstalling removes "Run Remote
+  Backup"/"Run Remote Backup Dry Run" from the Scheduler immediately, because FPP's
+  own unload-on-uninstall step "unregisters its commands via
+  `CommandManager::removeCommand()`." Re-verified directly against FPP core's
+  `src/Plugins.cpp`: that command-removal code only runs for a plugin
+  `PluginManager::unloadPlugin()` can find via `findPluginByDir()`, which only ever
+  holds plugins that got a real loaded `Plugin*` object - i.e. ones with a native
+  callbacks script/`.so`. This plugin has none (it's pure PHP/bash), so that lookup
+  comes back empty and `unloadPlugin()` returns success having withdrawn nothing -
+  the commands stay live in fppd's registry, pointing at scripts the uninstall just
+  deleted, until fppd actually restarts. `fpp_uninstall.sh` now sets FPP's
+  `restartFlag` at the end (mirroring what `fpp_install.sh` already does on install)
+  so that restart actually happens, and
+  [Requirements, Install, and Uninstall](requirements-install-uninstall.md#uninstall)
+  has been corrected to describe the real behavior instead.
+- **Fixed:** `fpp_uninstall.sh --purge-backups`'s own backup-folder deletion used a
+  plain `rm -rf`, which can fail with "Permission denied" on the same root-owned
+  remote content (a remote's own `settings` file in particular) that was already
+  found to break `delete_backup.sh` the same way, below. Switched to `sudo rm -rf`,
+  matching that fix - harmless when this script is already root (the normal Plugin
+  Manager-triggered path), and actually needed for the documented manual
+  `--purge-backups` invocation, which isn't guaranteed to already be elevated.
+
 - **Fixed:** every remote could suddenly fail a real run with "could not create/write
   to target directory" - root-caused from a real destination where every dated backup
   folder for every remote had ended up owned `root:root` mode 775 (readable/traversable

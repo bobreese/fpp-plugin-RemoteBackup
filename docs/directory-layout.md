@@ -32,6 +32,8 @@ fpp-plugin-RemoteBackup/
     delete_backup.sh          deletes one specific backup folder, with its own independent safety checks
     prune_snapshots.sh        prunes every remote's dated snapshots to just the newest, when Snapshot
                                Mode is turned off and the Config popup's "Prune to Latest Only" is chosen
+    prune_snapshot_history.sh applies the configured snapshotRetentionDays age-based
+                               window to every remote's existing snapshots immediately on save
     purge_sdcard_backups.sh   removes leftover SD Card/System Storage backups after switching away from it
   commands/
     descriptions.json, run_remote_backup.sh, run_remote_backup_dryrun.sh

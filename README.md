@@ -6,9 +6,19 @@ pulling backups from one or more of your other FPP systems onto local storage.
 - Preview how much space a backup needs before it runs.
 - Schedule backups to happen on their own, or run one manually anytime.
 - Optionally keep a second copy on another drive for extra safety.
+- Optional dated snapshot history per remote, with a configurable retention window,
+  instead of just one rolling backup.
+- Optional post-run integrity check compares source and destination once more and
+  flags anything that doesn't match.
+- Optionally back up system/network config alongside each remote's content, for a
+  full rebuild after a reflash.
 - Won't back up a system while it's playing a show, so playback is never put at risk.
+- Can automatically fall back to SD Card storage if a scheduled run's usual destination
+  is too full, instead of just refusing to run.
 - Built-in safeguards keep backups from overwriting the wrong drive, running two at once,
   or leaving things in a broken state.
+- See current backups from FPP's own File Copy Restore without unmounting the
+  destination drive first.
 - Optional email status updates after a run, sent through FPP's own Email settings —
   no separate mail setup for this plugin to configure.
 
