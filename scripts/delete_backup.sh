@@ -61,7 +61,19 @@ if [[ ! "$TARGET_BASENAME" =~ ^.+-[0-9]{8}$ ]]; then
 fi
 
 rb_log "delete_backup: removing $TARGET_REAL"
-if ! rm -rf "$TARGET_REAL" 2>/tmp/rb_del_err_$$; then
+# sudo, not plain rm: a backed-up remote's own media tree can contain
+# root-owned content unrelated to this plugin (FPP's own media/settings
+# file in particular is commonly root-owned depending on how fppd was
+# started on that remote), and rsync happily copies it in as-is. A plain
+# rm as the unprivileged web server user fails on exactly that kind of
+# file with "Permission denied" - confirmed in the wild: a real Snapshot
+# Mode prune run left every remote with one extra older snapshot still on
+# disk instead of pruning down to just the newest, every failed delete
+# stopping on "cannot remove '.../settings'". Same reasoning/fix as the
+# tmp_extras_* cleanup at the top of run_backup.sh, which hit this
+# identical root-owned-content problem first and already relies on the
+# same passwordless sudo FPP itself grants the user running this script.
+if ! sudo rm -rf "$TARGET_REAL" 2>/tmp/rb_del_err_$$; then
     ERR=$(cat /tmp/rb_del_err_$$ 2>/dev/null); rm -f /tmp/rb_del_err_$$
     rb_log "delete_backup FAILED: $ERR"
     json_err "Delete failed: ${ERR:-unknown error}"
