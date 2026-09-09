@@ -80,7 +80,12 @@
   each one is still a real, complete, ordinary folder on disk. There's no delta or
   index to reconstruct: any single dated snapshot folder is fully self-contained and
   restorable entirely on its own, exactly like a rolling backup, whether or not the
-  snapshots next to it still exist.
+  snapshots next to it still exist. Turning this back off doesn't touch existing
+  history - the next run just resumes rolling-mode's "reuse whichever dated folder
+  is newest" behavior, and Config offers a one-time popup at that exact moment to
+  either leave every remote's older dated folders in place or prune each one down
+  to just its newest (which becomes the new rolling backup) - nothing about
+  restoring from what's kept changes either way.
 - **Runs as a real background process, independent of the browser.** Clicking Dry Run,
   Start Backup, or Start Clone launches the underlying script detached from that one web
   request and returns immediately - the transfer itself is a background process on the FPP

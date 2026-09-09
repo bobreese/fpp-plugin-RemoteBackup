@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a popup on Config, shown the moment Snapshot Mode is unchecked (if it
+  was previously on), offering to prune every remote's now-frozen dated snapshot
+  history down to just its newest folder instead of leaving it to sit there
+  untouched forever - rolling mode itself never revisits or cleans up old dated
+  folders on its own, it just starts reusing whichever one is newest as its rolling
+  "current" backup going forward. "Keep All Snapshots" changes nothing; "Prune to
+  Latest Only" removes everything but the newest per remote once Save Settings is
+  clicked (new `prune_snapshots.sh`, reusing `list_backups.sh`'s enumeration and
+  `delete_backup.sh`'s own safety checks for every actual removal) - mirrors the
+  existing "leaving SD Card / System Storage" popup's stage-the-choice-until-Save
+  pattern.
+
 - **Fixed:** a real, repeated incident where `data/settings.json` reset to bare defaults
   (destination cleared, remote list emptied, options unchecked) with no user action -
   root-caused by cross-referencing this plugin's own logs against a Host's FPP support-zip

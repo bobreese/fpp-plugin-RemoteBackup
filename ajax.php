@@ -350,7 +350,19 @@ function rb_default_settings() {
         // settings.json before this change still have those two entries
         // baked in and need to remove them from Config > Excludes by hand -
         // this default is only consulted for a *new* settings.json.
-        'excludes' => ['tmp/*', 'upload/*', 'cache/*', '*.tmp'],
+        //
+        // upload/* was previously excluded wholesale, but that dropped
+        // everything a user ever uploaded there (sequences, media, show
+        // content someone may still want restorable), not just FPP's own
+        // disposable content. upload/*fppos narrows this to just FPP's own
+        // OS image backups (its "Backup OS" feature writes a `.fppos` image
+        // there) - large, regeneratable, and not something a remote's own
+        // media backup needs a copy of - while leaving everything else a
+        // user put in upload/ backed up like any other media. Same
+        // new-settings.json-only caveat as the logs note above - an
+        // existing install's saved excludes still has the old upload/*
+        // baked in and needs updating in Config > Excludes by hand.
+        'excludes' => ['tmp/*', 'upload/*fppos', 'cache/*', '*.tmp'],
         'includeSystemConfig' => true,
         'remotes' => [],
         // Non-empty when the user picked "Halt Backups" from the "backup
@@ -934,6 +946,7 @@ switch ($action) {
         $body = rb_json_body();
         $settings = rb_load_settings($SETTINGS_FILE);
         $prevDestinationMount = isset($settings['destinationMount']) ? $settings['destinationMount'] : '';
+        $prevSnapshotMode = !empty($settings['snapshotMode']);
 
         foreach (['hostModeEnabled', 'deleteExtraneous', 'snapshotMode', 'includeSystemConfig', 'autoFailoverOnLowSpace', 'enableRestoreBindMount', 'onboardingTourEnabled', 'emailNotifyEnabled', 'verifyAfterRun'] as $k) {
             if (isset($body[$k])) $settings[$k] = (bool)$body[$k];
@@ -1052,8 +1065,32 @@ switch ($action) {
             }
         }
 
+        // Turning Snapshot Mode off is itself the moment each remote's
+        // per-day dated folders stop being extended - Config's
+        // rbShowSnapshotModePopup offers the choice of pruning that
+        // now-frozen history down to just the latest folder right away,
+        // rather than leaving it to sit there taking up space forever
+        // (rolling mode never revisits or cleans up old dated folders on
+        // its own - see prune_snapshots.sh). Re-checked server-side
+        // (prevSnapshotMode captured above vs. the just-applied setting),
+        // same reasoning as purgeSdCardBackups above: never trust the
+        // client's staged choice alone in case snapshotMode changed again
+        // for some other reason in between.
+        $snapshotsPruned = null;
+        if (!empty($body['pruneOldSnapshots']) && $prevSnapshotMode === true && empty($settings['snapshotMode'])) {
+            $pruneData = rb_run_json("$SCRIPTS_DIR/prune_snapshots.sh", [], 60);
+            if (is_array($pruneData) && !empty($pruneData['ok'])) {
+                $snapshotsPruned = isset($pruneData['deleted']) && is_array($pruneData['deleted']) ? count($pruneData['deleted']) : 0;
+                $remotesPruned = isset($pruneData['remotesPruned']) ? (int)$pruneData['remotesPruned'] : 0;
+                rb_log_line("SNAPSHOT PRUNE: removed $snapshotsPruned old dated snapshot folder(s) across $remotesPruned remote(s) after turning off Snapshot Mode");
+            } else {
+                rb_log_line('SNAPSHOT PRUNE FAILED: ' . json_encode($pruneData));
+            }
+        }
+
         $response = ['ok' => true, 'data' => $settings];
         if ($sdCardBackupsPurged !== null) $response['sdCardBackupsPurged'] = $sdCardBackupsPurged;
+        if ($snapshotsPruned !== null) $response['snapshotsPruned'] = $snapshotsPruned;
         echo json_encode($response);
         break;
     }
