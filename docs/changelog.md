@@ -5,6 +5,23 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** every remote could suddenly fail a real run with "could not create/write
+  to target directory" - root-caused from a real destination where every dated backup
+  folder for every remote had ended up owned `root:root` mode 775 (readable/traversable
+  by the `fpp` user, not writable). `commands/run_remote_backup*.sh` (FPP's Scheduler/
+  Command system) launch `run_backup.sh` with a plain `nohup ... &`, no user switch of
+  their own - whatever user actually runs FPP Commands (commonly root, via `fppd`) owns
+  whatever that run creates, while a manual "Start Backup" click goes through ajax.php as
+  the unprivileged `fpp` user instead. Whichever path created a given day's folder first
+  decided its ownership, and the other path then failed outright the next time it tried
+  to reuse/update that same folder - `mkdir -p` on an already-existing directory is a
+  silent no-op regardless of ownership, so the failure only surfaced later, once the
+  write itself was attempted. `run_backup.sh` now re-execs itself as `fpp` immediately if
+  it's ever invoked as root, before touching the filesystem at all, so every run creates
+  consistently `fpp`-owned content regardless of which path triggered it. This does not
+  retroactively fix any already-poisoned folder from before this fix - run
+  `sudo chown -R fpp:fpp` on the destination once after updating to clear those out.
+
 - **Fixed:** a completely unreachable remote (offline, no route to host) still left a
   real, empty `<Hostname>-<YYYYMMDD>` folder behind on the destination - `mkdir -p`
   runs before rsync ever attempts to connect (it has to, so there's somewhere for
