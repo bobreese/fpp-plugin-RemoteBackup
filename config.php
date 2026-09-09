@@ -112,19 +112,25 @@ $rbPlugin = basename(__DIR__);
             <label><input type="checkbox" id="rb-enableRestoreBindMount">
                 Let remotes and FPP's own File Copy Backup/Restore see current backups on this drive
                 <strong>without unmounting it first</strong></label>
+            <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-bindmount"
+                data-help-title="Restore visibility without unmounting" style="font-size:0.8em; cursor:help;"></i>
+            <div id="rb-help-bindmount" class="d-none">
+                <div class="fpp-help-content">
+                    <p class="mb-0">On by default. When on (and this drive is mounted and selected as the
+                        destination above), its contents are made visible at FPP's normal backups path automatically -
+                        no more choosing between "leave it mounted for backups" and "unmount it so restores can see it."
+                        Turning this off (or switching the destination away from this drive) reverts to the previous
+                        behavior immediately - unmount the drive here first if you want FPP's restore to see it.
+                        <strong>Built-in safeguard:</strong> it's automatically paused for the duration of every backup
+                        run and restored the moment the run finishes, so FPP's native restore can never read an
+                        in-progress, partly-written backup off this drive - only ever a complete one from before the
+                        current run started. On the rare occasion that pause itself can't complete (something else has
+                        a file on this drive open right now), the Status page shows a clear warning rather than this
+                        staying silent. See
+                        <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/usb-drive-setup.md" target="_blank" rel="noopener">USB Drive Setup</a> for details.</p>
+                </div>
+            </div>
             <div class="ms-3">
-                <small class="text-muted">On by default. When on (and this drive is mounted and selected as the
-                    destination above), its contents are made visible at FPP's normal backups path automatically -
-                    no more choosing between "leave it mounted for backups" and "unmount it so restores can see it."
-                    Turning this off (or switching the destination away from this drive) reverts to the previous
-                    behavior immediately - unmount the drive here first if you want FPP's restore to see it.
-                    <strong>Built-in safeguard:</strong> it's automatically paused for the duration of every backup
-                    run and restored the moment the run finishes, so FPP's native restore can never read an
-                    in-progress, partly-written backup off this drive - only ever a complete one from before the
-                    current run started. On the rare occasion that pause itself can't complete (something else has
-                    a file on this drive open right now), the Status page shows a clear warning rather than this
-                    staying silent. See
-                    <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/usb-drive-setup.md" target="_blank" rel="noopener">USB Drive Setup</a> for details.</small>
                 <div id="rb-bindMountStatus" class="mt-1"></div>
             </div>
         </div>
@@ -169,21 +175,47 @@ $rbPlugin = basename(__DIR__);
                 days (0 = keep forever). The newest snapshot for a remote is never deleted, even if it's older than this.
             </div>
             <label><input type="checkbox" id="rb-includeSystemConfig">
-                Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config.tar.gz</code> archive alongside each remote's backup
-                &mdash; <strong>includes WiFi passwords and other credentials in plain text on the destination drive.</strong> Pulled via sudo on the remote, so it needs the same passwordless-sudo access this plugin already relies on for SSH key setup.</label><br>
+                Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config.tar.gz</code> archive alongside each remote's backup</label>
+            <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-systemconfig"
+                data-help-title="System/network config backup" style="font-size:0.8em; cursor:help;"></i>
+            <div id="rb-help-systemconfig" class="d-none">
+                <div class="fpp-help-content">
+                    <p class="mb-0"><strong>Includes WiFi passwords and other credentials in plain text on the
+                        destination drive.</strong> Pulled via sudo on the remote, so it needs the same
+                        passwordless-sudo access this plugin already relies on for SSH key setup.</p>
+                </div>
+            </div><br>
             <label><input type="checkbox" id="rb-autoFailoverOnLowSpace">
-                If a <em>scheduled</em> run's destination doesn't have enough free space, switch automatically to SD Card / System Storage instead of refusing the run
-                &mdash; off by default, so a scheduled backup refuses (with a reason logged, and a popup here/on Status) rather than silently landing somewhere unexpected. A manual Start Backup always shows the popup either way, regardless of this setting.
-                Landing on SD Card / System Storage this way is re-checked against its own free space too (reserving 500MB for
-                system stability, same as any other run there - see <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/troubleshooting.md#backup-space-insufficient" target="_blank" rel="noopener">Backup Space Insufficient</a>)
-                rather than just assumed to fit - it refuses instead of proceeding if it turns out not to.</label><br>
+                If a <em>scheduled</em> run's destination doesn't have enough free space, switch automatically to SD Card / System Storage instead of refusing the run</label>
+            <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-lowspacefailover"
+                data-help-title="Auto-failover on low space" style="font-size:0.8em; cursor:help;"></i>
+            <div id="rb-help-lowspacefailover" class="d-none">
+                <div class="fpp-help-content">
+                    <p class="mb-0">Off by default, so a scheduled backup refuses (with a reason logged, and a
+                        popup here/on Status) rather than silently landing somewhere unexpected. A manual Start
+                        Backup always shows the popup either way, regardless of this setting. Landing on SD Card /
+                        System Storage this way is re-checked against its own free space too (reserving 500MB for
+                        system stability, same as any other run there - see
+                        <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/troubleshooting.md#backup-space-insufficient" target="_blank" rel="noopener">Backup Space Insufficient</a>)
+                        rather than just assumed to fit - it refuses instead of proceeding if it turns out not
+                        to.</p>
+                </div>
+            </div><br>
             <label><input type="checkbox" id="rb-verifyAfterRun">
-                Verify backup integrity after each run - a second read-only rsync pass compares source and destination once
-                more and flags anything still different, shown as a small badge on the Status page.
-                &mdash; off by default, since it adds a second directory-listing pass over SSH to every remote's run. This
-                checks the same thing rsync's own transfer already does (file size and modification time), not a byte-for-byte
-                checksum, and a remote actively recording/playing between the backup and this check can show a false
-                "differs" for content that's simply new since the backup, not actually missed.</label><br>
+                Verify backup integrity after each run</label>
+            <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-verifyafterrun"
+                data-help-title="Verify backup integrity after each run" style="font-size:0.8em; cursor:help;"></i>
+            <div id="rb-help-verifyafterrun" class="d-none">
+                <div class="fpp-help-content">
+                    <p class="mb-0">A second read-only rsync pass compares source and destination once more and
+                        flags anything still different, shown as a small badge on the Status page. Off by default,
+                        since it adds a second directory-listing pass over SSH to every remote's run. This checks
+                        the same thing rsync's own transfer already does (file size and modification time), not a
+                        byte-for-byte checksum, and a remote actively recording/playing between the backup and this
+                        check can show a false "differs" for content that's simply new since the backup, not
+                        actually missed.</p>
+                </div>
+            </div><br>
             <br>
             <strong>If a selected remote is playing a sequence when a backup starts:</strong><br>
             <label class="ms-3"><input type="radio" name="rb-playPolicy-choice" id="rb-playPolicy-stop" value="stop">
