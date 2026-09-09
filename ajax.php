@@ -350,7 +350,19 @@ function rb_default_settings() {
         // settings.json before this change still have those two entries
         // baked in and need to remove them from Config > Excludes by hand -
         // this default is only consulted for a *new* settings.json.
-        'excludes' => ['tmp/*', 'upload/*', 'cache/*', '*.tmp'],
+        //
+        // upload/* was previously excluded wholesale, but that dropped
+        // everything a user ever uploaded there (sequences, media, show
+        // content someone may still want restorable), not just FPP's own
+        // disposable content. upload/*fppos narrows this to just FPP's own
+        // OS image backups (its "Backup OS" feature writes a `.fppos` image
+        // there) - large, regeneratable, and not something a remote's own
+        // media backup needs a copy of - while leaving everything else a
+        // user put in upload/ backed up like any other media. Same
+        // new-settings.json-only caveat as the logs note above - an
+        // existing install's saved excludes still has the old upload/*
+        // baked in and needs updating in Config > Excludes by hand.
+        'excludes' => ['tmp/*', 'upload/*fppos', 'cache/*', '*.tmp'],
         'includeSystemConfig' => true,
         'remotes' => [],
         // Non-empty when the user picked "Halt Backups" from the "backup
