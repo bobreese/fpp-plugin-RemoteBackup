@@ -1253,6 +1253,13 @@ backup_one() {
 
     rb_log "finished rsync for $id rc=$rc xferBytes=$xfer_size files=$num_files"
     rb_prune_remote_logs "$id"
+    # Applies snapshotRetentionDays to this remote's dated snapshot
+    # history right after its own run, same as the log retention line
+    # above - a no-op when Snapshot Mode is off or the setting is 0
+    # (rb_prune_snapshot_history itself no-ops then). Skipped for a dry
+    # run: a dry run must never touch anything on the destination (see
+    # the mkdir/mv comments earlier in this function).
+    [ "$SNAPSHOT_MODE" = "true" ] && [ "$DRYRUN" != "1" ] && rb_prune_snapshot_history "$id"
 }
 
 # --- Concurrency-limited launcher: first N start immediately, each ---

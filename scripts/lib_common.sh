@@ -450,6 +450,56 @@ rb_prune_remote_logs() {
     done
 }
 
+# rb_prune_snapshot_history <remoteId> [days] [destRoot]: in Snapshot
+# Mode, deletes dated snapshot folders (<destRoot>/<remoteId>-YYYYMMDD)
+# older than DAYS days. DAYS defaults to the configured
+# snapshotRetentionDays setting (itself defaulting to 0, meaning
+# disabled/keep-forever - preserves existing installs' current
+# unbounded-accumulation behavior unless a user opts in); a call with
+# DAYS 0 or unset is a no-op. destRoot defaults to rb_dest_root() of the
+# configured destinationMount, overridable only so callers (tests) can
+# point this at a scratch directory instead of the real backup
+# destination.
+#
+# The single newest snapshot for a remote is always kept regardless of
+# age, even past the window, so a remote that's been offline longer than
+# the retention period never ends up with zero backups on disk.
+#
+# Age is read from the YYYYMMDD suffix in the folder's own name
+# (run_backup.sh's $today), not the directory's mtime - a snapshot dir's
+# mtime keeps advancing as later runs hardlink-copy changed files into it
+# via --link-dest, so mtime alone doesn't reliably say how old a snapshot
+# actually is.
+rb_prune_snapshot_history() {
+    local rid="$1" days="${2:-}" dest_root="${3:-}"
+    [ -z "$days" ] && days=$(rb_setting '.snapshotRetentionDays' '0')
+    [ "$days" -gt 0 ] 2>/dev/null || return 0
+    [ -z "$dest_root" ] && dest_root="$(rb_dest_root "$(rb_setting '.destinationMount' '/')")"
+    [ -d "$dest_root" ] || return 0
+
+    local dirs=()
+    while IFS= read -r d; do
+        [ -n "$d" ] && dirs+=("$d")
+    done < <(find "$dest_root" -maxdepth 1 -mindepth 1 -type d -name "${rid}-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]" 2>/dev/null | sort)
+
+    local count=${#dirs[@]}
+    [ "$count" -le 1 ] && return 0
+
+    local today_epoch
+    today_epoch=$(date +%s)
+    local i
+    for ((i = 0; i < count - 1; i++)); do
+        local d="${dirs[$i]}" stamp dir_epoch age_days
+        stamp="${d##*-}"
+        dir_epoch=$(date -d "$stamp" +%s 2>/dev/null) || continue
+        age_days=$(( (today_epoch - dir_epoch) / 86400 ))
+        if [ "$age_days" -gt "$days" ]; then
+            rb_log "pruning snapshot $d (age ${age_days}d > retention ${days}d)"
+            rm -rf "$d"
+        fi
+    done
+}
+
 # rb_clear_stale_host_key <address> [port]: drops any existing SSH
 # known_hosts entry for a remote before connecting. All of this plugin's
 # ssh/rsync calls use StrictHostKeyChecking=accept-new, which only

@@ -163,6 +163,11 @@ $rbPlugin = basename(__DIR__);
                 Delete files in the host backup that were removed on the remote (mirrors deletes, uses <code>rsync --delete</code>)</label><br>
             <label><input type="checkbox" id="rb-snapshotMode">
                 Keep dated snapshot history per remote instead of one rolling "current" backup (space-efficient via <code>rsync --link-dest</code>)</label><br>
+            <div id="rb-snapshotRetentionRow" class="ms-4 mb-1" style="display:none">
+                Delete snapshots older than
+                <input type="number" id="rb-snapshotRetentionDays" min="0" max="3650" style="width:70px">
+                days (0 = keep forever). The newest snapshot for a remote is never deleted, even if it's older than this.
+            </div>
             <label><input type="checkbox" id="rb-includeSystemConfig">
                 Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config.tar.gz</code> archive alongside each remote's backup
                 &mdash; <strong>includes WiFi passwords and other credentials in plain text on the destination drive.</strong> Pulled via sudo on the remote, so it needs the same passwordless-sudo access this plugin already relies on for SSH key setup.</label><br>
@@ -489,6 +494,17 @@ $rbPlugin = basename(__DIR__);
                 }
             }
         });
+    }
+
+    // Shows/hides the "delete snapshots older than N days" row alongside
+    // the Snapshot Mode checkbox itself - the setting is meaningless with
+    // Snapshot Mode off (there's only ever one rolling backup then), so
+    // keeping the row visible in that state would just invite confusion
+    // about whether it's doing anything.
+    function renderSnapshotRetentionRow() {
+        var row = document.getElementById('rb-snapshotRetentionRow');
+        if (!row) return;
+        row.style.display = document.getElementById('rb-snapshotMode').checked ? '' : 'none';
     }
 
     // Fired on every change of the Snapshot Mode checkbox - compares
@@ -1801,6 +1817,8 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-hostEnabled').checked = !!state.settings.hostModeEnabled;
             document.getElementById('rb-deleteExtra').checked = !!state.settings.deleteExtraneous;
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
+            document.getElementById('rb-snapshotRetentionDays').value = state.settings.snapshotRetentionDays || 0;
+            renderSnapshotRetentionRow();
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-autoFailoverOnLowSpace').checked = !!state.settings.autoFailoverOnLowSpace;
             document.getElementById('rb-verifyAfterRun').checked = !!state.settings.verifyAfterRun;
@@ -1871,6 +1889,7 @@ $rbPlugin = basename(__DIR__);
     document.getElementById('rb-emailNotifyEnabled').addEventListener('change', renderEmailFppStatus);
     document.getElementById('rb-snapshotMode').addEventListener('change', function () {
         rbCheckSnapshotModeLeaveTransition(this.checked);
+        renderSnapshotRetentionRow();
     });
 
     document.getElementById('rb-refreshStorage').addEventListener('click', function () {
@@ -1940,6 +1959,7 @@ $rbPlugin = basename(__DIR__);
             destinationMount: storageChoice ? storageChoice.value : (state.settings.destinationMount || ''),
             deleteExtraneous: document.getElementById('rb-deleteExtra').checked,
             snapshotMode: document.getElementById('rb-snapshotMode').checked,
+            snapshotRetentionDays: parseInt(document.getElementById('rb-snapshotRetentionDays').value, 10) || 0,
             includeSystemConfig: document.getElementById('rb-includeSystemConfig').checked,
             autoFailoverOnLowSpace: document.getElementById('rb-autoFailoverOnLowSpace').checked,
             verifyAfterRun: document.getElementById('rb-verifyAfterRun').checked,
