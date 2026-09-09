@@ -212,6 +212,22 @@ rb_dest_root() {
 # supported on, without ever being tunable down to "none" by mistake.
 RB_SDCARD_MIN_FREE_BYTES=524288000
 
+# Marker file run_backup.sh drops directly inside a backup folder when
+# that run ended in "error" state but still left real content behind (a
+# connection that dropped partway through, a kill, a timeout - anything
+# short of the clean "never got a single byte" case, which removes the
+# folder entirely instead - see backup_one()'s post-run state handling).
+# A plain top-level FILE, not a directory, so FPP's own "Restore from
+# USB"/File Copy Restore device browser (which naively lists any
+# subdirectory one level in as its own selectable "backup" - see the
+# system-config.tar.gz/system-logs.tar.gz comment in run_backup.sh) never
+# treats it as one. Shared by run_backup.sh (writes it), list_backups.sh
+# and get_backup_info.sh (surface it to the Status page's "Backed Up"
+# dropdown so a partial backup is never mistaken for a complete one), and
+# delete_backup.sh (which removes it along with everything else via a
+# normal rm -rf - no special handling needed there).
+RB_INCOMPLETE_MARKER=".remotebackup-incomplete.json"
+
 # --- Optional bind mount: let remotes/File Manager see current backups on
 # the primary drive without unmounting it - opt-in via the
 # "enableRestoreBindMount" setting (default off). ---

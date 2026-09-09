@@ -1070,6 +1070,56 @@ backup_one() {
         error_detail="Some source files vanished mid-transfer (rc=24) - everything else copied normally. ${vanished}"
     fi
 
+    # --- Reconcile the backup folder itself against a failed run -----------
+    # $target was already created (mkdir -p, or a rename of a prior day's
+    # folder onto today's name in rolling mode) before this run's rsync
+    # ever attempted to connect - necessarily, since rsync needs somewhere
+    # to stream into. When the run then ends in "error", what's actually
+    # sitting in that folder now falls into two very different cases:
+    #
+    # 1. Completely empty - the connection never got far enough to write a
+    #    single byte (e.g. the remote was fully offline: "No route to
+    #    host", rc=255). This is a fresh mkdir with nothing in it, not a
+    #    real backup of anything - left behind otherwise, it would sit in
+    #    the Status page's "Backed Up" dropdown indistinguishable from a
+    #    real one except by opening it and seeing 0 files. Safe to just
+    #    remove: rolling mode's own renamed-in prior-day content (a REAL,
+    #    complete backup that legitimately belongs under today's name once
+    #    renamed) is never empty, so this can never delete real content.
+    # 2. Not empty - either rolling mode's renamed-in prior-day content
+    #    that a fully failed connection never got to update, or a genuine
+    #    partial transfer that connected, started copying, and then died
+    #    partway through (network drop, remote reboot, Stop button, a
+    #    timeout). Either way this folder is NOT a clean, verified,
+    #    complete point-in-time backup - drop a small marker file inside it
+    #    (RB_INCOMPLETE_MARKER) so the Status page's dropdown and backup-
+    #    info panel can flag it instead of presenting it exactly like a
+    #    normal one. A plain file, not a directory - see the constant's own
+    #    comment in lib_common.sh for why that matters.
+    #
+    # A successful run (done/done-with-warnings) instead clears any stale
+    # marker left behind by an EARLIER failed run - rolling mode reuses/
+    # renames the same folder across days, so without this, one bad night
+    # would leave a backup permanently flagged incomplete even after it
+    # goes on to sync cleanly every day since. Snapshot mode never revisits
+    # an old folder at all (each day is a fresh one), so this is a no-op
+    # for it in practice, but it's harmless either way.
+    if [ "$DRYRUN" != "1" ] && [ -d "$target" ]; then
+        if [ "$state" = "error" ]; then
+            if [ -z "$(ls -A "$target" 2>/dev/null)" ]; then
+                rmdir "$target" 2>/dev/null && rb_log "$id: removed empty backup folder left by a failed run ($target)"
+            else
+                jq -n --arg run "$RUN_ID" --arg t "$(rb_now_iso)" --argjson rc "$rc" --arg errdetail "$error_detail" \
+                    --argjson xferBytes "$xfer_size" --argjson numFiles "$num_files" \
+                    '{incomplete:true, runId:$run, finishedAt:$t, exitCode:$rc, errorDetail:$errdetail, transferredBytes:$xferBytes, filesTransferred:$numFiles}' \
+                    > "${target}/${RB_INCOMPLETE_MARKER}" 2>/dev/null
+                rb_log "$id: marked backup folder incomplete after a failed run ($target)"
+            fi
+        else
+            rm -f "${target}/${RB_INCOMPLETE_MARKER}" 2>/dev/null
+        fi
+    fi
+
     # --- Optional post-run verification pass (Config > Backup Options) ----
     # A second read-only rsync dry-run pass against the SAME source/target
     # this real transfer just used, checking whether source and destination

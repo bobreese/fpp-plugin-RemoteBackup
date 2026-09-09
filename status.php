@@ -1130,7 +1130,15 @@ $rbPlugin = basename(__DIR__);
                 return;
             }
             sel.innerHTML = '<option value="">Select a backup...</option>' + backups.map(function (b) {
-                return '<option value="' + b.path.replace(/"/g, '&quot;') + '">' + b.id + ' - ' + formatDate(b.date) + '</option>';
+                // See RB_INCOMPLETE_MARKER's own comment in lib_common.sh -
+                // a folder a failed run left non-empty but not actually
+                // complete (a partial transfer, or rolling mode's renamed-in
+                // prior-day content a fully failed connection never got to
+                // update). Flagged right in the dropdown so it's never
+                // mistaken for a normal, complete backup before it's even
+                // selected.
+                var label = (b.incomplete ? '⚠ INCOMPLETE - ' : '') + b.id + ' - ' + formatDate(b.date);
+                return '<option value="' + b.path.replace(/"/g, '&quot;') + '">' + label + '</option>';
             }).join('');
             if (prev && Array.prototype.some.call(sel.options, function (o) { return o.value === prev; })) {
                 sel.value = prev;
@@ -1153,6 +1161,13 @@ $rbPlugin = basename(__DIR__);
                 '<b>' + data.path + '</b>' +
                 '<button type="button" class="btn btn-outline-danger btn-sm" id="rb-delete-backup">Delete This Backup</button>' +
                 '</div>';
+            if (data.incomplete) {
+                var d = data.incompleteDetail || {};
+                html += '<div class="text-danger small">&#9888; INCOMPLETE - the run that wrote this backup failed' +
+                    (d.exitCode !== undefined ? ' (exit code ' + d.exitCode + ')' : '') +
+                    ' and left it in this state, not a clean point-in-time copy' +
+                    (d.errorDetail ? ': ' + d.errorDetail.replace(/</g, '&lt;') : '.') + '</div>';
+            }
             html += '<div>' + humanBytes(data.sizeBytes) + ' across ' + data.fileCount + ' file(s)</div>';
             if (data.entries && data.entries.length) {
                 html += '<table class="table table-sm mt-1"><tr><th>Name</th><th>Size</th></tr>';

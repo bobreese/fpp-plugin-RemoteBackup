@@ -49,13 +49,27 @@ fi
 SIZE_BYTES=$(safe_int "$(du -sb "$TARGET_REAL" 2>/dev/null | awk '{print $1}')")
 FILE_COUNT=$(safe_int "$(find "$TARGET_REAL" -type f 2>/dev/null | wc -l)")
 
+# See RB_INCOMPLETE_MARKER's own comment in lib_common.sh - run_backup.sh
+# drops this file inside a backup folder a failed run left non-empty but
+# not actually complete. Surfaced below as its own incomplete/
+# incompleteDetail fields instead of left in the entries table as an
+# unexplained dotfile.
+INCOMPLETE="false"
+INCOMPLETE_DETAIL='null'
+MARKER_PATH="${TARGET_REAL}/${RB_INCOMPLETE_MARKER}"
+if [ -f "$MARKER_PATH" ]; then
+    INCOMPLETE="true"
+    INCOMPLETE_DETAIL=$(cat "$MARKER_PATH" 2>/dev/null)
+    echo "$INCOMPLETE_DETAIL" | jq -e . >/dev/null 2>&1 || INCOMPLETE_DETAIL='null'
+fi
+
 # Build the top-level listing as tab-separated "isDir<TAB>sizeBytes<TAB>name"
 # lines and hand the WHOLE thing to a single jq invocation to parse -
 # rather than shelling out to jq once per entry with a bash-computed
 # number spliced into --argjson, which is exactly what broke on
 # whatever edge-case file/dir tripped up `du`/`stat` here (a du/stat
 # hiccup on one entry doesn't need to take down the whole listing).
-ENTRIES=$(find "$TARGET_REAL" -maxdepth 1 -mindepth 1 2>/dev/null | while IFS= read -r e; do
+ENTRIES=$(find "$TARGET_REAL" -maxdepth 1 -mindepth 1 ! -name "$RB_INCOMPLETE_MARKER" 2>/dev/null | while IFS= read -r e; do
     name=$(basename "$e")
     if [ -d "$e" ]; then
         sz=$(safe_int "$(du -sb "$e" 2>/dev/null | awk '{print $1}')")
@@ -79,4 +93,5 @@ done | jq -R -s '
 echo "$ENTRIES" | jq -e . >/dev/null 2>&1 || ENTRIES="[]"
 
 jq -n --arg path "$TARGET_REAL" --argjson size "$SIZE_BYTES" --argjson files "$FILE_COUNT" --argjson entries "$ENTRIES" \
-    '{ok:true, path:$path, sizeBytes:$size, fileCount:$files, entries:$entries}'
+    --argjson incomplete "$INCOMPLETE" --argjson incompleteDetail "$INCOMPLETE_DETAIL" \
+    '{ok:true, path:$path, sizeBytes:$size, fileCount:$files, entries:$entries, incomplete:$incomplete, incompleteDetail:$incompleteDetail}'

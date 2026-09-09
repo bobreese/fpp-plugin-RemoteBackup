@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** a completely unreachable remote (offline, no route to host) still left a
+  real, empty `<Hostname>-<YYYYMMDD>` folder behind on the destination - `mkdir -p`
+  runs before rsync ever attempts to connect (it has to, so there's somewhere for
+  rsync to stream into), so a run that never got a single byte across still created a
+  folder that looked exactly like a real backup in the Status page's "Backed Up"
+  dropdown, just with 0 files. That folder is now removed automatically when a run
+  ends in error state and never wrote anything into it. **Added** alongside it: a run
+  that instead ends in error state with SOME content already there (a partial
+  transfer that connected and then dropped mid-run, or rolling mode's renamed-in
+  prior-day content a fully failed connection never got to update) is now flagged
+  **INCOMPLETE** in that same dropdown and its info panel, so a partial/stale backup
+  is never mistaken for a clean, complete one - cleared automatically the next time
+  that remote backs up successfully.
+
 - **Added:** a popup on Config, shown the moment Snapshot Mode is unchecked (if it
   was previously on), offering to prune every remote's now-frozen dated snapshot
   history down to just its newest folder instead of leaving it to sit there

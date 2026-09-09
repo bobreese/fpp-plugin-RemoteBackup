@@ -57,6 +57,15 @@ A few things that apply either way:
 - Rolling mode (the default) only ever keeps each remote's most recent backup -
   restoring an older point in time requires Snapshot mode to have been enabled before
   that backup was made.
+- A backup folder that a failed run left behind non-empty but not actually finished
+  (the remote dropped offline partway through a transfer, or was fully unreachable
+  before rolling mode got a chance to update a prior day's renamed-in content) is
+  flagged **INCOMPLETE** right in this plugin's own Status page "Backed Up" dropdown
+  and info panel - it is not a clean, verified, point-in-time copy, so avoid restoring
+  from it if a better one (an earlier successful run, or another dated snapshot) is
+  available. This plugin's own dropdown is the only place that flag shows up - FPP's
+  File Copy Restore device browser has no concept of it and will list the folder
+  exactly like any other.
 - Because this plugin formats the drive with a real GPT partition table and a single
   partition, File Copy Restore's device browser starts you at the root of that
   partition, shown as `/` - the same way any file browser shows the top of a drive

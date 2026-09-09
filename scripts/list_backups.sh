@@ -26,15 +26,21 @@ NAME_RE='^(.+)-([0-9]{8})$'
 
 emit_entry() {
     local dir="$1"
-    local base mtime epoch
+    local base mtime epoch incomplete
     base=$(basename "$dir")
     if [[ "$base" =~ $NAME_RE ]]; then
         local id="${BASH_REMATCH[1]}"
         local date="${BASH_REMATCH[2]}"
         epoch=$(stat -c '%Y' "$dir" 2>/dev/null || echo 0)
         mtime=$(date -u -d "@${epoch}" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
-        jq -n --arg id "$id" --arg date "$date" --arg name "$base" --arg path "$dir" --arg mtime "$mtime" \
-            '{id:$id, date:$date, name:$name, path:$path, mtime:$mtime}'
+        # See RB_INCOMPLETE_MARKER's own comment in lib_common.sh - run_backup.sh
+        # drops this file inside a backup folder that a failed run left
+        # non-empty but not actually complete, so the "Backed Up" dropdown
+        # can flag it instead of presenting it exactly like a real one.
+        incomplete="false"
+        [ -f "${dir}/${RB_INCOMPLETE_MARKER}" ] && incomplete="true"
+        jq -n --arg id "$id" --arg date "$date" --arg name "$base" --arg path "$dir" --arg mtime "$mtime" --argjson incomplete "$incomplete" \
+            '{id:$id, date:$date, name:$name, path:$path, mtime:$mtime, incomplete:$incomplete}'
     fi
 }
 
