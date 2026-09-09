@@ -26,6 +26,47 @@
 # Each remote gets a live JSON status file at data/status/<id>.json that
 # the UI polls, and a full rsync log at data/logs/<id>-<run>.log.
 
+# --- Drop root privileges before touching anything, if invoked as root ---
+# commands/run_remote_backup*.sh (FPP's Scheduler/Command system) launch
+# this script with a plain `nohup ... &`, no user switch of their own -
+# whatever user actually invoked the Command runs this script, and fppd
+# (which executes FPP Commands) commonly runs as root on real FPP images.
+# A manual "Start Backup" click instead goes through ajax.php, executed by
+# the web server as the unprivileged 'fpp' user - same for a bare CLI/cron
+# invocation run by a normal user.
+#
+# Without this, which user ends up owning a remote's backup folder depends
+# entirely on which of those two paths happened to create it FIRST: a
+# Scheduler-triggered run creates it root-owned, and every subsequent
+# real run through the OTHER path (manual, or vice versa) then fails
+# outright - mkdir -p on an already-existing directory is a silent no-op
+# regardless of its ownership, so the failure only surfaces later as
+# "could not create/write to target directory" once the write itself is
+# attempted. Confirmed in the wild: a real destination where every single
+# dated backup folder for every remote had ended up root:root mode 775 -
+# readable/traversable by the 'fpp' user (other) but not writable - after
+# a scheduled run got to a folder before a manual one did, breaking every
+# later manual real run for every remote at once, identically.
+#
+# Re-execs the whole script as 'fpp' (this plugin's own established
+# convention for who should own its content - see mount_usb.sh's
+# `sudo chown fpp:fpp`, the default sshUser, etc.) before sourcing
+# lib_common.sh or touching the filesystem in any way, so every side
+# effect from here on - including lib_common.sh's own data/ dir creation
+# just below - happens as the same consistent user regardless of which
+# path invoked this script. `runuser`, not `sudo -u`, since this only
+# ever needs to run when already root (sudo's own policy checks are
+# irrelevant here) and runuser is the standard, PAM-light tool for
+# exactly this "root switching to a specific other user" case. Existing
+# `sudo rsync`/`sudo tar`/`sudo rm -rf` calls elsewhere in this script
+# still work exactly as before - fpp escalating back to root for a
+# specific privileged operation is unaffected by starting the process
+# itself as fpp instead of root.
+if [ "$(id -u)" -eq 0 ]; then
+    RB_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    exec runuser -u fpp -- "${RB_SELF_DIR}/$(basename "${BASH_SOURCE[0]}")" "$@"
+fi
+
 . "$(dirname "$0")/lib_common.sh"
 
 DRYRUN=0
