@@ -287,6 +287,27 @@ function rb_volume_label($mountpoint) {
     return $label;
 }
 
+// The real "used" figure for a mountpoint, matching df's own Used column -
+// deliberately NOT disk_total_space() - disk_free_space(), which was the
+// original approach here and inflated "used" by whatever percentage of the
+// filesystem is reserved for root (5% by default on ext4, sometimes tuned
+// lower): disk_free_space() mirrors df's Avail column (space available to
+// an unprivileged process), not df's Used column, so that reserved slice -
+// real but consumed by nothing - was being counted as "used" on the Status
+// page, showing tens of GB "used" on a drive df itself reports as barely
+// touched. Shells out to df directly (same escapeshellarg() pattern as
+// rb_volume_label() above) for the one figure PHP has no built-in for.
+// Returns null on failure so callers can fall back rather than show
+// nothing.
+function rb_df_used_bytes($mountpoint) {
+    $out = @shell_exec('df -B1 --output=used ' . escapeshellarg($mountpoint) . ' 2>/dev/null');
+    if ($out === null) return null;
+    $lines = preg_split('/\r?\n/', trim($out));
+    $used = trim((string)end($lines));
+    if ($used === '' || !ctype_digit($used)) return null;
+    return (float)$used;
+}
+
 // Resolves a Diagnostic Log dropdown value ("ajax", "engine", "clone",
 // "remote:<id>") to the actual log file path on disk - shared by getLog
 // (view) and downloadLog (download) so the two can never disagree about
@@ -1405,6 +1426,7 @@ switch ($action) {
             $dfFree = @disk_free_space('/mnt/BackupsCopy');
             $dfTotal = @disk_total_space('/mnt/BackupsCopy');
             if ($dfFree !== false && $dfTotal !== false) {
+                $usedBytes = rb_df_used_bytes('/mnt/BackupsCopy');
                 $secondaryStorage = [
                     'mountpoint' => '/mnt/BackupsCopy',
                     // Deliberately NOT intval()'d - disk_free_space()/disk_total_space()
@@ -1417,7 +1439,11 @@ switch ($action) {
                     // bytes, ~9000 TB).
                     'totalBytes' => $dfTotal,
                     'freeBytes' => $dfFree,
-                    'usedBytes' => $dfTotal - $dfFree,
+                    // rb_df_used_bytes() is df's own Used column - see its own comment
+                    // for why this isn't just $dfTotal - $dfFree. Falls back to that
+                    // subtraction only if the df shell-out itself fails, so the figure
+                    // stays present (if slightly high) rather than disappearing.
+                    'usedBytes' => $usedBytes !== null ? $usedBytes : ($dfTotal - $dfFree),
                     'label' => rb_volume_label('/mnt/BackupsCopy')
                 ];
             }
@@ -1454,13 +1480,16 @@ switch ($action) {
             $dfFree = @disk_free_space($settings['destinationMount']);
             $dfTotal = @disk_total_space($settings['destinationMount']);
             if ($dfFree !== false && $dfTotal !== false) {
+                $usedBytes = rb_df_used_bytes($settings['destinationMount']);
                 $destStorage = [
                     'mountpoint' => $settings['destinationMount'],
                     // See the matching comment on secondaryStorage above - not intval()'d
                     // on purpose, to avoid 32-bit int overflow on a >~2GB drive.
                     'totalBytes' => $dfTotal,
                     'freeBytes' => $dfFree,
-                    'usedBytes' => $dfTotal - $dfFree,
+                    // See rb_df_used_bytes()'s own comment for why this isn't just
+                    // $dfTotal - $dfFree.
+                    'usedBytes' => $usedBytes !== null ? $usedBytes : ($dfTotal - $dfFree),
                     'label' => rb_volume_label($settings['destinationMount'])
                 ];
             }
