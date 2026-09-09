@@ -361,6 +361,7 @@ function rb_default_settings() {
         'logRetentionCount' => 15,
         'deleteExtraneous' => false,
         'snapshotMode' => false,
+        'snapshotRetentionDays' => 0,
         'sshUser' => 'fpp',
         'sshPort' => 22,
         'sshPassword' => null,
@@ -1006,6 +1007,15 @@ switch ($action) {
             // from the run currently writing it.
             $settings['logRetentionCount'] = max(1, min(500, (int)$body['logRetentionCount']));
         }
+        if (isset($body['snapshotRetentionDays'])) {
+            // Clamped like logRetentionCount above - feeds straight into
+            // rb_prune_snapshot_history's day-window delete, and a stray
+            // negative would prune every dated snapshot including the one
+            // from the run currently writing it. 0 means disabled/keep
+            // forever, matching the default (preserves existing installs'
+            // current unbounded-accumulation behavior unless opted into).
+            $settings['snapshotRetentionDays'] = max(0, min(3650, (int)$body['snapshotRetentionDays']));
+        }
         if (isset($body['excludes']) && is_array($body['excludes'])) {
             $settings['excludes'] = array_values($body['excludes']);
         }
@@ -1053,6 +1063,16 @@ switch ($action) {
         // its own. Best-effort - a pruning hiccup here should never fail
         // the settings save itself.
         rb_run("$SCRIPTS_DIR/prune_logs.sh", [], 15);
+
+        // Same idea, for snapshotRetentionDays against every remote's
+        // existing dated snapshot folders - a just-lowered value should
+        // reclaim disk space right away, not only as each remote happens
+        // to run again. No-ops immediately (0 remotes pruned) when
+        // Snapshot Mode isn't even on. Best-effort - never fails the
+        // settings save itself. Not prune_snapshots.sh (below) - that's
+        // the separate, older "collapse to newest only" one-time action
+        // used when leaving Snapshot Mode entirely.
+        rb_run("$SCRIPTS_DIR/prune_snapshot_history.sh", [], 15);
 
         // Reconcile the optional bind mount - destinationMount and/or
         // enableRestoreBindMount may have just changed, either of which can
