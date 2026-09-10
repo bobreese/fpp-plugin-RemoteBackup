@@ -143,90 +143,50 @@
     <fieldset class="border rounded p-2 mt-2" id="rb-help-restoring">
         <legend>Restoring a Backup</legend>
         <div class="p-2">
-            This plugin only ever pulls backups down - it has no restore button of its own, by
-            design. Recovery always goes through FPP's own built-in <b>File Copy Backup/Restore</b>
-            page (under Content Setup), which already knows how to restore
-            sequences/media/playlists/effects safely. There are two ways to get to it, depending on
-            where the destination drive physically is at the time:
+            This plugin only pulls backups down - restoring uses FPP's own built-in
+            <b>File Copy Backup/Restore</b> page (under Content Setup).
             <div class="callout callout-warning mb-2 mt-2">
-                <b>Do not restore <code>/</code> or <code>System Volume Information</code></b> if
-                File Copy Restore's device browser shows them - neither is a backup. Always browse
-                all the way into a specific remote's own
-                <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder first.
+                <b>Don't restore <code>/</code> or <code>System Volume Information</code></b> if you
+                see them in the device browser - neither is a backup. Always browse into the specific
+                remote's own <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder first.
             </div>
+            <p class="mb-1"><b>Option A - Over the network</b> (drive stays on the Host)</p>
             <ol>
-                <li><b>Using the Host, over the network.</b> Leave the destination drive right where
-                    it is, still attached to the Host. On whichever system you're restoring to, open
-                    its own <i>File Copy Backup/Restore</i> page, point the "Remote Storage" source at
-                    the Host, and browse into the remote's own
-                    <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder (or
-                    <code>&lt;Hostname&gt;/&lt;YYYYMMDD&gt;</code> if Snapshot mode was enabled) to
-                    restore from. This is the easiest option whenever the system you're restoring to
-                    still has working network access back to the Host.</li>
-                <li><b>Using the drive directly in the device's own USB port.</b> Useful when the
-                    system you're restoring has no network access yet (e.g. a from-scratch rebuild
-                    after a dead SD card) or you'd just rather not depend on the network for it.
-                    <ol type="a">
-                        <li>On the Config page, <b>Unmount</b> the destination drive from the Host
-                            first - never unplug it while still mounted.</li>
-                        <li>Physically move the drive to the system you're restoring, and plug it into
-                            one of <i>that system's own</i> USB ports.</li>
-                        <li>Open <i>that system's own</i> File Copy Backup/Restore page. Because this
-                            plugin always formats destination drives with a real GPT partition table
-                            (not a filesystem directly on the raw disk), the drive is recognized by
-                            FPP's own device picker on any FPP system, not just this plugin - it'll
-                            show up there the same way it would in this plugin's own Config page.</li>
-                        <li>Browse into that remote's own <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code>
-                            folder on the drive - the same layout as restoring over the network, just
-                            browsed locally instead. The drive normally holds every selected remote's
-                            backups side by side; ignore the others and pick the one that's yours.</li>
-                        <li>When you're done, move the drive back to the Host, Mount it again on the
-                            Config page, and re-select it as the destination if needed before the next
-                            backup run - only one system can have it plugged in at a time.</li>
-                    </ol>
-                </li>
+                <li>On the system you're restoring <i>to</i>, open its own File Copy Backup/Restore
+                    page.</li>
+                <li>Set the "Remote Storage" source to the Host.</li>
+                <li>Browse into the remote's own <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code>
+                    folder (or <code>&lt;Hostname&gt;/&lt;YYYYMMDD&gt;</code> if Snapshot mode was
+                    used) and restore from there.</li>
             </ol>
-            A few things that apply either way:
+            <p class="mb-1"><b>Option B - Move the drive directly</b> (useful with no network access
+                yet, e.g. a fresh SD card rebuild)</p>
+            <ol>
+                <li>On the Host's Config page, click <b>Unmount</b> first - never unplug the drive
+                    while it's still mounted.</li>
+                <li>Move the drive to the system you're restoring, and plug it into one of <i>that
+                    system's</i> own USB ports.</li>
+                <li>Open <i>that system's</i> own File Copy Backup/Restore page - the drive shows up
+                    in its device picker automatically.</li>
+                <li>Browse into that remote's own <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code>
+                    folder and restore.</li>
+                <li>When done, move the drive back to the Host, <b>Mount</b> it again on the Config
+                    page, and re-select it as the destination before the next scheduled backup.</li>
+            </ol>
+            <p class="mb-1"><b>A few notes:</b></p>
             <ul>
-                <li>You don't have to restore to the same physical remote a backup came from - either
-                    method works just as well for rebuilding/cloning onto a different system, as long
-                    as you pick that remote's own folder on the drive.</li>
-                <li>The <code>system-logs.tar.gz</code>/<code>system-config.tar.gz</code> archives
-                    inside a backup (if "Include system config" is enabled) are deliberately packaged
-                    as <code>.tar.gz</code> files rather than plain folders, specifically so File Copy
-                    Restore's device browser doesn't mistake them for restorable show-content backups
-                    of their own - they aren't part of its file-level restore either way. Extract those
-                    yourself (<code>tar xzf</code>) over SSH/SCP if you need the original
-                    <code>/etc/fpp</code>, network config, or relocated log directory back.</li>
-                <li>Rolling mode (the default) only ever keeps each remote's most recent backup -
-                    restoring an older point in time requires Snapshot mode to have been enabled
-                    before that backup was made.</li>
-                <li>Because this plugin formats the drive with a real GPT partition table and a
-                    single partition, File Copy Restore's device browser starts you at the root of
-                    that partition, shown as <code>/</code> - the same way any file browser shows
-                    the top of a drive before you descend into it, not something this plugin adds.
-                    You may also see a <code>System Volume Information</code> folder there - that's
-                    Windows, not this plugin, automatically created the moment the drive is plugged
-                    into a Windows PC (System Restore, Volume Shadow Copy, indexing). It's harmless
-                    and can be ignored.</li>
-                <li><b>Do not select <code>/</code> itself or <code>System Volume Information</code>
-                    as what you're restoring.</b> Neither is a backup - <code>/</code> is the whole
-                    drive (every remote's backups and anything else on it, all at once) and
-                    <code>System Volume Information</code> has no show content in it at all. Always
-                    navigate all the way into a specific remote's own
-                    <code>&lt;Hostname&gt;-&lt;YYYYMMDD&gt;</code> folder (or
-                    <code>&lt;Hostname&gt;/&lt;YYYYMMDD&gt;</code> in Snapshot mode) before
-                    restoring - that folder, not the drive root, is the actual backup.</li>
+                <li>You can restore to a <i>different</i> system than the backup came from - just
+                    pick that remote's own folder.</li>
+                <li>Rolling mode only keeps each remote's most recent backup; restoring an older date
+                    needs Snapshot mode to have been on at the time.</li>
+                <li>The <code>system-config.tar.gz</code>/<code>system-logs.tar.gz</code> archives
+                    (if "Include system config" was enabled) aren't part of File Copy Restore -
+                    extract those yourself with <code>tar xzf</code> over SSH if you need them.</li>
             </ul>
             <div class="callout callout-info mb-0">
-                <b>Rebuilding onto a fresh SD card?</b> Flash the <b>latest nightly build</b>,
-                not an older release image, to minimize how many updates FPP needs afterward -
-                restoring your backup brings content/config back, but never FPP's own software
-                version, which is a property of the image you flashed, not something any
-                backup/restore touches. Update FPP itself first, then check the Plugin Manager
-                separately (an installed plugin's own update state isn't covered by FPP's home
-                page warning) - before restoring, so there's only one variable to troubleshoot
-                if anything looks off. See
+                <b>Rebuilding onto a fresh SD card?</b> Flash the <b>latest official release</b>
+                (not a nightly build - those boot in Master mode). Update FPP itself first, then
+                check the Plugin Manager separately, before restoring your backup. See
                 <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/restoring-a-backup.md#after-a-fresh-sd-card-a-from-scratch-rebuild" target="_blank" rel="noopener">Restoring a Backup</a>
                 for the full version.
             </div>
