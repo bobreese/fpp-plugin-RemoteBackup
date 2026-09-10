@@ -13,6 +13,9 @@ pulling backups from one or more of your other FPP systems onto local storage.
 - Optionally back up system/network config alongside each remote's content, for a
   full rebuild after a reflash.
 - Won't back up a system while it's playing a show, so playback is never put at risk.
+- Can back up a remote even if its fppd has crashed or stopped — connects over
+  plain SSH, independent of FPP's own multisync discovery and rsync daemon, which
+  native File Copy Backup needs that remote's fppd alive for.
 - Can automatically fall back to SD Card storage if a scheduled run's usual destination
   is too full, instead of just refusing to run.
 - Built-in safeguards keep backups from overwriting the wrong drive, running two at once,
