@@ -22,6 +22,7 @@
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-usb-drive">USB Backup Drive</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-cloning">Cloning Backups to a Second Drive</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-restoring">Restoring a Backup</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-rescue">Rescuing a Failed Device</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-delete-handling">Delete Handling</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-scheduling">Scheduling</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-email-updates">Email Status Updates</a>
@@ -190,6 +191,37 @@
                 <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/restoring-a-backup.md#after-a-fresh-sd-card-a-from-scratch-rebuild" target="_blank" rel="noopener">Restoring a Backup</a>
                 for the full version.
             </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-rescue">
+        <legend>Rescuing a Failed Device</legend>
+        <div class="p-2">
+            If a remote's <code>fppd</code> has failed and won't recover, the usual advice is to
+            re-image its SD card - but FPP's own File Copy Backup only offers a config-only backup
+            at that point, not your actual show content (sequences, media, effects, etc.). If the
+            device still boots and its network/SSH still work, this plugin can pull a complete
+            backup anyway - even from a system where you've never installed or used it before.
+            <div class="callout callout-info mb-2 mt-2">
+                This only works if the failed device's OS and SSH are still up. It can't rescue a
+                device that won't boot at all, or one with a corrupted SD card at the filesystem
+                level.
+            </div>
+            <ol>
+                <li>Install this plugin on <b>any other</b> healthy FPP system on your network -
+                    it doesn't have to be one you've already set up for backups.</li>
+                <li>On its Config page, enable Host Mode and pick a destination for the backup.</li>
+                <li>Under Remote Systems to Back Up, use "Manually add a remote" to add the failed
+                    device by hostname/IP - it won't appear in the automatic scan once its own
+                    <code>fppd</code> has stopped announcing itself.</li>
+                <li>Check the box next to it - this pushes the SSH key automatically.</li>
+                <li>Click "Save Settings."</li>
+                <li>On the Status page, click <b>Dry Run</b> first to confirm it can actually
+                    reach the device.</li>
+                <li>If the dry run succeeds, click <b>Start Backup</b>.</li>
+            </ol>
+            You now have a complete backup of the failed device's show content - not just its
+            config - ready to restore from once you've re-imaged or replaced its SD card.
         </div>
     </fieldset>
 
