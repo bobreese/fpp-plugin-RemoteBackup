@@ -51,6 +51,17 @@
   leave keys unpushed. It reflects the table's real state either way: fully checked only
   when every remote already is, fully unchecked only when none are, and shown as a dashed/
   indeterminate box for anything in between.
+- **Works as an emergency rescue tool, even on a system that's never run this plugin
+  before.** If a remote's `fppd` has failed and won't recover, FPP's own File Copy Backup
+  only offers a config-only backup at that point - sequences, media, and other show content
+  are never captured. This plugin backs up the full show content tree over SSH, independent
+  of the remote's `fppd` state (see the README). Install it on *any other* healthy FPP
+  system on the network - it doesn't need to already be your designated backup Host - add
+  the failed device via Config's manual-add (it won't show up in an automatic scan once its
+  own `fppd` has stopped announcing itself), push the SSH key, and run a Dry Run to confirm
+  reachability before committing to a real backup. Only works if the failed device's OS and
+  SSH are still up - it can't rescue one that won't boot, or has a corrupted SD card at the
+  filesystem level.
 - **The Host backs itself up locally, not over SSH.** MultiSync's own system list (or a
   manual add) can include the Host running this plugin - selecting it is marked with a
   "Host" badge on the Config page, and it's backed up as a plain local file copy instead
