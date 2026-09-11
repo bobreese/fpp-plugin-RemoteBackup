@@ -1,3 +1,11 @@
+<?php
+// This page lives one directory down from the plugin root (help/help.php),
+// unlike config.php/status.php which set $rbPlugin from their own __DIR__ -
+// dirname() here walks back up to the plugin's own folder name so the
+// Status Page link below builds the same plugin.php?plugin=...&page=...
+// URL those pages already use to link to each other.
+$rbPlugin = basename(dirname(__DIR__));
+?>
 <style>
     /* FPP's plugin page frame has a sticky top nav bar, so jumping straight
        to a #rb-help-* anchor otherwise lands with that section's <legend>
@@ -10,6 +18,10 @@
         <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/README.md"
            target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
             Full documentation on GitHub (README) &#8599;
+        </a>
+        <a href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php"
+           class="btn btn-sm btn-outline-primary">
+            Status Page
         </a>
     </div>
 
