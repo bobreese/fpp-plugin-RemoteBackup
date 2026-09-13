@@ -25,6 +25,18 @@ pulling backups from one or more of your other FPP systems onto local storage.
 - Optional email status updates after a run, sent through FPP's own Email settings —
   no separate mail setup for this plugin to configure.
 
+## Privacy & Data Handling
+
+This plugin only pulls — it never sends your show content anywhere. In short:
+
+- **What it sends:** SSH/rsync commands to the remotes you select (nothing else), and — only if you configure an email in FPP Settings — a short status summary after each run.
+- **What it collects:** a full copy of each selected remote's `/home/fpp/media/` tree, stored at your chosen backup destination. This includes that remote's own FPP settings file (which can hold its UI/OS/email/MQTT passwords, GitHub token, etc. in plain text) and any data other installed plugins keep there — the same content a manual `rsync` of that folder would pull. If you enable "Include system config," it also grabs that remote's network config, including its WiFi password. If you set a default SSH password in this plugin's own settings, that's stored locally in `data/settings.json`.
+- **What it changes:** pushes its own SSH key to each selected remote's `authorized_keys` for passwordless access (and removes it again, best-effort, on uninstall); can mount a USB drive via `/etc/fstab`; installs a handful of packages (`rsync`, `jq`, `sshpass`, etc.) via `apt-get` if missing; sets FPP's restart flag after install/uninstall.
+- **No network exposure:** this plugin doesn't open any port or service of its own — all connections are outbound, initiated by this device toward remotes you've explicitly selected.
+- **Source code:** fully open — nothing closed-source or obfuscated.
+
+This mirrors the formal privacy declaration in [`pluginInfo.json`](pluginInfo.json), which is the authoritative, machine-readable version (used by FPP's plugin listing).
+
 ## Documentation
 
 - [Notes / assumptions and License](docs/notes-and-license.md)
