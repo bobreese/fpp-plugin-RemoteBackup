@@ -538,40 +538,29 @@ function rb_settings_backup_path($SETTINGS_FILE) {
 // data/ - and outside the plugin directory FPP itself replaces wholesale
 // on an update/reinstall - is what actually survives that failure mode.
 //
-// Lives under FPP's own plugindata/ tree (not loose at the media root as
-// this used to) - confirmed against FPP core (scripts/uninstall_plugin,
-// common.php's GetFPPMediaDirNames(), resetConfig.php's separate
-// 'pluginConfigs' vs 'plugins' reset categories) that plugindata/<name> is
-// FPP's own designated location for plugin data that should outlive the
-// plugin's own installed directory: a normal uninstall/reinstall only ever
-// deletes plugins/<name>, never plugindata/<name>. Ensures the directory
-// exists (world-writable, so the bash side can create it too - see
-// lib_common.sh's identical block) and migrates the old flat-file location
-// forward exactly once, so an existing install doesn't lose its current
-// backup content the first time this runs post-upgrade.
+// Lives under FPP's own plugindata/ tree - confirmed against FPP core
+// (scripts/uninstall_plugin, common.php's GetFPPMediaDirNames(),
+// resetConfig.php's separate 'pluginConfigs' vs 'plugins' reset
+// categories) that plugindata/<name> is FPP's own designated location for
+// plugin data that should outlive the plugin's own installed directory: a
+// normal uninstall/reinstall only ever deletes plugins/<name>, never
+// plugindata/<name>. Ensures the directory exists (world-writable, so the
+// bash side can create it too - see lib_common.sh's identical block).
+//
+// This used to live loose at the media root, with a one-time migration
+// here to carry an existing install's backup forward to this path. That
+// migration has had long enough in the field that every install checking
+// for updates at all has since picked it up, so it's been retired - an
+// install that somehow skipped straight past it keeps its old copy
+// un-migrated (never deleted, just not consolidated) rather than this
+// function needing to know about a path it hasn't lived at for a while.
 function rb_settings_external_backup_path() {
     $dir = '/home/fpp/media/plugindata/fpp-plugin-RemoteBackup';
     $new = $dir . '/settings.json.bak';
-    $old = '/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak';
 
     if (!is_dir($dir)) {
         @mkdir($dir, 0777, true);
         @chmod($dir, 0777);
-    }
-
-    if (!file_exists($new) && file_exists($old)) {
-        $oldContent = @file_get_contents($old);
-        if ($oldContent !== false && json_decode($oldContent, true) !== null) {
-            $tmp = @tempnam($dir, basename($new) . '.tmp_');
-            if ($tmp !== false) {
-                if (@file_put_contents($tmp, $oldContent) !== false && @rename($tmp, $new)) {
-                    @chmod($new, 0666);
-                    rb_log_line("MIGRATED external settings backup from $old to $new");
-                } else {
-                    @unlink($tmp);
-                }
-            }
-        }
     }
 
     return $new;
