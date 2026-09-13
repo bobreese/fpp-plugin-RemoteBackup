@@ -76,15 +76,37 @@ if [ -f "$CLONE_PID_FILE" ]; then
 fi
 pkill -f "${PLUGINDIR}/scripts/clone_backups.sh" 2>/dev/null || true
 
-# --- Remove the dedicated SSH keypair created at install ----------------
+# --- Best-effort: remove this key from each known remote first ----------
+# Must run before the local keypair is deleted below - removal
+# authenticates with the very key being retired (see ssh_remove_key.sh's
+# own comment for why that's the right scope: it only reaches remotes
+# where the key was actually accepted in the first place).
 KEYFILE="/home/fpp/.ssh/id_rsa_remotebackup"
+if [ -f "$KEYFILE" ] && [ -f "${PLUGINDIR}/data/settings.json" ] && command -v jq >/dev/null 2>&1; then
+    REMOTE_ADDRESSES=$(jq -r '.remotes[]?.address // empty' "${PLUGINDIR}/data/settings.json" 2>/dev/null)
+    if [ -n "$REMOTE_ADDRESSES" ]; then
+        echo "Removing this plugin's SSH key from known remotes (best effort)..."
+        while IFS= read -r addr; do
+            [ -z "$addr" ] && continue
+            RESULT=$("${PLUGINDIR}/scripts/ssh_remove_key.sh" "$addr" 2>/dev/null)
+            if echo "$RESULT" | grep -q '"ok":true'; then
+                echo "  $addr: removed (or already absent)"
+            else
+                echo "  $addr: unreachable/failed - remove it manually from ~fpp/.ssh/authorized_keys if desired"
+            fi
+        done <<< "$REMOTE_ADDRESSES"
+    fi
+fi
+
+# --- Remove the dedicated SSH keypair created at install ----------------
 if [ -f "$KEYFILE" ]; then
     echo "Removing SSH key: $KEYFILE (and .pub)"
     rm -f "$KEYFILE" "${KEYFILE}.pub"
 fi
-echo "Note: that key's public half may still be listed in each remote's"
-echo "~fpp/.ssh/authorized_keys. That's harmless (nothing will use it"
-echo "anymore) but remove it there too if you want it fully gone."
+echo "Note: if a remote above was unreachable, or was never actually"
+echo "pushed to, its authorized_keys may still list this key's public"
+echo "half. That's harmless (nothing will use it anymore) but remove it"
+echo "there too if you want it fully gone."
 
 # --- Remove the external settings.json backup, but only with --purge-backups ---
 # Deliberately kept outside PLUGINDIR (see ajax.php's
