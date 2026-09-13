@@ -233,15 +233,19 @@ if [ "$PURGE_BACKUPS" = "1" ] && [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
     echo "!! --purge-backups given: deleting ${#BACKUP_DIRS[@]} backup folder(s) (primary destination and, if present, the secondary/clone drive)"
     for d in "${BACKUP_DIRS[@]}"; do
         echo "   rm -rf $d"
-        # sudo, not plain rm: same reasoning as delete_backup.sh's own fix -
-        # a backed-up remote's media tree can contain root-owned content
-        # (that remote's own settings file in particular, depending on how
-        # its fppd was started) that a plain rm can't remove. Invoked
-        # through FPP's Plugin Manager this script already runs as root
-        # (see $SUDO above), where sudo is a no-op; this specifically
-        # covers the documented manual `--purge-backups` invocation, which
-        # isn't guaranteed to already be root.
-        sudo rm -rf "$d"
+        # Same reasoning as delete_backup.sh's own fix - a backed-up
+        # remote's media tree can contain root-owned content (that
+        # remote's own settings file in particular, depending on how its
+        # fppd was started) that a plain rm can't remove. Invoked through
+        # FPP's Plugin Manager this script already runs as root (see
+        # $SUDO above), so rm alone is enough there; sudo is only added
+        # when this isn't already root, covering the documented manual
+        # `--purge-backups` invocation, which isn't guaranteed to be.
+        if [ "$(id -u)" -eq 0 ]; then
+            rm -rf "$d"
+        else
+            sudo rm -rf "$d"
+        fi
         # Snapshot mode leaves an empty "<id>/" parent behind once its
         # last dated snapshot is gone - clean that up too if so, but never
         # the destination root itself.
