@@ -1217,18 +1217,25 @@ backup_one() {
             # list (not rsync's own "Number of regular files transferred"
             # stat) so the count always matches what verify_detail lists.
             #
-            # logs/fppd.log is dropped before counting/listing - it's each
-            # remote's own live FPP daemon log, continuously appended to
-            # by that remote's own fppd while it runs, so this dry-run
-            # re-check (running seconds after the real transfer) will see
-            # new lines written since the backup and report a "mismatch"
-            # on a file that's actually fine, every single run. Same class
-            # of always-a-moving-target issue as the Host's own data/logs
-            # above, but the fix here is narrower: fppd.log still gets
-            # backed up normally (real diagnostic value if a remote ever
-            # needs it) - only this dry-run comparison ignores it.
+            # Anything under logs/ is dropped before counting/listing -
+            # first noticed on logs/fppd.log (each remote's own live FPP
+            # daemon log), then again on logs/apache2-error.log - both
+            # continuously appended to by a process on that remote while
+            # it runs, so this dry-run re-check (running seconds after the
+            # real transfer) sees new lines written in that gap and
+            # reports a "mismatch" on a file that's actually fine. Rather
+            # than list every log file this can eventually happen to one
+            # at a time as each one gets caught in the act, the whole
+            # logs/ directory is excluded from this comparison - same
+            # class of always-a-moving-target issue as the Host's own
+            # data/logs above, but the fix here is narrower: everything
+            # under logs/ still gets backed up normally (real diagnostic
+            # value if a remote ever needs it) - only this dry-run
+            # comparison ignores it. ^.{11} skips rsync's fixed 11-char
+            # itemize flags column to anchor the match on where the path
+            # itself starts (same offset cut -c 12- below assumes).
             local verify_lines
-            verify_lines=$(grep -E '^[<>ch*]f' "$verify_out" | grep -v -E 'logs/fppd\.log$')
+            verify_lines=$(grep -E '^[<>ch*]f' "$verify_out" | grep -v -E '^.{11} logs/')
             verify_files=$(echo "$verify_lines" | grep -c .)
             if [ "$verify_files" -gt 0 ]; then
                 verify_state="mismatch"
