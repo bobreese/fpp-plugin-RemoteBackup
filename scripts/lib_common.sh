@@ -29,23 +29,15 @@ rb_log() {
 # scripts/uninstall_plugin) - see the matching comment on
 # rb_settings_external_backup_path() in ajax.php for the fuller rationale.
 # Directory is ensured world-writable here since either side (this bash
-# helper or ajax.php) may be the first to create it. The one-time
-# migration from the old flat-file location mirrors ajax.php's own so an
-# existing install doesn't lose its current backup content post-upgrade
-# regardless of which side runs first.
+# helper or ajax.php) may be the first to create it.
+#
+# This used to live loose at the media root, with a one-time migration
+# here (mirroring ajax.php's own) to carry an existing install's backup
+# forward. Retired - see ajax.php's own comment for why.
 SETTINGS_EXTERNAL_BACKUP_DIR="/home/fpp/media/plugindata/fpp-plugin-RemoteBackup"
 SETTINGS_EXTERNAL_BACKUP="${SETTINGS_EXTERNAL_BACKUP_DIR}/settings.json.bak"
-SETTINGS_EXTERNAL_BACKUP_OLD="/home/fpp/media/.fpp-plugin-RemoteBackup-settings.bak"
 mkdir -p "$SETTINGS_EXTERNAL_BACKUP_DIR" 2>/dev/null
 chmod 0777 "$SETTINGS_EXTERNAL_BACKUP_DIR" 2>/dev/null || true
-if [ ! -f "$SETTINGS_EXTERNAL_BACKUP" ] && [ -f "$SETTINGS_EXTERNAL_BACKUP_OLD" ] && jq -e . "$SETTINGS_EXTERNAL_BACKUP_OLD" >/dev/null 2>&1; then
-    tmp=$(mktemp "${SETTINGS_EXTERNAL_BACKUP}.tmp_XXXXXX" 2>/dev/null)
-    if [ -n "$tmp" ] && cp "$SETTINGS_EXTERNAL_BACKUP_OLD" "$tmp" 2>/dev/null; then
-        chmod 0666 "$tmp" 2>/dev/null || true
-        mv "$tmp" "$SETTINGS_EXTERNAL_BACKUP" 2>/dev/null
-        rb_log "MIGRATED external settings backup from $SETTINGS_EXTERNAL_BACKUP_OLD to $SETTINGS_EXTERNAL_BACKUP"
-    fi
-fi
 
 # Self-heal settings.json if it exists but is empty/corrupt. Several real
 # incidents where ajax.php's PHP-side rb_load_settings() found the live
