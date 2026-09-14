@@ -151,8 +151,8 @@ $rbPlugin = basename(__DIR__);
     <fieldset class="border rounded p-2 mt-2" id="rb-fieldset-remotes">
         <legend>Remote Systems to Back Up</legend>
         <div class="p-2">
-            <small class="text-muted">By choosing any and all devices to be backed up authorizes this plugin to
-            remotely add an SSH key to that device.</small><br><br>
+            <small class="text-muted">By selecting a device, you authorize this plugin to add its own SSH key
+            to that device for passwordless backup access.</small><br><br>
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshRemotes">Rescan MultiSync Remotes</button>
             <div id="rb-remoteList" class="mt-2 fpp-backup-action-loading">Scanning...</div>
             <hr>
