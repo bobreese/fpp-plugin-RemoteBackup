@@ -443,10 +443,13 @@ rb_prune_remote_logs() {
 }
 
 # rb_prune_snapshot_history <remoteId> [days] [destRoot]: in Snapshot
-# Mode, deletes dated snapshot folders (<destRoot>/<remoteId>-YYYYMMDD)
-# older than DAYS days. DAYS defaults to the configured
-# snapshotRetentionDays setting (itself defaulting to 0, meaning
-# disabled/keep-forever - preserves existing installs' current
+# Mode, keeps at most DAYS dated snapshot folders
+# (<destRoot>/<remoteId>-YYYYMMDD) for a remote - i.e. a snapshot is
+# pruned once it's DAYS days old or older, so "5" means "keep the
+# newest 5" (today's plus the 4 before it), not "keep 6" (today's plus
+# every day that isn't yet older than 5). DAYS defaults to the
+# configured snapshotRetentionDays setting (itself defaulting to 0,
+# meaning disabled/keep-forever - preserves existing installs' current
 # unbounded-accumulation behavior unless a user opts in); a call with
 # DAYS 0 or unset is a no-op. destRoot defaults to rb_dest_root() of the
 # configured destinationMount, overridable only so callers (tests) can
@@ -485,8 +488,8 @@ rb_prune_snapshot_history() {
         stamp="${d##*-}"
         dir_epoch=$(date -d "$stamp" +%s 2>/dev/null) || continue
         age_days=$(( (today_epoch - dir_epoch) / 86400 ))
-        if [ "$age_days" -gt "$days" ]; then
-            rb_log "pruning snapshot $d (age ${age_days}d > retention ${days}d)"
+        if [ "$age_days" -ge "$days" ]; then
+            rb_log "pruning snapshot $d (age ${age_days}d >= retention ${days}d)"
             rm -rf "$d"
         fi
     done

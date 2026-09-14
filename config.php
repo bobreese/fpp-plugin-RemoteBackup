@@ -172,9 +172,10 @@ $rbPlugin = basename(__DIR__);
             <label><input type="checkbox" id="rb-snapshotMode">
                 Keep dated snapshot history per remote instead of one rolling "current" backup (space-efficient via <code>rsync --link-dest</code>)</label><br>
             <div id="rb-snapshotRetentionRow" class="ms-4 mb-1" style="display:none">
-                Delete snapshots older than
+                Keep the newest
                 <input type="number" id="rb-snapshotRetentionDays" min="0" max="3650" style="width:70px">
-                days (0 = keep forever). The newest snapshot for a remote is never deleted, even if it's older than this.
+                days of snapshots per remote (0 = keep forever). The single newest snapshot for a remote is
+                never deleted, even if it's the only one left past this window.
             </div>
             <label><input type="checkbox" id="rb-includeSystemConfig">
                 Also back up system/network config (<code>/etc/fpp</code>, hostname, WiFi, static IP) into a <code>system-config.tar.gz</code> archive alongside each remote's backup</label>
