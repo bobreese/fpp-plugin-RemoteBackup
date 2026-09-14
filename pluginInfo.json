@@ -70,7 +70,7 @@
 		"systemChanges": [
 			{
 				"kind": "privilege",
-				"what": "pushes its own SSH public key into each selected remote's ~fpp/.ssh/authorized_keys for passwordless backup access. On uninstall, it best-effort removes that key from every known remote's authorized_keys again (reachable remotes only) before deleting its local copy of the key"
+				"what": "on the operator's selection of a remote to back up, pushes its own SSH public key into that remote's ~fpp/.ssh/authorized_keys for passwordless backup access (the settings page discloses this before the selection takes effect). On uninstall, it best-effort removes that key from every known remote's authorized_keys again (reachable remotes only) before deleting its local copy of the key."
 			},
 			{
 				"kind": "core-settings",
