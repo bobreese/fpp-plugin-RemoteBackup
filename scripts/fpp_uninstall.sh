@@ -258,9 +258,10 @@ if [ "$PURGE_BACKUPS" = "1" ] && [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
         # remote's own settings file in particular, depending on how its
         # fppd was started) that a plain rm can't remove. Invoked through
         # FPP's Plugin Manager this script already runs as root (see
-        # $SUDO above), so rm alone is enough there; sudo is only added
-        # when this isn't already root, covering the documented manual
-        # `--purge-backups` invocation, which isn't guaranteed to be.
+        # $SUDO above), so rm alone is enough there; the escalation below
+        # is only added when this isn't already root, covering the
+        # documented manual `--purge-backups` invocation, which isn't
+        # guaranteed to be.
         if [ "$(id -u)" -eq 0 ]; then
             rm -rf "$d"
         else
