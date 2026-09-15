@@ -123,6 +123,13 @@
   remembers your last choice (per browser) instead of always polling. The Status and
   Config pages link to each other, and the Dry Run/Start Backup/Config buttons each have
   a "?" help popover (matching FPP's own System Stats page style) explaining what they do.
+- **Scheduled failures don't go unnoticed.** A manual run's failures are visible live in the
+  status table as they happen, but a scheduled run has nobody watching. If a scheduled run
+  finishes with one or more remotes in a real error state, the next time the Status or
+  Config page is opened, a one-time popup lists which remote(s) failed and why - same
+  mechanism as the existing "Remote(s) Playing" popup for a scheduled run that skipped a
+  busy remote. See [Troubleshooting](troubleshooting.md#scheduled-backup---remotes-failed)
+  for the full walkthrough.
 - **Download diagnostic logs.** Next to "Refresh Log," **Download** saves the currently
   selected log (`ajax.log`, `engine.log`, `clone.log`, or a remote's own rsync log) to your
   browser as a plain text file. **Download All Logs** zips everything currently under

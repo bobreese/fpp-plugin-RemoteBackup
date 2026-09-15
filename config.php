@@ -880,6 +880,47 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // "A scheduled backup had a real per-remote failure while nobody was
+    // watching" popup - self-contained mirror of the same functions in
+    // status.php (see there for the full rationale), driven by
+    // lastScheduledRunErrors instead of lastScheduledPlayOutcome.
+    var rbRunErrorsPopupShown = false;
+
+    function rbHandleRunErrorsStatus(res) {
+        if (!res || !res.ok) return;
+        var o = res.lastScheduledRunErrors;
+        if (!o || o.acknowledged) { rbRunErrorsPopupShown = false; return; }
+        if (rbRunErrorsPopupShown) return;
+        rbRunErrorsPopupShown = true;
+        rbShowRunErrorsModal(o);
+    }
+
+    function rbShowRunErrorsModal(o) {
+        var modalId = 'rb-run-errors-modal';
+        var items = (o.remotes || []).map(function (r) {
+            return '<li><b>' + r.hostname + '</b>: ' + (r.errorDetail || 'Unknown error') + '</li>';
+        }).join('');
+        var bodyHtml = '<div class="callout callout-danger mb-2">A scheduled backup on ' +
+            new Date(o.timestamp).toLocaleString() + ' finished with ' + (o.remotes || []).length +
+            ' remote(s) that failed:</div><ul class="mb-0">' + items + '</ul>';
+        DoModalDialog({
+            id: modalId,
+            title: 'Scheduled Backup - Remote(s) Failed',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                OK: {
+                    class: 'btn-primary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('acknowledgeRunErrors', { body: {} });
+                    }
+                }
+            }
+        });
+    }
+
     // Slow background poll, just to catch a destination disappearing while
     // this page happens to be the one open - no live run state to show here,
     // so there's no reason to poll anywhere near status.php's active-run rate.
@@ -889,6 +930,7 @@ $rbPlugin = basename(__DIR__);
             rbHandleDestinationStatus(res);
             rbHandleLowSpaceStatus(res);
             rbHandlePlayOutcomeStatus(res);
+            rbHandleRunErrorsStatus(res);
             state.lastStatus = res;
             renderBindMountStatus();
             setTimeout(rbPollDestination, RB_DEST_POLL_MS);

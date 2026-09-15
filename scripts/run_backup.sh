@@ -331,6 +331,31 @@ record_scheduled_play_outcome() {
     rb_set_setting_json '.lastScheduledPlayOutcome' "$record"
 }
 
+# record_scheduled_run_errors: same "nobody was watching this happen"
+# rationale as record_scheduled_play_outcome above, but for a --scheduled
+# run that finished with one or more remotes in a real "error" state
+# (SSH/rsync trouble, a full destination, etc.) rather than merely being
+# skipped for playing a sequence - that already has its own notice above,
+# this one is specifically for actual failures. A manual run already has
+# someone watching the Status page live, with the failure visible in the
+# per-remote table as it happens, so this is scoped to --scheduled the
+# same way. Reads $RUN_ID/$STATUS_DIR/$SCHEDULED from the caller's scope,
+# same as rb_send_run_summary_email, and is called once after every
+# remote in this run has finished. Overwrites any still-unacknowledged
+# earlier notice - deliberately does not auto-clear just because a later
+# run goes cleanly (see acknowledgeRunErrors in ajax.php).
+record_scheduled_run_errors() {
+    [ "$SCHEDULED" = "1" ] || return 0
+    local statuses err_n record
+    statuses=$(jq -s --arg run "$RUN_ID" '[.[] | select(.runId == $run and .state == "error")]' "${STATUS_DIR}"/*.json 2>/dev/null)
+    [ -z "$statuses" ] && statuses='[]'
+    err_n=$(echo "$statuses" | jq 'length')
+    [ "$err_n" -eq 0 ] && return 0
+    record=$(echo "$statuses" | jq --arg t "$(rb_now_iso)" \
+        '{remotes: [.[] | {hostname, errorDetail}], timestamp: $t, acknowledged: false}')
+    rb_set_setting_json '.lastScheduledRunErrors' "$record"
+}
+
 # --- Remote-playing check before starting a real run ---------------------
 # Pulling media off a device's SD card while its own fppd is actively
 # reading those same files for playback risks stutters/dropped frames
@@ -1307,6 +1332,7 @@ done < "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 wait
 rm -f "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 
+record_scheduled_run_errors
 rb_send_run_summary_email
 
 echo '{"active": false}' > "${DATA_DIR}/run_active.json"
