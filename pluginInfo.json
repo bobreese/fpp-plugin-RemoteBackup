@@ -31,7 +31,7 @@
 		"sends": [
 			{
 				"to": "the remotes you select",
-				"what": "SSH authentication and rsync file-transfer protocol commands - no show content leaves this device, it only pulls content in",
+				"what": "SSH authentication and rsync transfer commands - pulls content only, never sends show data out",
 				"why": "to pull that remote's backup",
 				"alwaysOn": false
 			},
@@ -44,14 +44,14 @@
 		],
 		"collects": [
 			{
-				"what": "a complete copy of each selected remote's /home/fpp/media/ tree, including that remote's own FPP settings file (can contain its UI login password, OS password, SMTP/email password, MQTT password, GitHub personal access token, and tethering PSK, all in plain text) and every other installed plugin's own stored data (which may include that plugin's own API keys or tokens), plus its logs unless excluded",
+				"what": "a full copy of each selected remote's media folder, which can include its saved passwords/tokens",
 				"about": "operator",
 				"keptDays": null,
 				"canDelete": true,
 				"where": "the backup destination you configure, in <Hostname>-<date>/"
 			},
 			{
-				"what": "if \"Include system config\" is enabled, a copy of that remote's OS-level network config, including its WiFi password, in a system-config.tar.gz archive alongside its backup",
+				"what": "a copy of that remote's OS-level network config, including its WiFi password, if enabled",
 				"about": "operator",
 				"keptDays": null,
 				"canDelete": true,
@@ -70,7 +70,7 @@
 		"systemChanges": [
 			{
 				"kind": "privilege",
-				"what": "on the operator's selection of a remote to back up, pushes its own SSH public key into that remote's ~fpp/.ssh/authorized_keys for passwordless backup access (the settings page discloses this before the selection takes effect). On uninstall, it best-effort removes that key from every known remote's authorized_keys again (reachable remotes only) before deleting its local copy of the key."
+				"what": "pushes its own SSH key to each selected remote for passwordless access; best-effort removes it on uninstall"
 			},
 			{
 				"kind": "core-settings",
@@ -86,6 +86,6 @@
 			}
 		],
 		"closedCode": false,
-		"other": "A settings backup file (plugindata/fpp-plugin-RemoteBackup/settings.json.bak) is left behind after uninstall by default, so a reinstall can recover your configuration - remove it yourself, or re-run the uninstall script with --purge-backups, if you want it gone too."
+		"other": "A settings backup file (plugindata/fpp-plugin-RemoteBackup/settings.json.bak) is left behind after uninstall by default, so a reinstall can recover your configuration - remove it yourself, or re-run the uninstall script with --purge-backups, if you want it gone too. The SSH key push only happens for a remote you've selected to back up, never automatically for every discovered device - the Config page's Remote Systems section discloses this at the point of selection. The full media-tree copy in collects above can include that remote's own FPP settings file (UI login, OS, SMTP/email, and MQTT passwords, a GitHub personal access token, and a tethering PSK, all in plain text) and other installed plugins' own stored data, which may include their own API keys or tokens."
 	}
 }
