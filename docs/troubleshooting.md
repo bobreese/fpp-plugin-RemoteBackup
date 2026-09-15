@@ -15,6 +15,7 @@
   - [Plugging the drive back in doesn't automatically resolve this](#plugging-the-drive-back-in-doesnt-automatically-resolve-this)
 - [Backup Space Insufficient](#backup-space-insufficient)
 - [Remote Playing a Sequence](#remote-playing-a-sequence)
+- [Scheduled Backup - Remote(s) Failed](#scheduled-backup---remotes-failed)
 - [Settings Reset to Defaults](#settings-reset-to-defaults)
 - [A USB/SSD Drive Shows Two Partitions](#a-usbssd-drive-shows-two-partitions)
 - [My Network Share Doesn't Show Up as a Destination / This Doesn't Work in Docker or a VM](#my-network-share-doesnt-show-up-as-a-destination--this-doesnt-work-in-docker-or-a-vm)
@@ -312,6 +313,23 @@ which device(s) were left out. Unlike Backup Destination Missing/Space Insuffici
 this popup reports something that already finished, not an ongoing condition - it doesn't
 come back on a page reload, only clicking its OK button (or a *later* scheduled run hitting
 this same situation again) clears it.
+
+[↑ Back to top](#troubleshooting)
+
+## Scheduled Backup - Remote(s) Failed
+
+A per-remote failure (SSH connection trouble, rsync error, a remote refusing the transfer,
+etc.) always shows up as a red row in the Status page's table, with the error in a tooltip -
+but that only helps if you're actually looking at the page when it happens. For a manual
+run you're already watching it live; for a **scheduled** run, nobody is. So the same
+"nobody was watching it happen" popup mechanism as Remote(s) Playing above applies here too:
+if a scheduled run finishes with one or more remotes in a real error state, the next time
+the Status or Config page is opened, a one-time popup titled **"Scheduled Backup -
+Remote(s) Failed"** lists which remote(s) failed and why. Like the Remote(s) Playing popup,
+this reports something that already finished - it doesn't come back on a page reload, only
+clicking its OK button (or a later scheduled run hitting a new failure) clears it. A remote
+merely skipped for playing a sequence doesn't trigger this popup - that's Remote(s) Playing's
+job above; this one is specifically for real failures.
 
 [↑ Back to top](#troubleshooting)
 

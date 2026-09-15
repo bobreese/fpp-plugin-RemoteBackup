@@ -428,6 +428,13 @@ function rb_default_settings() {
         // ongoing condition, so it deliberately does not auto-clear on
         // its own.
         'lastScheduledPlayOutcome' => null,
+        // Same idea as lastScheduledPlayOutcome above, but for a
+        // --scheduled run that finished with one or more remotes in a
+        // real error state (SSH/rsync trouble, etc.), not just skipped
+        // for playing - set by run_backup.sh's record_scheduled_run_
+        // errors(). Cleared only by acknowledgeRunErrors (the popup's
+        // dismiss) or overwritten by a newer notice.
+        'lastScheduledRunErrors' => null,
         // Address of the FPP system designated as the show master for
         // Config's "Show Schedule Conflict Check" panel - not necessarily
         // one of the remotes[] entries above (the master isn't
@@ -1217,6 +1224,23 @@ switch ($action) {
         break;
     }
 
+    // Dismisses the "a scheduled run had a real per-remote failure" popup
+    // driven by lastScheduledRunErrors (see rb_default_settings()). Same
+    // rationale as acknowledgePlayOutcome above - a past-event notice,
+    // not an active problem to resolve.
+    case 'acknowledgeRunErrors': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $settings = rb_load_settings($SETTINGS_FILE);
+        if (!empty($settings['lastScheduledRunErrors']) && is_array($settings['lastScheduledRunErrors'])) {
+            $settings['lastScheduledRunErrors']['acknowledged'] = true;
+            if (!rb_save_settings($SETTINGS_FILE, $settings)) {
+                rb_fail('Could not write settings.json - check that ' . dirname($SETTINGS_FILE) . ' is writable by the web server user. See data/logs/ajax.log.', 500);
+            }
+        }
+        echo json_encode(['ok' => true]);
+        break;
+    }
+
     case 'pushSshKey': {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();
@@ -1563,7 +1587,8 @@ switch ($action) {
             'lowSpaceReason' => isset($settings['lowSpaceReason']) ? $settings['lowSpaceReason'] : null,
             'lowSpaceEstimatedBytes' => isset($settings['lowSpaceEstimatedBytes']) ? $settings['lowSpaceEstimatedBytes'] : null,
             'lowSpaceAvailableBytes' => isset($settings['lowSpaceAvailableBytes']) ? $settings['lowSpaceAvailableBytes'] : null,
-            'lastScheduledPlayOutcome' => isset($settings['lastScheduledPlayOutcome']) ? $settings['lastScheduledPlayOutcome'] : null
+            'lastScheduledPlayOutcome' => isset($settings['lastScheduledPlayOutcome']) ? $settings['lastScheduledPlayOutcome'] : null,
+            'lastScheduledRunErrors' => isset($settings['lastScheduledRunErrors']) ? $settings['lastScheduledRunErrors'] : null
         ]);
         break;
     }

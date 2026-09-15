@@ -460,6 +460,47 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // "A scheduled backup had a real per-remote failure while nobody was
+    // watching" popup - same "past event" one-time-notice pattern as the
+    // play-outcome popup above, driven by lastScheduledRunErrors instead
+    // (SSH/rsync failures, not just a remote being busy playing).
+    var rbRunErrorsPopupShown = false;
+
+    function rbHandleRunErrorsStatus(res) {
+        if (!res || !res.ok) return;
+        var o = res.lastScheduledRunErrors;
+        if (!o || o.acknowledged) { rbRunErrorsPopupShown = false; return; }
+        if (rbRunErrorsPopupShown) return;
+        rbRunErrorsPopupShown = true;
+        rbShowRunErrorsModal(o);
+    }
+
+    function rbShowRunErrorsModal(o) {
+        var modalId = 'rb-run-errors-modal';
+        var items = (o.remotes || []).map(function (r) {
+            return '<li><b>' + r.hostname + '</b>: ' + (r.errorDetail || 'Unknown error') + '</li>';
+        }).join('');
+        var bodyHtml = '<div class="callout callout-danger mb-2">A scheduled backup on ' +
+            formatLocalTime(o.timestamp) + ' finished with ' + (o.remotes || []).length +
+            ' remote(s) that failed:</div><ul class="mb-0">' + items + '</ul>';
+        DoModalDialog({
+            id: modalId,
+            title: 'Scheduled Backup - Remote(s) Failed',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                OK: {
+                    class: 'btn-primary',
+                    click: function () {
+                        CloseModalDialog(modalId);
+                        api('acknowledgeRunErrors', { body: {} });
+                    }
+                }
+            }
+        });
+    }
+
     // Persistent banner, not a one-time modal like the others above - see
     // the matching comment on #rb-bindMountWarning itself. Just reflects
     // whatever ajax.php's 'status' action reports on the current poll;
@@ -750,6 +791,7 @@ $rbPlugin = basename(__DIR__);
             if (res.ok) rbHandleDestinationStatus(res);
             if (res.ok) rbHandleLowSpaceStatus(res);
             if (res.ok) rbHandlePlayOutcomeStatus(res);
+            if (res.ok) rbHandleRunErrorsStatus(res);
             if (res.ok) rbHandleBindMountWarning(res);
             if (res.ok && lastActiveSeen && !res.active) {
                 // A run just finished - refresh the Backed Up list so new/updated folders show up.
