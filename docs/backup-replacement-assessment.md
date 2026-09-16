@@ -111,6 +111,14 @@ Three FPP-side things are in scope for comparison:
      local mail relay is never confirmed - a bad SMTP password or a blocked outbound port
      fails silently past that point, the same gap this finding describes just moved one
      layer down.
+   - *Also shipped:* a one-time "Scheduled Backup - Remote(s) Failed" popup on the
+     Status/Config page, shown the next time either is opened after a scheduled run ends
+     with one or more remotes in a real error state - the same "nobody was watching it
+     happen" mechanism already used for a remote skipped because it was playing a
+     sequence. Independent of FPP's own Email Settings being configured at all, so it
+     narrows this finding along a different axis than the email summary does. Still
+     pull-based, though - you have to open the page to see it - not a push notification
+     reaching you anywhere else, so the finding isn't fully closed.
 
 ### Minor - worth knowing, not blocking
 
@@ -144,6 +152,19 @@ Three FPP-side things are in scope for comparison:
    was found and fixed in this plugin's development - harmless (display-only, never
    blocked an actual backup), but a sign the codebase is still maturing rather than
    long-settled the way FPP's native tools are.
+   - *More of the same, since:* a single focused testing pass found and fixed roughly
+     seven more, most of them functional rather than cosmetic - a background convenience
+     script silently no-op'ing since it shipped (missing executable bit), an off-by-one in
+     snapshot retention, a bind-mount mountpoint shadow with two separate symptoms (the
+     Unmount/Re-format controls could vanish entirely, or a legitimate reformat could be
+     wrongly refused), a race condition that could incorrectly **Halt Backups** moments
+     after a successful reformat, a safety popup silently skipped depending on which
+     button triggered a destination change, and two uninstall-script gaps (wasted time on
+     remotes that never had a key pushed; backups on an unused fallback location invisible
+     to cleanup). None of these reached a real, unattended production failure - all were
+     caught by deliberate testing, not a report from the field - but the volume in a
+     single pass is worth recording as its own data point, not folded silently into the
+     one bug already listed here.
 
 ## Bottom line: not ready to replace - a strong complement today
 
@@ -186,10 +207,13 @@ upgrade, not a lateral move:
 The honest cost: swapping a simple, dependency-free, long-proven manual process for a
 more capable but Beta, automated one that concentrates risk into a single Host and its
 SSH access to everything. **Verdict: a net strengthening of FPP's overall backup story
-for this narrower swap - provided findings #4 (protect the Host itself) and #6 (alert on
-silent failure) are actually addressed first**, not left as-is. Without those two, it's
-a trade of one failure mode (forgot to click) for a different one (didn't notice it
-broke), which isn't obviously safer on its own.
+for this narrower swap - provided finding #4 (protect the Host itself) gets a real
+answer, and finding #6 (alert on silent failure), now narrowed twice by two independent
+shipped mechanisms, continues toward an actual push notification rather than something
+you still have to go looking for.** #4 hasn't moved at all - it remains the one that
+actually matters here. Without it, this is still a trade of one failure mode (forgot to
+click) for a different one (didn't notice the Host itself died), which isn't obviously
+safer on its own.
 
 ## Revisiting this assessment
 
