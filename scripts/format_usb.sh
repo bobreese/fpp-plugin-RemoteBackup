@@ -65,7 +65,7 @@ fi
 # partition-table fix below, /mnt/Backups is mounted from a child
 # partition (e.g. /dev/sda1), not from $DEVICE's own disk row, and
 # checking only the first lsblk line would miss that it's in use.
-CURRENT_MP=$(lsblk -no MOUNTPOINT "$DEVICE" 2>/dev/null | grep -v '^[[:space:]]*$' | head -1 | tr -d ' ')
+CURRENT_MP=$(rb_device_mountpoint "$DEVICE")
 if [ -n "$CURRENT_MP" ]; then
     if [ "$CURRENT_MP" = "$MOUNT_POINT" ]; then
         rb_log "format_usb: re-formatting already-mounted $DEVICE, unmounting $MOUNT_POINT first"
