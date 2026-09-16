@@ -277,6 +277,26 @@ rb_bindmount_is_active() {
     [ -n "$actual_mp" ] && [ "$actual_mp" = "$RB_BIND_TARGET" ]
 }
 
+# rb_device_mountpoint <device>: like `lsblk -no MOUNTPOINT`, but corrects
+# for the bind-mount shadow above - lsblk only has room for one MOUNTPOINT
+# per device, and once the bind mount (RB_BIND_SOURCE -> RB_BIND_TARGET) is
+# set up AFTER the real mount, lsblk reports the bind TARGET instead of the
+# real source mount for that same device. Any script asking "where is this
+# device mounted right now" should go through this rather than calling
+# lsblk directly, so it isn't fooled the same way probe_storage.sh's
+# UI-facing scan was (reported in the wild as a vanished Unmount/Re-format
+# option) - and, just as easily, into refusing a legitimate re-format/
+# re-mount of the plugin's own managed drive with a spurious "already
+# mounted elsewhere" error.
+rb_device_mountpoint() {
+    local device="$1" mp
+    mp=$(lsblk -no MOUNTPOINT "$device" 2>/dev/null | grep -v '^[[:space:]]*$' | head -1 | tr -d ' ')
+    if [ -n "$mp" ] && [ "$mp" = "$RB_BIND_TARGET" ] && rb_bindmount_is_active; then
+        mp="$RB_BIND_SOURCE"
+    fi
+    echo "$mp"
+}
+
 # True only while a REAL (non-dry-run) backup run is actively writing -
 # read from run_active.json, the same flag ajax.php's status poll already
 # shows on Status/Config as "a run is active". A dry run never writes

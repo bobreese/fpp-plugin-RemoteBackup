@@ -51,7 +51,7 @@ FPP_UID=$(id -u fpp 2>/dev/null || echo 1000)
 FPP_GID=$(id -g fpp 2>/dev/null || echo 1000)
 
 # Already mounted somewhere?
-CURRENT_MP=$(lsblk -no MOUNTPOINT "$DEVICE" 2>/dev/null | head -1 | tr -d ' ')
+CURRENT_MP=$(rb_device_mountpoint "$DEVICE")
 if [ -n "$CURRENT_MP" ]; then
     if [ "$CURRENT_MP" = "$MOUNT_POINT" ]; then
         rb_log "mount_usb: $DEVICE already mounted at $MOUNT_POINT"

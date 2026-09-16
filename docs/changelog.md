@@ -5,6 +5,14 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the same bind-mount mountpoint shadow described just below also made
+  `format_usb.sh`/`mount_usb.sh` refuse a legitimate Re-format/Mount of the
+  plugin's own already-mounted destination drive with a spurious "device is
+  already mounted at /home/fpp/media/backups; unmount it first" - each ran its
+  own independent `lsblk -no MOUNTPOINT` check on the device, subject to the exact
+  same shadow. Both now go through the new shared `rb_device_mountpoint()` helper
+  (see `lib_common.sh`) instead, so this one fix covers every place that asks
+  "where is this device mounted right now."
 - **Fixed:** with the "see current backups without unmounting" bind mount active
   (on by default), the mounted destination drive's Unmount/Re-format buttons could
   vanish from Config's Storage section entirely, and its radio button would no
