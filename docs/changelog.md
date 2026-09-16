@@ -5,6 +5,17 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** reformatting the primary destination drive could trigger a "Backup
+  Destination Missing" popup - and, if clicked, a Halt Backups - moments after the
+  reformat had already completed successfully. `format_usb.sh` genuinely unmounts
+  `/mnt/Backups` for the few seconds it takes to wipe/recreate the filesystem and
+  remount it, and a `status` poll from any open Status/Config tab landing in that
+  window saw a real (if momentary) missing drive and reported it as such - the
+  check had no way to know a known, intentional operation was already in flight
+  and about to resolve itself. `ajax.php`'s `mountUsb`/`unmountUsb`/`formatUsb`
+  actions now set a short-lived marker for the duration of their own call, and
+  the missing-destination check is suppressed while it's set (self-expiring after
+  3 minutes so a killed PHP worker can never wedge it stuck).
 - **Fixed:** the same bind-mount mountpoint shadow described just below also made
   `format_usb.sh`/`mount_usb.sh` refuse a legitimate Re-format/Mount of the
   plugin's own already-mounted destination drive with a spurious "device is
