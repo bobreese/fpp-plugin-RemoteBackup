@@ -625,16 +625,18 @@ $rbPlugin = basename(__DIR__);
                 // Optional post-run verification (Config > Backup Options'
                 // "Verify backup integrity after each run") - a second
                 // rsync dry-run pass comparing source and destination
-                // after the fact. Shown as a small badge under the state
-                // label rather than its own column, since it's blank
-                // entirely unless that setting is on.
+                // after the fact. Shown as a small badge next to the state
+                // label (same line, not its own row underneath - lines up
+                // with the longer one-line labels like "Dry Run Complete")
+                // rather than its own column, since it's blank entirely
+                // unless that setting is on.
                 var verifyBadge = '';
                 if (r.verifyState === 'clean') {
-                    verifyBadge = '<br><span class="text-success small">&#10003; Verified</span>';
+                    verifyBadge = ' <span class="text-success small">&#10003; Verified</span>';
                 } else if (r.verifyState === 'mismatch') {
-                    verifyBadge = '<br><span class="text-warning small" title="' + (r.verifyDetail || '').replace(/"/g, '&quot;') + '">&#9888; Verify: differs</span>';
+                    verifyBadge = ' <span class="text-warning small" title="' + (r.verifyDetail || '').replace(/"/g, '&quot;') + '">&#9888; Verify: differs</span>';
                 } else if (r.verifyState === 'error') {
-                    verifyBadge = '<br><span class="text-danger small" title="' + (r.verifyDetail || '').replace(/"/g, '&quot;') + '">&#9888; Verify failed</span>';
+                    verifyBadge = ' <span class="text-danger small" title="' + (r.verifyDetail || '').replace(/"/g, '&quot;') + '">&#9888; Verify failed</span>';
                 }
                 var xfer = (r.filesTransferred != null && r.totalFiles != null) ? (r.filesTransferred + ' of ' + r.totalFiles + ' files') : '-';
                 // For a real error, show a friendlier label when the detail
