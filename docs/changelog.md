@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** switching the destination away from SD Card/System Storage by
+  clicking "Mount as Backups" or "Format & Mount as Backups" on a USB drive -
+  rather than clicking an existing destination's radio button - silently skipped
+  the "leave your SD Card backups in place, or remove them?" popup entirely.
+  Reported in the wild: unmounted the USB drive, backed up to SD Card as a
+  fallback, then mounted the USB drive again and saved it as the destination -
+  no cleanup offer appeared either time. Root cause: that popup is only
+  triggered by a real radio `change` event, but both the Mount and Format &
+  Mount success handlers pre-select the newly mounted drive by writing
+  `state.settings.destinationMount` directly in JS, which never fires one. Both
+  handlers now explicitly run the same check the radio's `change` event would
+  have, in the same place a real click would have triggered it.
 - **Fixed:** reformatting the primary destination drive could trigger a "Backup
   Destination Missing" popup - and, if clicked, a Halt Backups - moments after the
   reformat had already completed successfully. `format_usb.sh` genuinely unmounts

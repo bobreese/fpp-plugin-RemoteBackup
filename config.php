@@ -1084,6 +1084,15 @@ $rbPlugin = basename(__DIR__);
                 api('mountUsb', { body: { device: device }, timeoutMs: 35000 }).then(function (res) {
                     if (res.ok) {
                         $.jGrowl('Mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab so it survives reboots)' : ''), { life: 6000, themeState: 'success' });
+                        // Mirrors the offer a real radio click would trigger (see
+                        // rbCheckSdCardLeaveTransition) - this pre-select below is the
+                        // only other place destinationMount changes, so without this call
+                        // here too, mounting a drive while SD Card/System Storage was the
+                        // saved destination silently skips the "leave or remove those
+                        // backups?" popup entirely. Must run BEFORE the pre-select, since
+                        // that's exactly the "last saved destination" this check compares
+                        // the new one against.
+                        rbCheckSdCardLeaveTransition(res.mountpoint || '/mnt/Backups');
                         // Pre-select this drive as the destination - just fills in the
                         // radio button so it's ready to go, doesn't save anything on its
                         // own; "Save Settings" is still required, same as always.
@@ -1157,6 +1166,12 @@ $rbPlugin = basename(__DIR__);
                             }).then(function (res) {
                                 if (res.ok) {
                                     $.jGrowl('Formatted (' + fstype + ') and mounted ' + device + ' at ' + res.mountpoint + (res.addedFstab ? ' (added to /etc/fstab)' : '') + (res.clearedAllStatus ? '. All previous backup status on the Status page was cleared since this was your active destination drive.' : ''), { life: 6000, themeState: 'success' });
+                                    // Same "offer the SD Card cleanup, mirroring a real
+                                    // radio click" reasoning as the plain Mount flow above,
+                                    // and must run before the same pre-select for the same
+                                    // reason - a no-op for Re-format (already the active
+                                    // destination, so savedMount already isn't "/").
+                                    rbCheckSdCardLeaveTransition(res.mountpoint || '/mnt/Backups');
                                     // Same pre-select as the plain Mount flow above - a
                                     // no-op for Re-format (already the active destination).
                                     if (state.settings) state.settings.destinationMount = res.mountpoint || '/mnt/Backups';
