@@ -35,11 +35,31 @@ if [ -z "$LSBLK_JSON" ]; then
     exit 0
 fi
 
-echo "$LSBLK_JSON" | jq --arg rootdisk "$ROOT_DISK" '
+# If the "see current backups without unmounting" bind mount (RB_BIND_SOURCE
+# -> RB_BIND_TARGET, see lib_common.sh) is active, lsblk's single MOUNTPOINT
+# column for the underlying device sometimes reports the bind TARGET
+# (mounted after, and therefore listed last) instead of the real source
+# mount - a device only has room for one MOUNTPOINT in lsblk's default
+# output, even though it's genuinely mounted at both. Left uncorrected, this
+# makes the real destination drive invisible to Config's Unmount/Re-format
+# buttons and its own destinationMount radio button (both matched by exact
+# mountpoint string) - reported in the wild as "USB shows up but there's no
+# Unmount/Re-format option". Only remap when the bind mount is confirmed
+# actually active, so an unrelated device never gets touched.
+BIND_SOURCE=""
+BIND_TARGET=""
+if rb_bindmount_is_active; then
+    BIND_SOURCE="$RB_BIND_SOURCE"
+    BIND_TARGET="$RB_BIND_TARGET"
+fi
+
+echo "$LSBLK_JSON" | jq --arg rootdisk "$ROOT_DISK" --arg bindsrc "$BIND_SOURCE" --arg bindtgt "$BIND_TARGET" '
   def flatten_devs:
     [.blockdevices[] | recurse(.children[]?) ] ;
 
-  (flatten_devs) as $devs
+  (flatten_devs | map(
+      if ($bindtgt != "" and .mountpoint == $bindtgt) then . + {mountpoint: $bindsrc} else . end
+    )) as $devs
   # lsblk only populates TRAN (and sometimes ROTA) on whole-disk rows,
   # not on partition rows - a partition just reads back null for both.
   # NVMe/SD-card root filesystems are always partitions (unlike the

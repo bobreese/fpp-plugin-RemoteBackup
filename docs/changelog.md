@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** with the "see current backups without unmounting" bind mount active
+  (on by default), the mounted destination drive's Unmount/Re-format buttons could
+  vanish from Config's Storage section entirely, and its radio button would no
+  longer show as selected - reported in the wild as "USB shows up but there's no
+  Unmount/Re-format option." Root cause: `probe_storage.sh` reads each device's
+  mountpoint from `lsblk`, which only has room for one MOUNTPOINT per device -
+  once the bind mount (`/mnt/Backups` -> `/home/fpp/media/backups`) is set up
+  *after* the real mount, `lsblk` reported the bind target instead of the real
+  mount for that same underlying drive, and both the Unmount/Re-format buttons
+  and the destination radio button are matched by an exact mountpoint string.
+  `probe_storage.sh` now detects an active bind mount and remaps that one known
+  path back to the real source mountpoint before anything else uses it.
 - **Corrected:** an earlier entry below claimed uninstalling removes "Run Remote
   Backup"/"Run Remote Backup Dry Run" from the Scheduler immediately, because FPP's
   own unload-on-uninstall step "unregisters its commands via
