@@ -154,6 +154,39 @@ function rb_is_active($file) {
     return $data && !empty($data['active']);
 }
 
+// Marks a mount/unmount/format operation on the primary destination as
+// in-flight for the duration of its rb_run() call - set true right before,
+// cleared (file removed) right after. The 'status' action's missing-
+// destination check reads this so it never mistakes the brief moment
+// /mnt/Backups is genuinely unmounted mid-format/mid-remount for the
+// drive actually having failed: reported in the wild as the "Backup
+// Destination Missing" popup appearing (and, worse, its Halt Backups
+// button being clicked) moments after a Re-format that had already
+// completed successfully.
+$STORAGE_OP_ACTIVE_FILE = "$DATA_DIR/storage_op_active.json";
+function rb_set_storage_op_active($file, $active) {
+    if ($active) {
+        @file_put_contents($file, json_encode(['active' => true, 'startedAt' => time()]));
+    } else {
+        @unlink($file);
+    }
+}
+// Unlike rb_is_active() above (a plain display flag with no staleness
+// check - fine there, since run.lock is the real authority behind it),
+// this flag is the ONLY thing suppressing a safety warning, so a PHP
+// worker killed mid-operation (Apache restart, OOM) before it could clear
+// the flag must not leave the missing-destination check silently blind
+// forever. None of mount_usb.sh/format_usb.sh/unmount_usb.sh's own
+// server-side timeouts run anywhere near this long, so anything older is
+// certainly stale, not a real still-running operation.
+function rb_storage_op_active($file) {
+    $raw = @file_get_contents($file);
+    $data = $raw ? json_decode($raw, true) : null;
+    if (!$data || empty($data['active'])) return false;
+    $startedAt = isset($data['startedAt']) ? (int)$data['startedAt'] : 0;
+    return (time() - $startedAt) < 180;
+}
+
 // True if $path is currently an active mountpoint - reads /proc/mounts
 // directly rather than shelling out to the `mountpoint` command, since
 // this is just a quick pre-flight check (e.g. startClone below) and not
@@ -757,7 +790,9 @@ switch ($action) {
         $device = isset($body['device']) ? $body['device'] : '';
         if (!$device || substr($device, 0, 5) !== '/dev/') rb_fail('Invalid device path');
 
+        rb_set_storage_op_active($STORAGE_OP_ACTIVE_FILE, true);
         $out = rb_run("$SCRIPTS_DIR/mount_usb.sh", [$device], 25);
+        rb_set_storage_op_active($STORAGE_OP_ACTIVE_FILE, false);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'error' => 'No response from mount_usb.sh - see data/logs/ajax.log'];
         echo json_encode($data);
@@ -775,7 +810,9 @@ switch ($action) {
         }
 
         rb_log_line("UNMOUNT requested");
+        rb_set_storage_op_active($STORAGE_OP_ACTIVE_FILE, true);
         $out = rb_run("$SCRIPTS_DIR/unmount_usb.sh", [], 20);
+        rb_set_storage_op_active($STORAGE_OP_ACTIVE_FILE, false);
         $data = json_decode((string)$out, true);
         if (!$data) $data = ['ok' => false, 'error' => 'No response from unmount_usb.sh - see data/logs/ajax.log'];
         echo json_encode($data);
@@ -805,6 +842,7 @@ switch ($action) {
             rb_fail('A backup clone to the secondary drive is currently in progress (it reads from this drive). Wait for it to finish before formatting.', 409);
         }
         file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => true, 'action' => 'format']));
+        rb_set_storage_op_active($STORAGE_OP_ACTIVE_FILE, true);
 
         rb_log_line("FORMAT requested device=$device fstype=$fstype label=$label");
         $out = rb_run("$SCRIPTS_DIR/format_usb.sh", [$device, $fstype, $confirm, '/mnt/Backups', $label], 90);
@@ -814,6 +852,7 @@ switch ($action) {
             rb_cache_volume_label('/mnt/Backups', $data['label']);
         }
 
+        rb_set_storage_op_active($STORAGE_OP_ACTIVE_FILE, false);
         file_put_contents("$DATA_DIR/run_active.json", json_encode(['active' => false]));
         echo json_encode($data);
         break;
@@ -1556,7 +1595,17 @@ switch ($action) {
         // open - can offer the "drive is missing: Halt backups or Use
         // failover" popup rather than a run just failing later with no
         // warning beforehand.
-        $destinationMissing = !empty($settings['destinationMount']) && $settings['destinationMount'] !== '/' && $destStorage === null;
+        //
+        // Suppressed while rb_storage_op_active() is true: mount/unmount/
+        // format on the primary destination all genuinely unmount it for a
+        // few seconds mid-operation (format_usb.sh's own unmount-format-
+        // remount sequence in particular), and a status poll from any open
+        // Status/Config tab landing in that window would otherwise show
+        // this popup for a drive that's actually fine - reported in the
+        // wild as the popup (and its Halt Backups button) firing moments
+        // after a Re-format that had already completed successfully.
+        $destinationMissing = !rb_storage_op_active($STORAGE_OP_ACTIVE_FILE) &&
+            !empty($settings['destinationMount']) && $settings['destinationMount'] !== '/' && $destStorage === null;
 
         // Auto-recovery: the destination that was missing is back (present
         // in $destStorage again) - clear a halt raised over it without
