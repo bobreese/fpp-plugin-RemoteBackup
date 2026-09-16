@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** `fpp_uninstall.sh`'s best-effort SSH key removal tried every remote
+  ever discovered, not just ones actually selected for backup - since the key is
+  only ever pushed to a selected remote in the first place, every unselected one
+  was guaranteed to fail key-based auth, reported in the wild as "unreachable/
+  failed" on every single known remote and adding up to `ssh_remove_key.sh`'s own
+  10s timeout per remote to every uninstall for no benefit. Scoped to
+  `selected == true`, matching where the key actually gets pushed.
+- **Fixed:** `fpp_uninstall.sh`'s backup-folder scan (used for both the "these
+  were left in place" report and `--purge-backups`) only ever checked the
+  *currently-configured* destination plus the fixed secondary/clone drive - never
+  the SD Card/System Storage fallback location unless it happened to be the
+  active destination at uninstall time. Backups left over from an earlier stint
+  using the fallback (switched away from since) were invisible to this scan
+  entirely. Now always included alongside the other two.
 - **Fixed:** switching the destination away from SD Card/System Storage by
   clicking "Mount as Backups" or "Format & Mount as Backups" on a USB drive -
   rather than clicking an existing destination's radio button - silently skipped

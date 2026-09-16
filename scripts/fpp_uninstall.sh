@@ -76,16 +76,26 @@ if [ -f "$CLONE_PID_FILE" ]; then
 fi
 pkill -f "${PLUGINDIR}/scripts/clone_backups.sh" 2>/dev/null || true
 
-# --- Best-effort: remove this key from each known remote first ----------
+# --- Best-effort: remove this key from each selected remote first -------
 # Must run before the local keypair is deleted below - removal
 # authenticates with the very key being retired (see ssh_remove_key.sh's
 # own comment for why that's the right scope: it only reaches remotes
 # where the key was actually accepted in the first place).
 KEYFILE="/home/fpp/.ssh/id_rsa_remotebackup"
 if [ -f "$KEYFILE" ] && [ -f "${PLUGINDIR}/data/settings.json" ] && command -v jq >/dev/null 2>&1; then
-    REMOTE_ADDRESSES=$(jq -r '.remotes[]?.address // empty' "${PLUGINDIR}/data/settings.json" 2>/dev/null)
+    # Only ever pushed to a SELECTED remote (individually, or via "Select
+    # All") - ssh_setup.sh is never called for one merely discovered by a
+    # MultiSync scan but never checked. Scoping the removal attempt the
+    # same way skips remotes that never had the key in the first place
+    # (guaranteed to fail key-based auth, wasting up to ssh_remove_key.sh's
+    # own 10s timeout each - reported in the wild as every unselected
+    # remote showing "unreachable/failed" on every uninstall). A remote
+    # selected in the past and since deselected is the one case this can
+    # miss - the note printed below already covers that, same as any
+    # other remote this best-effort pass couldn't reach.
+    REMOTE_ADDRESSES=$(jq -r '.remotes[]? | select(.selected == true) | .address // empty' "${PLUGINDIR}/data/settings.json" 2>/dev/null)
     if [ -n "$REMOTE_ADDRESSES" ]; then
-        echo "Removing this plugin's SSH key from known remotes (best effort)..."
+        echo "Removing this plugin's SSH key from selected remotes (best effort)..."
         while IFS= read -r addr; do
             [ -z "$addr" ] && continue
             RESULT=$("${PLUGINDIR}/scripts/ssh_remove_key.sh" "$addr" 2>/dev/null)
@@ -248,9 +258,22 @@ rb_scan_backup_dirs "$DEST_MOUNT"
 if [ "$DEST_MOUNT" != "/mnt/BackupsCopy" ]; then
     rb_scan_backup_dirs "/mnt/BackupsCopy"
 fi
+# Also always check the SD Card/System Storage fallback location
+# (RB_SDCARD_FALLBACK_DIR in lib_common.sh - hardcoded here rather than
+# sourcing that file, same reasoning as the bind-mount teardown above),
+# even when it isn't the CURRENTLY-configured destination. Switching the
+# destination away from it doesn't move or delete whatever was already
+# backed up there (see Config's own "leave or remove?" prompt for that
+# exact transition) - reported in the wild: backups left over from an
+# earlier stint using the fallback were invisible to this scan entirely
+# once the destination was switched to a real drive, so neither the
+# report below nor --purge-backups could ever see them.
+if [ "$DEST_MOUNT" != "/home/fpp/media/backups" ]; then
+    rb_scan_backup_dirs "/home/fpp/media/backups"
+fi
 
 if [ "$PURGE_BACKUPS" = "1" ] && [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
-    echo "!! --purge-backups given: deleting ${#BACKUP_DIRS[@]} backup folder(s) (primary destination and, if present, the secondary/clone drive)"
+    echo "!! --purge-backups given: deleting ${#BACKUP_DIRS[@]} backup folder(s) (primary destination, SD Card/System Storage fallback, and, if present, the secondary/clone drive)"
     for d in "${BACKUP_DIRS[@]}"; do
         echo "   rm -rf $d"
         # Same reasoning as delete_backup.sh's own fix - a backed-up
@@ -278,7 +301,7 @@ if [ "$PURGE_BACKUPS" = "1" ] && [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
 elif [ "${#BACKUP_DIRS[@]}" -gt 0 ]; then
     echo "------------------------------------------------------------------"
     echo " Your backed-up files were left in place and were NOT deleted"
-    echo " (primary destination and, if present, the secondary/clone drive):"
+    echo " (primary destination, SD Card/System Storage fallback, and, if present, the secondary/clone drive):"
     for d in "${BACKUP_DIRS[@]}"; do
         echo "   $d"
     done
