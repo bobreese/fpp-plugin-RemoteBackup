@@ -1056,20 +1056,31 @@ switch ($action) {
         }
         if (isset($body['remotes']) && is_array($body['remotes'])) {
             // Each remote: {id, hostname, address, selected}
+            // De-duplicated by id (last one wins, except a 'manual' entry
+            // is never displaced by a 'multisync' one sharing its id) -
+            // defense in depth against a client-side bug that could send
+            // the same remote twice with different addresses. Reported in
+            // the wild: that remote got backed up twice in one run, once
+            // per address, since run_backup.sh's own remote selection has
+            // no de-dup of its own.
             $clean = [];
             foreach ($body['remotes'] as $r) {
                 if (!isset($r['hostname']) || !isset($r['address'])) continue;
                 $id = isset($r['id']) && $r['id'] !== '' ? rb_slugify($r['id']) : rb_slugify($r['hostname']);
-                $clean[] = [
+                $source = isset($r['source']) ? $r['source'] : 'manual';
+                if (isset($clean[$id]) && $clean[$id]['source'] === 'manual' && $source !== 'manual') {
+                    continue;
+                }
+                $clean[$id] = [
                     'id' => $id,
                     'hostname' => $r['hostname'],
                     'address' => $r['address'],
                     'selected' => isset($r['selected']) ? (bool)$r['selected'] : false,
-                    'source' => isset($r['source']) ? $r['source'] : 'manual',
+                    'source' => $source,
                     'lastSeenAt' => isset($r['lastSeenAt']) ? $r['lastSeenAt'] : null
                 ];
             }
-            $settings['remotes'] = $clean;
+            $settings['remotes'] = array_values($clean);
         }
 
         // Picking (and saving) a different destination is itself the fix for
