@@ -148,8 +148,9 @@
   triggered from FPP's built-in Scheduler, Playlists, or Events - see
   [Scheduling backups](scheduling.md).
 - **USB drive management.** Detects an attached-but-unmounted USB drive, and can mount it
-  (existing filesystem) or format it (ext4 or exFAT - exFAT recommended if you want the
-  drive readable on Windows/Mac/another Pi) and mount it as `/mnt/Backups`, persisted via
+  (existing filesystem) or format it (ext4 recommended by default - needed for Snapshot
+  Mode's space savings; exFAT is the other option if you want the drive readable on
+  Windows/Mac/another Pi instead) and mount it as `/mnt/Backups`, persisted via
   `/etc/fstab`. The same drive can be re-formatted or unmounted later from the Config page -
   Unmount detaches it (fstab entry removed, data untouched) so it is safe to unplug without
   needing an SSH session. Formatting creates a GPT partition table with a single partition

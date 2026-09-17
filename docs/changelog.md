@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed:** the primary destination's Format dialog now defaults to **ext4**
+  instead of exFAT, since ext4 is what actually delivers Snapshot Mode's hard-link
+  space savings (see the entry just below) - exFAT is still offered, for anyone who
+  wants the drive readable on Windows/Mac instead. The clone/second drive's Format
+  dialog keeps **exFAT** as its default, unchanged: `clone_backups.sh` never
+  hard-links, so there's no space saving to lose there either way, and exFAT's
+  cross-platform readability is a real plus for a drive meant to be rotated
+  off-site. `formatSecondary`'s server-side fallback (used only if a request ever
+  omits `fstype`) now matches that default too, previously `ext4` like the primary.
 - **Added:** a warning when Snapshot Mode is on but the current destination's
   filesystem can't actually deliver its space savings - reported in the wild as a
   backup that looked like it threw a real error ("something about a virtual

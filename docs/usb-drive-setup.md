@@ -12,12 +12,19 @@ All of this happens on the Config page, under **Backup Destination Storage**.
 2. **Format it** (skip this if it's already formatted the way you want and you just need
    to mount it - see step 3):
    - Click **"Format & Mount as Backups"** next to the drive.
-   - In the dialog, choose a filesystem. **exFAT is selected by default and is the one to
-     pick if you want the drive readable on Windows, Mac, and Linux** (e.g. to pull it off
-     the Pi and browse backups directly from a laptop) - it's labeled "recommended" for
-     exactly that reason. The other option, **ext4, is Linux-only**; a Windows or Mac
-     machine won't be able to read the drive at all without extra third-party software, so
-     only pick it if the drive is never leaving Linux systems.
+   - In the dialog, choose a filesystem. **ext4 is selected by default** - Snapshot
+     Mode's space savings ([hard-linking unchanged files instead of copying them
+     again](features.md#features)) only work on a filesystem that supports hard links,
+     and exFAT doesn't, so ext4 is what actually delivers that space saving if you use
+     Snapshot Mode. The tradeoff: **ext4 is Linux-only** - a Windows or Mac machine
+     won't be able to read the drive at all without extra third-party software.
+     The other option, **exFAT, is readable on Windows, Mac, and Linux** (e.g. to pull
+     it off the Pi and browse backups directly from a laptop), but every "unchanged"
+     file gets fully re-copied on every run instead of hard-linked if Snapshot Mode is
+     on - Config shows a warning next to the Snapshot Mode checkbox when this applies.
+     Pick exFAT if cross-platform readability matters more to you than that space
+     saving (or if you're not using Snapshot Mode at all, where it makes no difference
+     either way).
    - Optionally set a **volume label** - defaults to `Backups`, up to 11 characters (the
      more restrictive limit of the two filesystems above). This is the filesystem's own
      label, e.g. what shows up as the drive's name in a file manager on another computer -
@@ -108,10 +115,13 @@ occasional off-site copy, or a second drive you rotate in and out. There's no Sc
 command for it; it only ever runs when you click the button.
 
 1. **Format/mount the second drive**, under Config's **"Clone Backups to a Second
-   Drive"** section - the same Rescan/Format/Mount flow as the primary destination
-   (exFAT vs. ext4 works the same way; see "Setting up a USB backup drive" above), just
-   fixed to a second mountpoint (`/mnt/BackupsCopy`) so it's always a distinct drive from
-   your primary destination.
+   Drive"** section - the same Rescan/Format/Mount flow as the primary destination, but
+   with the opposite filesystem default: **exFAT is selected by default here**, not
+   ext4. Cloning is a plain `rsync --delete` mirror with no hard-linking of its own
+   (see step 2 below), so there's no Snapshot Mode space saving to lose on this drive
+   either way - exFAT's cross-platform readability is a real plus for a drive meant to
+   go off-site, with no offsetting downside. Fixed to a second mountpoint
+   (`/mnt/BackupsCopy`) so it's always a distinct drive from your primary destination.
 2. **Click "Start Clone"** on the Status page, under the same-named section. This runs
    `rsync --delete` from the entire primary destination to the secondary drive in one
    pass - an exact mirror, not an incremental backup of backups, so anything you deleted

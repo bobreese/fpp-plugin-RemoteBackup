@@ -1178,19 +1178,19 @@ $rbPlugin = basename(__DIR__);
             var bodyHtml =
                 '<div class="callout callout-danger mb-2">This will <b>ERASE ALL DATA</b> on ' + device + ' (' + size + ').' + warnExtra + ' This cannot be undone.</div>' +
                 // table-layout:fixed - without it this table sizes its columns to fit the
-                // Filesystem <select>'s own content ("exFAT (recommended - readable on
-                // Windows/Mac/Linux)"), which is wider than the modal itself on a phone -
-                // the modal's own overflow-x:hidden then silently CLIPS the dropdown
-                // instead of the page scrolling (confirmed with real headless Chromium:
-                // the select rendered ~375px wide inside a 320px modal, unreachable past
-                // the edge). Fixing columns to the table's own (already modal-bounded)
-                // width, combined with max-width:100% on each control below, keeps every
-                // control within the modal instead.
+                // Filesystem <select>'s own (fairly long) option text, wider than the modal
+                // itself on a phone - the modal's own overflow-x:hidden then silently CLIPS
+                // the dropdown instead of the page scrolling (confirmed with real headless
+                // Chromium: the select rendered ~375px wide inside a 320px modal,
+                // unreachable past the edge). Fixing columns to the table's own (already
+                // modal-bounded) width, combined with max-width:100% on the controls below,
+                // keeps every control within the modal instead - robust to the option text
+                // changing length later, unlike hardcoding a width around one exact string.
                 '<table class="table table-sm table-borderless mb-0" style="table-layout:fixed;width:100%">' +
                 '<tr><td>Filesystem:</td><td>' +
                 '<select id="rb-format-fstype" class="form-select form-select-sm d-inline-block w-auto" style="max-width:100%">' +
-                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
-                '<option value="ext4">ext4 (Linux only)</option>' +
+                '<option value="ext4" selected>ext4 (recommended - needed for Snapshot Mode\'s space savings; Linux only)</option>' +
+                '<option value="exfat">exFAT (readable on Windows/Mac/Linux, but loses Snapshot Mode\'s space savings)</option>' +
                 '</select></td></tr>' +
                 '<tr><td>Volume label:</td><td>' +
                 '<input type="text" id="rb-format-label" class="form-control form-control-sm d-inline-block w-auto" style="max-width:100%" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
@@ -1378,7 +1378,12 @@ $rbPlugin = basename(__DIR__);
                 '<table class="table table-sm table-borderless mb-0" style="table-layout:fixed;width:100%">' +
                 '<tr><td>Filesystem:</td><td>' +
                 '<select id="rb-format2-fstype" class="form-select form-select-sm d-inline-block w-auto" style="max-width:100%">' +
-                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
+                // Deliberately still exFAT by default here, unlike the primary drive above -
+                // clone_backups.sh does a plain mirror with no --link-dest hard-linking of its
+                // own, so there's no Snapshot Mode space-saving to lose either way; exFAT's
+                // Windows/Mac readability is a real plus for a drive meant to be taken
+                // off-site, with no offsetting downside on this drive specifically.
+                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux, handy for an off-site drive)</option>' +
                 '<option value="ext4">ext4 (Linux only)</option>' +
                 '</select></td></tr>' +
                 '<tr><td>Volume label:</td><td>' +
