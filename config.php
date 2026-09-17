@@ -170,7 +170,22 @@ $rbPlugin = basename(__DIR__);
             <label><input type="checkbox" id="rb-deleteExtra">
                 Delete files in the host backup that were removed on the remote (mirrors deletes, uses <code>rsync --delete</code>)</label><br>
             <label><input type="checkbox" id="rb-snapshotMode">
-                Keep dated snapshot history per remote instead of one rolling "current" backup (space-efficient via <code>rsync --link-dest</code>)</label><br>
+                Keep dated snapshot history per remote instead of one rolling "current" backup (space-efficient via <code>rsync --link-dest</code>)</label>
+            <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-snapshotmode"
+                data-help-title="Snapshot history" style="font-size:0.8em; cursor:help;"></i>
+            <div id="rb-help-snapshotmode" class="d-none">
+                <div class="fpp-help-content">
+                    <p class="mb-0">The space savings depend on the destination drive's filesystem supporting hard
+                        links - <strong>exFAT does not</strong> (NTFS/FAT32 don't either; ext4 does). On an
+                        exFAT-formatted destination, every file still gets backed up correctly, but every "unchanged"
+                        file is fully re-copied each run instead of just linked - Snapshot Mode still works, it just
+                        costs the same disk space as separate full copies, and you'll see a wall of harmless-but-noisy
+                        <code>rsync: ... link ... failed: Operation not permitted</code> lines in that remote's log.
+                        Format as ext4 instead if you want the actual space savings and don't need the drive readable
+                        on Windows/Mac.</p>
+                </div>
+            </div><br>
+            <div id="rb-snapshotFsWarning" class="callout callout-warning mb-1 d-none" style="padding:0.5em 0.75em;"></div>
             <div id="rb-snapshotRetentionRow" class="ms-4 mb-1" style="display:none">
                 Keep the newest
                 <input type="number" id="rb-snapshotRetentionDays" min="0" max="3650" style="width:70px">
@@ -540,6 +555,48 @@ $rbPlugin = basename(__DIR__);
         var row = document.getElementById('rb-snapshotRetentionRow');
         if (!row) return;
         row.style.display = document.getElementById('rb-snapshotMode').checked ? '' : 'none';
+    }
+
+    // Warns when Snapshot Mode's hard-link space savings would be
+    // silently defeated by the currently-selected destination's
+    // filesystem - exFAT (and FAT32/NTFS) don't support hard links at
+    // all, so every "unchanged" file gets fully re-copied each run
+    // instead of just linked. The backup itself still works correctly
+    // either way (rsync falls back to a real copy whenever the link
+    // fails) - this is purely a heads-up about lost space savings and a
+    // log full of harmless-looking "link ... failed: Operation not
+    // permitted" lines, not a warning about anything actually broken.
+    // Reported in the wild: that wall of errors looked alarming enough
+    // to be mistaken for a real failure, even though the run itself
+    // completed and passed verification.
+    var RB_NO_HARDLINK_FSTYPES = ['exfat', 'vfat', 'fat', 'fat32', 'ntfs', 'ntfs3'];
+    function renderSnapshotFsWarning() {
+        var el = document.getElementById('rb-snapshotFsWarning');
+        if (!el) return;
+        var snapshotOn = document.getElementById('rb-snapshotMode').checked;
+        if (!snapshotOn || !state.storage) { el.classList.add('d-none'); el.innerHTML = ''; return; }
+        // Prefer whatever's actually checked in the UI right now over the
+        // last-saved value, so this reacts immediately to picking a
+        // different destination rather than only after Save Settings.
+        var checked = document.querySelector('input[name="rb-storage-choice"]:checked');
+        var mp = checked ? checked.value : (state.settings && state.settings.destinationMount);
+        if (!mp) { el.classList.add('d-none'); el.innerHTML = ''; return; }
+        var entry = null;
+        ['nvme', 'ssd', 'usb', 'sdcard'].some(function (g) {
+            return (state.storage[g] || []).some(function (d) {
+                if (d.mountpoint === mp) { entry = d; return true; }
+                return false;
+            });
+        });
+        var fstype = entry && entry.fstype ? String(entry.fstype).toLowerCase() : '';
+        if (RB_NO_HARDLINK_FSTYPES.indexOf(fstype) === -1) { el.classList.add('d-none'); el.innerHTML = ''; return; }
+        el.classList.remove('d-none');
+        el.innerHTML = '<strong>Snapshot Mode\'s space savings are lost on this destination.</strong> ' +
+            'Its filesystem (' + fstype.toUpperCase() + ') doesn\'t support hard links, so every unchanged file ' +
+            'gets fully re-copied each run instead of just linked - backups still work correctly, but cost the ' +
+            'same space as separate full copies, and you\'ll see harmless ' +
+            '<code>link ... failed: Operation not permitted</code> lines in that remote\'s log. Re-format as ' +
+            'ext4 for the actual space savings.';
     }
 
     // Fired on every change of the Snapshot Mode checkbox - compares
@@ -1041,7 +1098,10 @@ $rbPlugin = basename(__DIR__);
         // for the actual decision + rbPendingSdCardPurge for how the
         // choice is staged until Save Settings actually commits it.
         Array.prototype.forEach.call(document.getElementsByName('rb-storage-choice'), function (radio) {
-            radio.addEventListener('change', function () { rbCheckSdCardLeaveTransition(radio.value); });
+            radio.addEventListener('change', function () {
+                rbCheckSdCardLeaveTransition(radio.value);
+                renderSnapshotFsWarning();
+            });
         });
 
         Array.prototype.forEach.call(document.getElementsByClassName('rb-unmount-usb'), function (btn) {
@@ -1118,19 +1178,19 @@ $rbPlugin = basename(__DIR__);
             var bodyHtml =
                 '<div class="callout callout-danger mb-2">This will <b>ERASE ALL DATA</b> on ' + device + ' (' + size + ').' + warnExtra + ' This cannot be undone.</div>' +
                 // table-layout:fixed - without it this table sizes its columns to fit the
-                // Filesystem <select>'s own content ("exFAT (recommended - readable on
-                // Windows/Mac/Linux)"), which is wider than the modal itself on a phone -
-                // the modal's own overflow-x:hidden then silently CLIPS the dropdown
-                // instead of the page scrolling (confirmed with real headless Chromium:
-                // the select rendered ~375px wide inside a 320px modal, unreachable past
-                // the edge). Fixing columns to the table's own (already modal-bounded)
-                // width, combined with max-width:100% on each control below, keeps every
-                // control within the modal instead.
+                // Filesystem <select>'s own (fairly long) option text, wider than the modal
+                // itself on a phone - the modal's own overflow-x:hidden then silently CLIPS
+                // the dropdown instead of the page scrolling (confirmed with real headless
+                // Chromium: the select rendered ~375px wide inside a 320px modal,
+                // unreachable past the edge). Fixing columns to the table's own (already
+                // modal-bounded) width, combined with max-width:100% on the controls below,
+                // keeps every control within the modal instead - robust to the option text
+                // changing length later, unlike hardcoding a width around one exact string.
                 '<table class="table table-sm table-borderless mb-0" style="table-layout:fixed;width:100%">' +
                 '<tr><td>Filesystem:</td><td>' +
                 '<select id="rb-format-fstype" class="form-select form-select-sm d-inline-block w-auto" style="max-width:100%">' +
-                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
-                '<option value="ext4">ext4 (Linux only)</option>' +
+                '<option value="ext4" selected>ext4 (recommended - needed for Snapshot Mode\'s space savings; Linux only)</option>' +
+                '<option value="exfat">exFAT (readable on Windows/Mac/Linux, but loses Snapshot Mode\'s space savings)</option>' +
                 '</select></td></tr>' +
                 '<tr><td>Volume label:</td><td>' +
                 '<input type="text" id="rb-format-label" class="form-control form-control-sm d-inline-block w-auto" style="max-width:100%" maxlength="11" value="Backups" autocomplete="off"></td></tr>' +
@@ -1203,6 +1263,7 @@ $rbPlugin = basename(__DIR__);
         });
 
         renderStorage2();
+        renderSnapshotFsWarning();
     }
 
     // Secondary drive ("Clone Backups to a Second Drive") - a smaller,
@@ -1317,7 +1378,12 @@ $rbPlugin = basename(__DIR__);
                 '<table class="table table-sm table-borderless mb-0" style="table-layout:fixed;width:100%">' +
                 '<tr><td>Filesystem:</td><td>' +
                 '<select id="rb-format2-fstype" class="form-select form-select-sm d-inline-block w-auto" style="max-width:100%">' +
-                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux)</option>' +
+                // Deliberately still exFAT by default here, unlike the primary drive above -
+                // clone_backups.sh does a plain mirror with no --link-dest hard-linking of its
+                // own, so there's no Snapshot Mode space-saving to lose either way; exFAT's
+                // Windows/Mac readability is a real plus for a drive meant to be taken
+                // off-site, with no offsetting downside on this drive specifically.
+                '<option value="exfat" selected>exFAT (recommended - readable on Windows/Mac/Linux, handy for an off-site drive)</option>' +
                 '<option value="ext4">ext4 (Linux only)</option>' +
                 '</select></td></tr>' +
                 '<tr><td>Volume label:</td><td>' +
@@ -1926,6 +1992,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-snapshotMode').checked = !!state.settings.snapshotMode;
             document.getElementById('rb-snapshotRetentionDays').value = state.settings.snapshotRetentionDays || 0;
             renderSnapshotRetentionRow();
+            renderSnapshotFsWarning();
             document.getElementById('rb-includeSystemConfig').checked = state.settings.includeSystemConfig !== false;
             document.getElementById('rb-autoFailoverOnLowSpace').checked = !!state.settings.autoFailoverOnLowSpace;
             document.getElementById('rb-verifyAfterRun').checked = !!state.settings.verifyAfterRun;
@@ -1997,6 +2064,7 @@ $rbPlugin = basename(__DIR__);
     document.getElementById('rb-snapshotMode').addEventListener('change', function () {
         rbCheckSnapshotModeLeaveTransition(this.checked);
         renderSnapshotRetentionRow();
+        renderSnapshotFsWarning();
     });
 
     document.getElementById('rb-refreshStorage').addEventListener('click', function () {

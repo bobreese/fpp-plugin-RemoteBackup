@@ -890,7 +890,12 @@ switch ($action) {
         if ($method !== 'POST') rb_fail('POST required');
         $body = rb_json_body();
         $device = isset($body['device']) ? $body['device'] : '';
-        $fstype = isset($body['fstype']) ? $body['fstype'] : 'ext4';
+        // Falls back to exfat, not ext4 - matches this drive's own UI
+        // default (unlike the primary destination's formatUsb below):
+        // clone_backups.sh never hard-links, so there's no Snapshot Mode
+        // space-saving to lose here either way, and exFAT's Windows/Mac
+        // readability is a real plus for a drive meant to go off-site.
+        $fstype = isset($body['fstype']) ? $body['fstype'] : 'exfat';
         $confirm = isset($body['confirm']) ? $body['confirm'] : '';
         $label = rb_sanitize_label(isset($body['label']) ? $body['label'] : '');
         if (!$device || substr($device, 0, 5) !== '/dev/') rb_fail('Invalid device path');

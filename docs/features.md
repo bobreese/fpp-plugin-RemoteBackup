@@ -88,15 +88,19 @@
   `Pi5-20260801`, `Pi5-20260802`, `Pi5-20260803`, ...) instead of just the latest.
   Unchanged files between consecutive runs are hard-linked (`rsync --link-dest`)
   rather than copied again, so extra snapshots cost very little disk space - but
-  each one is still a real, complete, ordinary folder on disk. There's no delta or
-  index to reconstruct: any single dated snapshot folder is fully self-contained and
-  restorable entirely on its own, exactly like a rolling backup, whether or not the
-  snapshots next to it still exist. Turning this back off doesn't touch existing
-  history - the next run just resumes rolling-mode's "reuse whichever dated folder
-  is newest" behavior, and Config offers a one-time popup at that exact moment to
-  either leave every remote's older dated folders in place or prune each one down
-  to just its newest (which becomes the new rolling backup) - nothing about
-  restoring from what's kept changes either way.
+  each one is still a real, complete, ordinary folder on disk. **This space saving
+  needs a destination filesystem that supports hard links (ext4 does; exFAT, FAT32,
+  and NTFS don't)** - on one of those, every file still backs up correctly, just
+  fully re-copied each run instead of linked, and Config shows a warning next to
+  the checkbox when the current destination can't actually save the space. There's
+  no delta or index to reconstruct: any single dated snapshot folder is fully
+  self-contained and restorable entirely on its own, exactly like a rolling backup,
+  whether or not the snapshots next to it still exist. Turning this back off
+  doesn't touch existing history - the next run just resumes rolling-mode's "reuse
+  whichever dated folder is newest" behavior, and Config offers a one-time popup at
+  that exact moment to either leave every remote's older dated folders in place or
+  prune each one down to just its newest (which becomes the new rolling backup) -
+  nothing about restoring from what's kept changes either way.
 - **Runs as a real background process, independent of the browser.** Clicking Dry Run,
   Start Backup, or Start Clone launches the underlying script detached from that one web
   request and returns immediately - the transfer itself is a background process on the FPP
@@ -144,8 +148,9 @@
   triggered from FPP's built-in Scheduler, Playlists, or Events - see
   [Scheduling backups](scheduling.md).
 - **USB drive management.** Detects an attached-but-unmounted USB drive, and can mount it
-  (existing filesystem) or format it (ext4 or exFAT - exFAT recommended if you want the
-  drive readable on Windows/Mac/another Pi) and mount it as `/mnt/Backups`, persisted via
+  (existing filesystem) or format it (ext4 recommended by default - needed for Snapshot
+  Mode's space savings; exFAT is the other option if you want the drive readable on
+  Windows/Mac/another Pi instead) and mount it as `/mnt/Backups`, persisted via
   `/etc/fstab`. The same drive can be re-formatted or unmounted later from the Config page -
   Unmount detaches it (fstab entry removed, data untouched) so it is safe to unplug without
   needing an SSH session. Formatting creates a GPT partition table with a single partition
