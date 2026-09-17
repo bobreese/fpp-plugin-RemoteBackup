@@ -101,11 +101,17 @@ $rbPlugin = basename(dirname(__DIR__));
                 <li><b>Format &amp; Mount as Backups</b> (skip if it's already formatted the way you
                     want). Choose a filesystem in the dialog:
                     <ul>
-                        <li><b>exFAT</b> (selected by default) - readable on Windows, Mac, <i>and</i>
-                            Linux. Pick this if you ever want to plug the drive into a laptop and
-                            browse backups directly.</li>
-                        <li><b>ext4</b> - Linux only. A Windows or Mac machine can't read the drive
-                            at all without extra third-party software.</li>
+                        <li><b>ext4</b> (selected by default) - Linux only, but needed for Snapshot
+                            Mode's space savings (hard-linking unchanged files instead of copying
+                            them again only works on a filesystem that supports hard links, and
+                            exFAT doesn't). A Windows or Mac machine can't read the drive at all
+                            without extra third-party software.</li>
+                        <li><b>exFAT</b> - readable on Windows, Mac, <i>and</i> Linux. Pick this if
+                            you ever want to plug the drive into a laptop and browse backups
+                            directly, or aren't using Snapshot Mode anyway (it makes no difference
+                            without that). Every "unchanged" file gets fully re-copied each run
+                            instead of hard-linked if Snapshot Mode is on - Config shows a warning
+                            next to that checkbox when this applies.</li>
                     </ul>
                     Type the device path shown (e.g. <code>/dev/sda</code>) into the confirm box to
                     enable the Format button - this erases everything already on the drive, so it's
@@ -136,7 +142,10 @@ $rbPlugin = basename(dirname(__DIR__));
                 <li>Format/mount a second drive on the Config page, under <b>"Clone Backups to a
                     Second Drive"</b> - same Format/Mount flow as the primary destination, just fixed
                     to a different mountpoint (<code>/mnt/BackupsCopy</code>) so it's always a
-                    distinct drive.</li>
+                    distinct drive. The default filesystem here is <b>exFAT</b>, not ext4 like the
+                    primary destination - cloning never hard-links, so there's no Snapshot Mode
+                    space saving to lose on this drive either way, and exFAT's cross-platform
+                    readability is a real plus for a drive meant to be rotated off-site.</li>
                 <li>Click <b>"Start Clone"</b> on the Status page, under the same-named section. Runs
                     <code>rsync --delete</code> from the whole primary destination to the secondary
                     drive in one pass - an exact mirror, so a backup you deleted from the primary is
