@@ -5,6 +5,19 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a warning when Snapshot Mode is on but the current destination's
+  filesystem can't actually deliver its space savings - reported in the wild as a
+  backup that looked like it threw a real error ("something about a virtual
+  display"), when what actually happened was 39 harmless
+  `rsync: ... link ... failed: Operation not permitted` lines from Snapshot Mode's
+  `--link-dest` hard-linking hitting an exFAT-formatted destination (exFAT, like
+  FAT32/NTFS, has no hard-link support at all - only ext4 does). The backup itself
+  completed and passed verification; the only real effect is that every
+  "unchanged" file gets fully re-copied every run instead of just linked, quietly
+  defeating the whole point of Snapshot Mode's space efficiency. Added a "?" popover
+  on the Snapshot Mode checkbox explaining this, plus a dynamic warning next to it
+  that appears whenever Snapshot Mode is on and the selected destination's
+  filesystem doesn't support hard links.
 - **Fixed:** manually adding a remote whose hostname MultiSync already knew about
   (from an earlier scan) created a second entry sharing the same id instead of
   updating the existing one - reported in the wild, and confirmed directly in a
