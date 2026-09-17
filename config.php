@@ -1850,19 +1850,34 @@ $rbPlugin = basename(__DIR__);
             var id = (r.hostname || r.address).replace(/[^A-Za-z0-9._-]+/g, '_');
             var byAddr = r.address ? byAddress[r.address] : null;
             if (byId[id]) {
-                byId[id].address = r.address;
-                byId[id].lastSeenAt = nowIso;
+                // A manually-added entry's address is authoritative - a scan
+                // reporting the same hostname at whatever address MultiSync
+                // currently sees (a different interface, DHCP reassignment,
+                // etc.) must never silently overwrite an address the user
+                // deliberately chose. Reported in the wild: adding a manual
+                // entry for a hostname MultiSync already knew about got its
+                // address reverted back to the MultiSync one on the very
+                // next rescan.
+                if (byId[id].source !== 'manual') {
+                    byId[id].address = r.address;
+                    byId[id].lastSeenAt = nowIso;
+                }
             } else if (byAddr && byAddr.hostname !== r.hostname) {
-                var oldId = byAddr.id;
-                var oldHostname = byAddr.hostname;
-                byAddr.hostname = r.hostname;
-                byAddr.id = id;
-                byAddr.lastSeenAt = nowIso;
-                delete byId[oldId];
-                byId[id] = byAddr;
-                byAddress[r.address] = byAddr;
-                if (onRename) onRename(oldHostname, r.hostname, r.address);
-            } else {
+                // Same "manual stays put" reasoning - a scanned device
+                // sharing a manual entry's address under a different name
+                // must not rename it out from under the user either.
+                if (byAddr.source !== 'manual') {
+                    var oldId = byAddr.id;
+                    var oldHostname = byAddr.hostname;
+                    byAddr.hostname = r.hostname;
+                    byAddr.id = id;
+                    byAddr.lastSeenAt = nowIso;
+                    delete byId[oldId];
+                    byId[id] = byAddr;
+                    byAddress[r.address] = byAddr;
+                    if (onRename) onRename(oldHostname, r.hostname, r.address);
+                }
+            } else if (!byAddr) {
                 var nr = { id: id, hostname: r.hostname, address: r.address, selected: false, source: 'multisync', lastSeenAt: nowIso };
                 merged.push(nr);
                 byId[id] = nr;
@@ -2029,7 +2044,25 @@ $rbPlugin = basename(__DIR__);
         var addr = document.getElementById('rb-manualAddr').value.trim();
         if (!host || !addr) { $.jGrowl('Hostname and IP address are both required.', { life: 6000, themeState: 'danger' }); return; }
         var id = host.replace(/[^A-Za-z0-9._-]+/g, '_');
-        state.remotes.push({ id: id, hostname: host, address: addr, selected: true, source: 'manual' });
+        // A hostname that already exists (typically a MultiSync-discovered
+        // one) must update that SAME entry in place, not push a second one
+        // sharing the same id - reported in the wild: a duplicate entry
+        // meant the same remote got backed up twice in one run (once per
+        // address), and which address "won" in the UI depended on rescan
+        // timing. Pinning it as source: 'manual' here also makes
+        // mergeRemoteLists leave its address alone on future rescans.
+        var existingIdx = -1;
+        for (var i = 0; i < state.remotes.length; i++) {
+            if (state.remotes[i].id === id) { existingIdx = i; break; }
+        }
+        if (existingIdx !== -1) {
+            state.remotes[existingIdx].hostname = host;
+            state.remotes[existingIdx].address = addr;
+            state.remotes[existingIdx].source = 'manual';
+            state.remotes[existingIdx].selected = true;
+        } else {
+            state.remotes.push({ id: id, hostname: host, address: addr, selected: true, source: 'manual' });
+        }
         document.getElementById('rb-manualHost').value = '';
         document.getElementById('rb-manualAddr').value = '';
         renderRemotes();

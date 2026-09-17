@@ -5,6 +5,19 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** manually adding a remote whose hostname MultiSync already knew about
+  (from an earlier scan) created a second entry sharing the same id instead of
+  updating the existing one - reported in the wild, and confirmed directly in a
+  user's logs: the same remote appeared twice in a backup run's `--remotes` list
+  and got backed up twice in one pass, once per address, with the actual "active"
+  address depending on rescan timing after that. Three-layer fix: the "Add"
+  button now updates an existing same-id entry in place (and marks it `manual`)
+  instead of pushing a duplicate; `mergeRemoteLists`'s rescan merge no longer
+  overwrites a `manual` entry's address or hostname just because a MultiSync scan
+  reports the same hostname (or address) differently; and `saveSettings`
+  de-duplicates by id server-side too (a `manual` entry always wins over a
+  `multisync` one sharing an id), as defense in depth against a duplicate ever
+  reaching `settings.json` again by some other path.
 - **Fixed:** `fpp_uninstall.sh`'s best-effort SSH key removal tried every remote
   ever discovered, not just ones actually selected for backup - since the key is
   only ever pushed to a selected remote in the first place, every unselected one
