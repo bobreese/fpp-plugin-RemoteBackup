@@ -132,6 +132,25 @@ command for it; it only ever runs when you click the button.
    deleted from the clone side comes back). Just start it again later to finish catching
    up.
 
+What a repeat clone does:
+
+- If nothing changed on the primary since the last clone, it's a fast no-op - rsync
+  compares files by path and finds nothing to copy.
+- Otherwise it's a real incremental diff, not a repeat full copy: only files that are
+  actually new or changed get transferred, and `--delete` removes anything gone from
+  the primary, same as any other run.
+- One case still causes a full re-transfer of a single device's folder: rolling mode
+  (the default layout) renames that folder in place on the primary every time its date
+  changes (e.g. `Pi5-20260917` -> `Pi5-20260918`) - cheap there since it's just a rename,
+  but the clone's rsync only tracks folder paths, not renames, so it sees the new name
+  as a brand-new folder, copies it in full, and deletes the old-named one. This happens
+  once per device per day it's actually backed up again, not on every clone run.
+- Snapshot Mode's hard-link space savings (see [Features & Safe Guards](features.md))
+  aren't carried over to the clone drive - each dated snapshot folder lands there as a
+  fully independent copy, regardless of which filesystem the clone drive itself uses,
+  so expect the clone to use noticeably more space than the primary does for the same
+  history.
+
 A few safety notes:
 
 - A clone refuses to start while a backup run or a primary-drive format is in progress

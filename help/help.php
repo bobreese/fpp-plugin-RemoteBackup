@@ -162,6 +162,17 @@ $rbPlugin = basename(dirname(__DIR__));
                 <li><b>Stop</b> cancels an in-progress clone like Stop cancels a backup run - whatever
                     already copied stays; just start it again later to finish catching up.</li>
             </ol>
+            <b>Running Clone again</b> - if nothing changed on the primary since the last clone, it's a
+            fast no-op. Otherwise it's a real incremental diff, not a repeat full copy: only files that
+            are actually new or changed get transferred. Two things worth knowing: rolling mode (the
+            default layout) renames a device's folder in place on the primary every time its date
+            changes - cheap there, but the clone's rsync only tracks folder paths, not renames, so it
+            sees the new name as a brand-new folder, copies it in full, and deletes the old-named one
+            (once per device per day it's backed up again, not on every clone run). And Snapshot Mode's
+            hard-link space savings aren't carried over to the clone drive at all - each dated snapshot
+            folder lands there as a fully independent copy, so expect the clone to use noticeably more
+            space than the primary does for the same history.
+            <br><br>
             A clone refuses to run at the same time as a backup run or a primary-drive format (it
             reads from the same destination those write to) - and the reverse is also true, a backup
             or a primary-drive format/unmount is blocked while a clone is running. It also refuses
