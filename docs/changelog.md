@@ -5,6 +5,14 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Documented:** what running Clone again actually does - a fast no-op if nothing
+  changed, otherwise a real incremental diff (not a repeat full copy). Also documented
+  two less obvious cases: rolling mode's daily folder rename causes that device's
+  folder to be fully re-transferred and the old-named one deleted on the clone (once
+  per device per day it's backed up again, not every clone run), and Snapshot Mode's
+  hard-link space savings aren't carried over to the clone drive at all, so it uses
+  more space there than the primary does for the same history. Added to
+  `docs/usb-drive-setup.md` and the in-app Help page.
 - **Fixed:** "Backup Now" (single device, see below) could fail with an SSH
   auth error for a remote that was never checked on Config - unlike Start
   Backup's selected remotes, "Backup Now" can target ANY known remote
