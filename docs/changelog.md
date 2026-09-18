@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** cloning to a second drive was reported as fully failed
+  (`rsync exited with an error`) whenever the primary destination was
+  formatted ext4 - a direct side effect of the ext4-default change just
+  below. `mkfs.ext4` creates a `lost+found` directory at the filesystem
+  root, owned `root:root` with permissions the unprivileged `fpp` user
+  can't read; `clone_backups.sh` mirrors the whole destination root
+  (unlike `run_backup.sh`, which only ever writes into per-remote
+  subdirectories), so it was the only script that tripped over it,
+  failing with `rsync: [sender] opendir ".../lost+found" failed:
+  Permission denied` and exit code 23 even though every real backup file
+  transferred correctly. `clone_backups.sh` now excludes `lost+found`
+  from the mirror.
 - **Changed:** the primary destination's Format dialog now defaults to **ext4**
   instead of exFAT, since ext4 is what actually delivers Snapshot Mode's hard-link
   space savings (see the entry just below) - exFAT is still offered, for anyone who
