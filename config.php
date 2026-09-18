@@ -345,6 +345,9 @@ $rbPlugin = basename(__DIR__);
         <button type="button" class="btn btn-primary" id="rb-save">Save Settings</button>
         <a class="btn btn-outline-secondary" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=status.php">Status Page</a>
         <span id="rb-saveMsg" class="ms-2"></span>
+        <span id="rb-unsavedIndicator" class="ms-2 small text-warning" style="display:none;">
+            <i class="fas fa-exclamation-triangle"></i> Unsaved changes - click "Save Settings" to keep them
+        </span>
         <span id="rb-sdcard-purge-note" class="ms-2 small"></span>
         <span id="rb-snapshot-prune-note" class="ms-2 small"></span>
         <label class="small text-muted mb-0 ms-auto" style="cursor:pointer; white-space:nowrap;">
@@ -995,6 +998,33 @@ $rbPlugin = basename(__DIR__);
     }
 
     var state = { settings: null, storage: null, remotes: [], hostInfo: null, lastStatus: null };
+
+    // Warns before navigating away with edits that were never saved -
+    // reported in the wild: a remote was checked (which pushes its SSH key
+    // right away, live) then unchecked again, but "Save Settings" was never
+    // clicked, so none of it ever reached settings.json even though the
+    // page looked like it had already taken effect. Deliberately NOT set
+    // just because a background rescan discovered a new, not-yet-selected
+    // remote (that happens on every page load and needs no action), only
+    // for changes the user actually made - see the wiring below for the
+    // full list of what marks this dirty.
+    var rbDirty = false;
+    function markDirty() {
+        if (rbDirty) return;
+        rbDirty = true;
+        var el = document.getElementById('rb-unsavedIndicator');
+        if (el) el.style.display = '';
+    }
+    function markClean() {
+        rbDirty = false;
+        var el = document.getElementById('rb-unsavedIndicator');
+        if (el) el.style.display = 'none';
+    }
+    window.addEventListener('beforeunload', function (e) {
+        if (!rbDirty) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
 
     // isHostRemote: true if the given remote entry (from state.remotes) is
     // actually this Host itself - e.g. MultiSync's own system list can
@@ -1681,6 +1711,7 @@ $rbPlugin = basename(__DIR__);
             btn.addEventListener('click', function () {
                 var id = btn.getAttribute('data-id');
                 state.remotes = state.remotes.filter(function (r) { return r.id !== id; });
+                markDirty();
                 renderRemotes();
             });
         });
@@ -2067,6 +2098,42 @@ $rbPlugin = basename(__DIR__);
         renderSnapshotFsWarning();
     });
 
+    // Every static field that's actually part of the Save Settings payload
+    // (see the rb-save click handler's `body` below) - matches that list
+    // field-for-field so nothing can go stale here without going stale
+    // there too. 'input' covers text/number/textarea edits as they're
+    // typed; also listening for 'change' catches checkboxes/radios/selects
+    // on browsers that don't fire 'input' for them. markDirty() is a no-op
+    // once already dirty, so the overlap is harmless.
+    var RB_DIRTY_FIELD_IDS = [
+        'rb-hostEnabled', 'rb-deleteExtra', 'rb-snapshotMode', 'rb-snapshotRetentionDays',
+        'rb-includeSystemConfig', 'rb-autoFailoverOnLowSpace', 'rb-verifyAfterRun',
+        'rb-enableRestoreBindMount', 'rb-onboardingTourEnabled',
+        'rb-playPolicy-stop', 'rb-playPolicy-skip',
+        'rb-emailNotifyEnabled', 'rb-emailScope-all', 'rb-emailScope-scheduled',
+        'rb-emailOutcome-completed', 'rb-emailOutcome-failed', 'rb-emailOutcome-skipped',
+        'rb-emailOutcome-failed_or_skipped', 'rb-emailOutcome-all',
+        'rb-scheduleMasterSelect', 'rb-scheduleMasterCustom',
+        'rb-maxConcurrent', 'rb-logRetentionCount',
+        'rb-sshUser', 'rb-sshPort', 'rb-sshPassword', 'rb-excludes'
+    ];
+    RB_DIRTY_FIELD_IDS.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', markDirty);
+        el.addEventListener('change', markDirty);
+    });
+    // Storage/remote radios and checkboxes are rebuilt from scratch by
+    // renderStorage()/renderRemotes() on every rescan, so listening on the
+    // stable container they're rendered into (rather than the elements
+    // themselves) is the only way this survives a rerender.
+    document.getElementById('rb-storageList').addEventListener('change', function (e) {
+        if (e.target && e.target.name === 'rb-storage-choice') markDirty();
+    });
+    document.getElementById('rb-remoteList').addEventListener('change', function (e) {
+        if (e.target && (e.target.classList.contains('rb-remote-check') || e.target.id === 'rb-remote-selectall')) markDirty();
+    });
+
     document.getElementById('rb-refreshStorage').addEventListener('click', function () {
         setScanning('rb-storageList');
         api('probeStorage').then(function (res) {
@@ -2097,6 +2164,7 @@ $rbPlugin = basename(__DIR__);
                 });
                 renderRemotes();
                 if (renamed.length) {
+                    markDirty();
                     $.jGrowl('Detected a System Name change on the same address: ' + renamed.join(', ') +
                         '. Updated in place (selection kept) instead of adding a duplicate - click "Save Settings" to keep it.',
                         { life: 6000, themeState: 'info' });
@@ -2131,6 +2199,7 @@ $rbPlugin = basename(__DIR__);
         } else {
             state.remotes.push({ id: id, hostname: host, address: addr, selected: true, source: 'manual' });
         }
+        markDirty();
         document.getElementById('rb-manualHost').value = '';
         document.getElementById('rb-manualAddr').value = '';
         renderRemotes();
@@ -2179,6 +2248,7 @@ $rbPlugin = basename(__DIR__);
             if (res.ok) {
                 state.settings = res.data;
                 state.remotes = res.data.remotes;
+                markClean();
                 // A saved destination is a fresh episode as far as the missing-drive
                 // popup is concerned - reset so a still-bad pick gets its own popup
                 // on the next poll instead of staying suppressed by an earlier one.
