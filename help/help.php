@@ -75,10 +75,12 @@ $rbPlugin = basename(dirname(__DIR__));
                 <li><b>Backup Now (single device), without touching the selection above.</b> The
                     dropdown next to Dry Run/Start Backup on the Status page lists every remote the
                     plugin knows about, whether or not it's checked on Config - pick one and click
-                    <b>"Backup Now"</b> for a real, one-time backup of just that device. It doesn't
-                    read or change which remotes are selected for Start Backup or Scheduler-triggered
-                    runs; the device does need to already show up somewhere on Config's remote list
-                    (scanned or manually added) first.</li>
+                    <b>"Backup Now"</b> for a real, one-time backup of just that device. Its SSH key
+                    is pushed automatically right before the backup runs, same as checking its box on
+                    Config would, so it doesn't need to have been checked there first either. It
+                    doesn't read or change which remotes are selected for Start Backup or
+                    Scheduler-triggered runs; the device does need to already show up somewhere on
+                    Config's remote list (scanned or manually added) first.</li>
             </ol>
         </div>
     </fieldset>

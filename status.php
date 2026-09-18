@@ -57,7 +57,9 @@ $rbPlugin = basename(__DIR__);
                         <p class="mb-0">Runs a real, one-time backup of just the remote picked in the dropdown -
                             without changing which remotes are checked/selected on the Config page. It doesn't
                             need to already be selected there, only known to the plugin (previously scanned by
-                            MultiSync or added manually). Useful for a quick backup of one device - after fixing
+                            MultiSync or added manually) - its SSH key is pushed automatically right before the
+                            backup runs, the same as checking its box on Config would, so it doesn't need to have
+                            been checked there first either. Useful for a quick backup of one device - after fixing
                             something on it, say - without touching the regular selection used for manual "Start
                             Backup" runs and Scheduler-triggered backups.</p>
                     </div>
@@ -184,7 +186,7 @@ $rbPlugin = basename(__DIR__);
     function api(action, opts) {
         opts = opts || {};
         var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        var timer = controller ? setTimeout(function () { controller.abort(); }, 20000) : null;
+        var timer = controller ? setTimeout(function () { controller.abort(); }, opts.timeoutMs || 20000) : null;
         var init = { method: opts.method || 'GET' };
         if (controller) init.signal = controller.signal;
         if (opts.body) {
@@ -964,6 +966,7 @@ $rbPlugin = basename(__DIR__);
                 var opt = document.createElement('option');
                 opt.value = r.id;
                 opt.textContent = r.hostname || r.id;
+                opt.dataset.address = r.address || '';
                 sel.appendChild(opt);
             });
             if (Array.prototype.some.call(sel.options, function (o) { return o.value === current; })) {
@@ -1020,23 +1023,45 @@ $rbPlugin = basename(__DIR__);
     });
 
     document.getElementById('rb-onedevice-start').addEventListener('click', function () {
-        var id = document.getElementById('rb-onedevice-select').value;
+        var sel = document.getElementById('rb-onedevice-select');
+        var id = sel.value;
         if (!id) {
             $.jGrowl('Choose a remote from the dropdown first.', { life: 6000, themeState: 'danger' });
             return;
         }
+        var address = sel.selectedOptions[0] ? sel.selectedOptions[0].dataset.address : '';
         setStartButtonBusy('rb-onedevice-start', true);
-        api('start', { body: { remotes: [id], dryRun: false } }).then(function (res) {
-            setStartButtonBusy('rb-onedevice-start', false);
-            var msg = document.getElementById('rb-runMsg');
-            msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
-            msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-            if (res.ok) {
-                pendingRunButtonId = 'rb-onedevice-start'; markButtonActive('rb-onedevice-start'); poll();
-                if (res.skippedPlaying && res.skippedPlaying.length) {
-                    $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing.', { life: 6000, themeState: 'warning' });
-                }
-            } else { $.jGrowl('Failed to start backup: ' + res.error, { life: 6000, themeState: 'danger' }); }
+
+        // Best-effort key push right before running - unlike Start Backup's
+        // selected remotes (only ever reachable by checking a box, or the
+        // Push SSH Key button on Config, either of which already pushes
+        // one), "Backup Now" can target ANY known remote regardless of
+        // whether it was ever selected, so it may never have had a key
+        // pushed to it at all. A push failure here doesn't block the
+        // attempt - the key may already be installed from earlier, and
+        // run_backup.sh's own error is the clearer, authoritative signal
+        // if it's genuinely still missing.
+        var pushPromise = address ? api('loadSettings').then(function (res) {
+            var s = res.data || {};
+            return api('pushSshKey', {
+                body: { address: address, sshUser: s.sshUser || 'fpp', sshPort: s.sshPort || 22, password: s.sshPassword || '' },
+                timeoutMs: 30000
+            });
+        }).catch(function () { return { ok: false }; }) : Promise.resolve({ ok: false });
+
+        pushPromise.then(function () {
+            api('start', { body: { remotes: [id], dryRun: false } }).then(function (res) {
+                setStartButtonBusy('rb-onedevice-start', false);
+                var msg = document.getElementById('rb-runMsg');
+                msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
+                msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
+                if (res.ok) {
+                    pendingRunButtonId = 'rb-onedevice-start'; markButtonActive('rb-onedevice-start'); poll();
+                    if (res.skippedPlaying && res.skippedPlaying.length) {
+                        $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing.', { life: 6000, themeState: 'warning' });
+                    }
+                } else { $.jGrowl('Failed to start backup: ' + res.error, { life: 6000, themeState: 'danger' }); }
+            });
         });
     });
 

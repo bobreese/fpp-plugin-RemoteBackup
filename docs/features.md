@@ -121,10 +121,12 @@
   manually on Config) regardless of whether its checkbox is checked there - picking one
   and clicking **Backup Now** runs a real, one-time backup of just that device without
   reading or changing the saved selection used by Start Backup and Scheduler-triggered
-  runs. The remote does need to already be known to the plugin (i.e. shown somewhere on
-  Config's remote list) - a device never scanned or added at all still needs adding
-  there first. Shows up in the same Backup Status table below, exactly like any other
-  run.
+  runs. Its SSH key is pushed automatically right before the backup runs (the same
+  push a checked box or the "Push SSH Key" button on Config triggers), so the remote
+  doesn't need to have ever been checked there first - only already known to the
+  plugin (i.e. shown somewhere on Config's remote list); a device never scanned or
+  added at all still needs adding there first. Shows up in the same Backup Status
+  table below, exactly like any other run.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status

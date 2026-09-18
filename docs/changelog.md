@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** "Backup Now" (single device, see below) could fail with an SSH
+  auth error for a remote that was never checked on Config - unlike Start
+  Backup's selected remotes, "Backup Now" can target ANY known remote
+  regardless of its saved selection, but a key is otherwise only ever
+  pushed by checking a box (or the "Push SSH Key" button on Config), so a
+  never-selected remote may never have had one pushed at all. Backup Now
+  now pushes the key (best-effort) right before every run, the same push
+  checking a box already triggers - a push failure doesn't block the
+  attempt, since the key may already be installed and `run_backup.sh`'s
+  own error is the clearer signal if it's genuinely still missing.
 - **Added:** an "Unsaved changes" warning on the Config page - reported in the wild:
   checking a remote's box (which pushes its SSH key right away, live) then unchecking
   it again, without ever clicking "Save Settings," left the page looking like nothing
