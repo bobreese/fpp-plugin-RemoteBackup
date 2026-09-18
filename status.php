@@ -18,6 +18,11 @@ $rbPlugin = basename(__DIR__);
                 <button type="button" class="btn btn-danger btn-sm ms-1" id="rb-stop">Stop</button>
                 <a class="btn btn-outline-secondary btn-sm ms-1" href="plugin.php?plugin=<?php echo urlencode($rbPlugin); ?>&page=config.php">Config</a>
                 <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-config" data-help-title="Config" style="font-size:0.8em; cursor:help;"></i>
+                <select id="rb-onedevice-select" class="form-select form-select-sm d-inline-block ms-2" style="width:auto; max-width:200px;">
+                    <option value="">(choose a remote)</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary btn-sm ms-1" id="rb-onedevice-start">Backup Now</button>
+                <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-onedevice" data-help-title="Backup Now (single device)" style="font-size:0.8em; cursor:help;"></i>
                 <span id="rb-runMsg" class="ms-2"></span>
 
                 <div id="rb-help-dryrun" class="d-none">
@@ -45,6 +50,16 @@ $rbPlugin = basename(__DIR__);
                         <p class="mb-0">Opens the Config page - choose which remotes to back up, pick the
                             destination storage, and set backup options like delete-mirroring, snapshot mode, and
                             SSH settings.</p>
+                    </div>
+                </div>
+                <div id="rb-help-onedevice" class="d-none">
+                    <div class="fpp-help-content">
+                        <p class="mb-0">Runs a real, one-time backup of just the remote picked in the dropdown -
+                            without changing which remotes are checked/selected on the Config page. It doesn't
+                            need to already be selected there, only known to the plugin (previously scanned by
+                            MultiSync or added manually). Useful for a quick backup of one device - after fixing
+                            something on it, say - without touching the regular selection used for manual "Start
+                            Backup" runs and Scheduler-triggered backups.</p>
                     </div>
                 </div>
             </div>
@@ -721,7 +736,8 @@ $rbPlugin = basename(__DIR__);
     var BTN_STATE = {
         'rb-dryrun': { normal: 'btn btn-outline-secondary btn-sm', active: 'btn btn-success btn-sm' },
         'rb-start': { normal: 'btn btn-primary btn-sm ms-1', active: 'btn btn-success btn-sm ms-1' },
-        'rb-clone-start': { normal: 'btn btn-outline-secondary btn-sm', active: 'btn btn-success btn-sm' }
+        'rb-clone-start': { normal: 'btn btn-outline-secondary btn-sm', active: 'btn btn-success btn-sm' },
+        'rb-onedevice-start': { normal: 'btn btn-outline-secondary btn-sm ms-1', active: 'btn btn-success btn-sm ms-1' }
     };
     var BTN_GREEN_TIMEOUT_MS = 60000; // safety net - see markButtonActive
     var btnGreenTimers = {};
@@ -762,7 +778,8 @@ $rbPlugin = basename(__DIR__);
     var RB_SHOW_START_SPINNER = true;
     var RB_START_BUTTON_LABELS = {
         'rb-dryrun': { normal: 'Dry Run (selected remotes)', busy: '<i class="fas fa-spinner fa-spin me-1"></i>Checking...' },
-        'rb-start': { normal: 'Start Backup', busy: '<i class="fas fa-spinner fa-spin me-1"></i>Checking...' }
+        'rb-start': { normal: 'Start Backup', busy: '<i class="fas fa-spinner fa-spin me-1"></i>Checking...' },
+        'rb-onedevice-start': { normal: 'Backup Now', busy: '<i class="fas fa-spinner fa-spin me-1"></i>Starting...' }
     };
     function setStartButtonBusy(id, busy) {
         if (!RB_SHOW_START_SPINNER) return;
@@ -926,6 +943,36 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // Every remote the plugin knows about (scanned by MultiSync or added
+    // manually on Config), regardless of its saved "selected" checkbox -
+    // deliberately unfiltered, since the whole point of "Backup Now" below
+    // is to reach a device without it needing to be part of the saved
+    // selection used for "Start Backup" and Scheduler-triggered runs.
+    function loadOneDeviceOptions() {
+        api('loadSettings').then(function (res) {
+            var sel = document.getElementById('rb-onedevice-select');
+            var current = sel.value;
+            var remotes = (res.data.remotes || []).slice().sort(function (a, b) {
+                return (a.hostname || '').localeCompare(b.hostname || '');
+            });
+            sel.innerHTML = '';
+            var placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '(choose a remote)';
+            sel.appendChild(placeholder);
+            remotes.forEach(function (r) {
+                var opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.hostname || r.id;
+                sel.appendChild(opt);
+            });
+            if (Array.prototype.some.call(sel.options, function (o) { return o.value === current; })) {
+                sel.value = current;
+            }
+        });
+    }
+    loadOneDeviceOptions();
+
     document.getElementById('rb-start').addEventListener('click', function () {
         setStartButtonBusy('rb-start', true);
         getSelectedRemoteIds().then(function (ids) {
@@ -969,6 +1016,27 @@ $rbPlugin = basename(__DIR__);
                     }
                 } else { $.jGrowl('Failed to start dry run: ' + res.error, { life: 6000, themeState: 'danger' }); }
             });
+        });
+    });
+
+    document.getElementById('rb-onedevice-start').addEventListener('click', function () {
+        var id = document.getElementById('rb-onedevice-select').value;
+        if (!id) {
+            $.jGrowl('Choose a remote from the dropdown first.', { life: 6000, themeState: 'danger' });
+            return;
+        }
+        setStartButtonBusy('rb-onedevice-start', true);
+        api('start', { body: { remotes: [id], dryRun: false } }).then(function (res) {
+            setStartButtonBusy('rb-onedevice-start', false);
+            var msg = document.getElementById('rb-runMsg');
+            msg.textContent = res.ok ? 'Backup started.' : ('Error: ' + res.error);
+            msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
+            if (res.ok) {
+                pendingRunButtonId = 'rb-onedevice-start'; markButtonActive('rb-onedevice-start'); poll();
+                if (res.skippedPlaying && res.skippedPlaying.length) {
+                    $.jGrowl('Skipping ' + res.skippedPlaying.join(', ') + ' - currently playing.', { life: 6000, themeState: 'warning' });
+                }
+            } else { $.jGrowl('Failed to start backup: ' + res.error, { life: 6000, themeState: 'danger' }); }
         });
     });
 

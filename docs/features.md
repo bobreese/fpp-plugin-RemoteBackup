@@ -116,6 +116,15 @@
   [Safe Guards](#pre-flight-space-check-with-a-safety-margin-on-sd-card-storage) below)
   sequentially, one remote at a time, before any of them show as queued/running, so the
   more remotes selected, the longer that initial wait. This is expected, not a hang.
+- **Backup Now, for a single device.** A dropdown next to Dry Run/Start Backup on the
+  Status page lists every remote the plugin knows about (scanned by MultiSync or added
+  manually on Config) regardless of whether its checkbox is checked there - picking one
+  and clicking **Backup Now** runs a real, one-time backup of just that device without
+  reading or changing the saved selection used by Start Backup and Scheduler-triggered
+  runs. The remote does need to already be known to the plugin (i.e. shown somewhere on
+  Config's remote list) - a device never scanned or added at all still needs adding
+  there first. Shows up in the same Backup Status table below, exactly like any other
+  run.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
