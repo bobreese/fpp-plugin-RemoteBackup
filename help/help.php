@@ -72,6 +72,13 @@ $rbPlugin = basename(dirname(__DIR__));
                 <li><b>Start Backup.</b> Runs <code>rsync</code> pulls of each remote's
                     <code>/home/fpp/media</code> from the Host, up to 2 remotes at a time by default;
                     as each finishes, the next queued remote starts automatically.</li>
+                <li><b>Backup Now (single device), without touching the selection above.</b> The
+                    dropdown next to Dry Run/Start Backup on the Status page lists every remote the
+                    plugin knows about, whether or not it's checked on Config - pick one and click
+                    <b>"Backup Now"</b> for a real, one-time backup of just that device. It doesn't
+                    read or change which remotes are selected for Start Backup or Scheduler-triggered
+                    runs; the device does need to already show up somewhere on Config's remote list
+                    (scanned or manually added) first.</li>
             </ol>
         </div>
     </fieldset>

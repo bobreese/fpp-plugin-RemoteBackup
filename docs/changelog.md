@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a "Backup Now" dropdown + button on the Status page for a one-time backup
+  of a single device, without touching which remotes are checked/selected on the
+  Config page. The dropdown lists every remote the plugin knows about (scanned by
+  MultiSync or added manually), regardless of its saved selection - picking one and
+  clicking Backup Now calls the same `start` action Start Backup uses, but with an
+  explicit single-remote list, which `run_backup.sh` already supports independently of
+  the `selected` flag (`--remotes` filters by id only, `run_backup.sh:295`). No backend
+  changes needed; this was previously only reachable by checking the box, saving, and
+  reverting it afterward.
 - **Fixed:** the clone progress bar could fail to appear at all for a fast
   clone (little or nothing left to transfer - now the common case once
   everything's caught up, especially after the `lost+found` fix just
