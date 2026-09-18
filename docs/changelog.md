@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** an "Unsaved changes" warning on the Config page - reported in the wild:
+  checking a remote's box (which pushes its SSH key right away, live) then unchecking
+  it again, without ever clicking "Save Settings," left the page looking like nothing
+  had happened while none of it actually reached `settings.json`. A small warning next
+  to the Save button now appears the moment any real edit is made - a field changed, a
+  remote checked/unchecked, one added or removed, or a rename detected on rescan - and
+  a `beforeunload` prompt now also warns before navigating away with changes still
+  unsaved. Deliberately does NOT fire just because a routine rescan discovered a new,
+  not-yet-selected remote - that happens on every page load and needs no action.
 - **Added:** a "Backup Now" dropdown + button on the Status page for a one-time backup
   of a single device, without touching which remotes are checked/selected on the
   Config page. The dropdown lists every remote the plugin knows about (scanned by
