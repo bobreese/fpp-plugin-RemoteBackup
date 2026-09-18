@@ -100,7 +100,17 @@ write_clone_status "$(jq -n --arg t "$(rb_now_iso)" --arg run "$RUN_ID" --arg sr
 # once it's not attached to a terminal - without it, progress updates
 # and filenames sit in rsync's internal buffer and may not hit the log
 # for a long time, same reason run_backup.sh's own rsync calls use it.
+#
+# --exclude=/lost+found: mkfs.ext4 creates this directory at the root of
+# every ext4 filesystem, owned root:root with permissions that block the
+# unprivileged fpp user this script runs as. run_backup.sh never trips
+# over it (it only ever writes into per-remote subdirectories), but this
+# is the one script that mirrors the whole destination root, so without
+# this exclude rsync fails with "Permission denied" on lost+found and
+# exits 23 - reporting the entire clone as failed even though every real
+# backup file transferred correctly.
 rsync -a -h -v --stats --info=progress2 --outbuf=line --delete \
+    --exclude=/lost+found \
     "${DEST_ROOT}/" "${SECONDARY_MOUNT}/" > "$CLONE_LOG" 2>&1 &
 RSYNC_PID=$!
 
