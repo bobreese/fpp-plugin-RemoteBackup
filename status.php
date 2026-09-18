@@ -819,6 +819,20 @@ $rbPlugin = basename(__DIR__);
     // above reacts to.
     var clonePollTimer = null;
     var lastCloneActiveSeen = false;
+    // clone_backups.sh is launched via a backgrounded shell_exec() that
+    // returns to the browser almost immediately, before the freshly-spawned
+    // script has necessarily finished starting up and written
+    // clone_active.json - so the very first poll right after clicking
+    // "Start Clone" can race it and read back active:false. Normally the
+    // next poll a few seconds later catches the real state, but a clone
+    // with little/nothing to transfer can start AND finish inside that
+    // window, so if the stale first read falls back to the slow idle
+    // cadence, the running state (and its progress bar) never gets
+    // observed at all - it jumps straight from idle to "Last clone
+    // finished." Keep polling at the fast cadence for a few seconds after
+    // every Start Clone click, regardless of what any single poll reports,
+    // so a short-lived run still gets caught.
+    var cloneJustStartedUntil = 0;
 
     function renderCloneStatus(res) {
         var secEl = document.getElementById('rb-clone-secondary-storage');
@@ -882,7 +896,8 @@ $rbPlugin = basename(__DIR__);
             }
             if (res.ok) lastCloneActiveSeen = !!res.active;
             if (clonePollTimer) clearTimeout(clonePollTimer);
-            clonePollTimer = setTimeout(pollClone, (res.ok && res.active) ? POLL_ACTIVE_MS : POLL_IDLE_MS);
+            var fastCadence = (res.ok && res.active) || Date.now() < cloneJustStartedUntil;
+            clonePollTimer = setTimeout(pollClone, fastCadence ? POLL_ACTIVE_MS : POLL_IDLE_MS);
         }).catch(function () {
             if (clonePollTimer) clearTimeout(clonePollTimer);
             clonePollTimer = setTimeout(pollClone, POLL_IDLE_MS);
@@ -894,7 +909,7 @@ $rbPlugin = basename(__DIR__);
             var msg = document.getElementById('rb-clone-msg');
             msg.textContent = res.ok ? 'Clone started.' : ('Error: ' + res.error);
             msg.className = res.ok ? 'ms-2 text-success' : 'ms-2 text-danger';
-            if (res.ok) { markButtonActive('rb-clone-start'); pollClone(); } else { $.jGrowl('Failed to start clone: ' + res.error, { life: 6000, themeState: 'danger' }); }
+            if (res.ok) { markButtonActive('rb-clone-start'); cloneJustStartedUntil = Date.now() + 10000; pollClone(); } else { $.jGrowl('Failed to start clone: ' + res.error, { life: 6000, themeState: 'danger' }); }
         });
     });
 

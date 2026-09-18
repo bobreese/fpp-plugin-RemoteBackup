@@ -5,6 +5,21 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the clone progress bar could fail to appear at all for a fast
+  clone (little or nothing left to transfer - now the common case once
+  everything's caught up, especially after the `lost+found` fix just
+  below). `startClone` launches `clone_backups.sh` in the background and
+  returns to the browser almost immediately, before the new script has
+  necessarily finished starting up and written `clone_active.json` -
+  the Status page's very next poll could race that and read back
+  `active:false`, which made it fall back to its slow 7-second idle
+  polling cadence instead of the fast 2-second one. A clone with nothing
+  to transfer can start and finish inside that 7-second gap, so the
+  "running" state (and its progress bar) never got observed - the page
+  jumped straight from idle to "Last clone finished." The Status page now
+  keeps polling at the fast cadence for a few seconds after every "Start
+  Clone" click regardless of what any single poll reports, so a
+  short-lived run still gets caught.
 - **Fixed:** cloning to a second drive was reported as fully failed
   (`rsync exited with an error`) whenever the primary destination was
   formatted ext4 - a direct side effect of the ext4-default change just
