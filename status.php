@@ -639,6 +639,11 @@ $rbPlugin = basename(__DIR__);
             remotes.sort(function (a, b) { return (a.hostname || '').localeCompare(b.hostname || ''); });
             body.innerHTML = remotes.map(function (r) {
                 var label = STATE_LABEL[r.state] || r.state;
+                // Same yellow badge box Config's "Not seen in N days" uses -
+                // makes a failed remote easy to spot at a glance in a table
+                // full of plain-text state labels, rather than blending in
+                // with "Done"/"Running"/etc.
+                if (r.state === 'error') label = '<span class="badge text-bg-warning">' + label + '</span>';
                 // Optional post-run verification (Config > Backup Options'
                 // "Verify backup integrity after each run") - a second
                 // rsync dry-run pass comparing source and destination

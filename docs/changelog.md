@@ -5,6 +5,9 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Changed:** the Backup Status table's State column now highlights "Error" with the
+  same yellow badge box Config's "Not seen in N days" uses, instead of plain text -
+  easier to spot at a glance in a table full of "Done"/"Running"/etc. labels.
 - **Fixed:** the "Not seen in N days" badge on Config's remote list could report a
   remote as stale even though it had backed up successfully more recently - reported
   in the wild: a device backed up on 9/20 still showed "not seen since 9/19." Root
