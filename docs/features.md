@@ -39,12 +39,17 @@
   button (not just the select checkbox) to drop it from the list entirely - useful for
   clearing out a remote that's gone for good, or any duplicate left over from before this
   fix. Like everything else on the Config page, removal doesn't take effect until you
-  click "Save Settings." A MultiSync-discovered remote absent from a scan for over 24
-  hours gets a "Not seen in N days" badge - flagged, never auto-removed, so a remote
-  that's just temporarily offline (or simply hasn't had a rescan happen recently, since
-  scans only run when the Config page is open) never silently drops out of your backup
-  selection. The badge clears itself the next time that remote shows up in a scan; manually
-  added remotes are never flagged, since they're expected not to appear in a MultiSync scan.
+  click "Save Settings." A MultiSync-discovered remote gets a "Not seen in N days" badge
+  once it's been over 24 hours since the LATER of two things: it last showed up in a
+  MultiSync scan, or it last had a completed backup (from the real dated backup folders
+  on disk, so a Scheduler-triggered run counts even if nobody had the Config page open
+  to trigger a fresh scan) - flagged, never auto-removed, so a remote that's just
+  temporarily offline (or simply hasn't had a rescan happen recently, since scans only
+  run when the Config page is open) never silently drops out of your backup selection,
+  and a remote whose backups are actually going fine doesn't get falsely flagged just
+  because nobody happened to revisit Config in a few days. The badge clears itself the
+  next time either signal refreshes; manually added remotes are never flagged, since
+  they're expected not to appear in a MultiSync scan.
   A **Select All** checkbox in the table header selects (or deselects) every listed remote
   in one click, including auto-pushing this Host's SSH key to each newly-selected one, same
   as checking each box individually - not just a raw "check every box" that would silently

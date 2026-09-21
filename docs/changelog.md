@@ -5,6 +5,16 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the "Not seen in N days" badge on Config's remote list could report a
+  remote as stale even though it had backed up successfully more recently - reported
+  in the wild: a device backed up on 9/20 still showed "not seen since 9/19." Root
+  cause: the badge's `lastSeenAt` only ever advances when the Config page itself is
+  open for a MultiSync scan to run (there's no background/scheduled scan), so on a
+  system nobody visits Config on for a few days, every remote drifts toward "stale"
+  regardless of how well its actual Scheduler-triggered backups are going - those
+  never touch `lastSeenAt` at all. The badge now also checks the real dated backup
+  folders on disk (`listBackups`) and uses whichever of "last MultiSync scan" or
+  "last completed backup" is more recent.
 - **Documented:** what running Clone again actually does - a fast no-op if nothing
   changed, otherwise a real incremental diff (not a repeat full copy). Also documented
   two less obvious cases: rolling mode's daily folder rename causes that device's
