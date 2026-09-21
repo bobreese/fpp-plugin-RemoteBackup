@@ -997,7 +997,7 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
-    var state = { settings: null, storage: null, remotes: [], hostInfo: null, lastStatus: null };
+    var state = { settings: null, storage: null, remotes: [], hostInfo: null, lastStatus: null, lastBackupByRemote: {} };
 
     // Warns before navigating away with edits that were never saved -
     // reported in the wild: a remote was checked (which pushes its SSH key
@@ -1575,14 +1575,46 @@ $rbPlugin = basename(__DIR__);
         if (r.source !== 'multisync' || !r.lastSeenAt) return '';
         var seenMs = new Date(r.lastSeenAt).getTime();
         if (isNaN(seenMs)) return '';
-        var ageMs = Date.now() - seenMs;
+        // lastSeenAt only ever advances when the Config page itself is open
+        // for a MultiSync scan to run (there's no background/scheduled
+        // scan) - on a system nobody visits Config on for a few days, every
+        // remote drifts toward "stale" here regardless of how well its
+        // actual Scheduler-triggered backups are going, since those never
+        // touch lastSeenAt at all. A completed backup (state.lastBackupByRemote,
+        // from the real dated folders on disk - see loadLastBackupDates())
+        // is at least as strong a "this remote is alive" signal as a scan,
+        // so whichever of the two is more recent wins here.
+        var backupMs = state.lastBackupByRemote ? state.lastBackupByRemote[r.id] : null;
+        var mostRecentMs = (backupMs && backupMs > seenMs) ? backupMs : seenMs;
+        var ageMs = Date.now() - mostRecentMs;
         if (ageMs < 24 * 60 * 60 * 1000) return '';
         var days = Math.floor(ageMs / (24 * 60 * 60 * 1000));
         var label = days >= 1 ? (days + (days === 1 ? ' day' : ' days')) : 'over 24 hours';
-        return ' <span class="badge text-bg-warning" title="Has not appeared in a MultiSync scan since ' +
-            new Date(r.lastSeenAt).toLocaleString() +
+        return ' <span class="badge text-bg-warning" title="Not seen in a MultiSync scan or a completed backup since ' +
+            new Date(mostRecentMs).toLocaleString() +
             ' - could be offline, decommissioned, or just not announcing right now. Remove it below if it\'s gone for good.">' +
             'Not seen in ' + label + '</span>';
+    }
+
+    // Populates state.lastBackupByRemote from the real dated backup
+    // folders on disk (list_backups.sh) - id -> latest mtime in ms, taking
+    // the newest across every dated folder for a remote (snapshot mode can
+    // have several; rolling mode always has exactly one, renamed in place
+    // each run). Fetched once on load; re-renders the remote list once it
+    // resolves since staleRemoteBadge() is already async-independent of it.
+    function loadLastBackupDates() {
+        return api('listBackups').then(function (res) {
+            var map = {};
+            if (res.ok && res.backups) {
+                res.backups.forEach(function (b) {
+                    var t = b.mtime ? new Date(b.mtime).getTime() : NaN;
+                    if (isNaN(t)) return;
+                    if (!map[b.id] || t > map[b.id]) map[b.id] = t;
+                });
+            }
+            state.lastBackupByRemote = map;
+            renderRemotes();
+        });
     }
 
     // Reflects the row checkboxes' actual state onto the "Select All"
@@ -2048,6 +2080,7 @@ $rbPlugin = basename(__DIR__);
             document.getElementById('rb-onboardingTourEnabled').checked = state.settings.onboardingTourEnabled !== false;
             state.remotes = state.settings.remotes || [];
             renderRemotes();
+            loadLastBackupDates();
             renderStorage();
             renderScheduleMasterSelect();
             // Auto-show the walkthrough exactly once, only for an install
