@@ -5,6 +5,12 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a "Last Backup: <date> - <time>" line on the Status page, right below the
+  Dry Run/Start Backup/Backup Now button row - the most recent completed backup for
+  ANY remote, computed from the real dated backup folders on disk (same `listBackups`
+  data the "Backed Up" dropdown already fetches, so no extra request). Stays accurate
+  independent of the Backup Status table below it, which only ever reflects the most
+  recent RUN's remotes and gets cleared at the start of the next one.
 - **Changed:** the Backup Status table's State column now highlights "Error" with the
   same yellow badge box Config's "Not seen in N days" uses, instead of plain text -
   easier to spot at a glance in a table full of "Done"/"Running"/etc. labels.
