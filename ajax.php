@@ -1653,7 +1653,14 @@ switch ($action) {
             'lowSpaceEstimatedBytes' => isset($settings['lowSpaceEstimatedBytes']) ? $settings['lowSpaceEstimatedBytes'] : null,
             'lowSpaceAvailableBytes' => isset($settings['lowSpaceAvailableBytes']) ? $settings['lowSpaceAvailableBytes'] : null,
             'lastScheduledPlayOutcome' => isset($settings['lastScheduledPlayOutcome']) ? $settings['lastScheduledPlayOutcome'] : null,
-            'lastScheduledRunErrors' => isset($settings['lastScheduledRunErrors']) ? $settings['lastScheduledRunErrors'] : null
+            'lastScheduledRunErrors' => isset($settings['lastScheduledRunErrors']) ? $settings['lastScheduledRunErrors'] : null,
+            // Set by run_backup.sh's record_last_backup_completed() once a
+            // real (non-dry) run finishes with at least one remote actually
+            // done - explicit bookkeeping rather than inferring it from a
+            // backup folder's own mtime, which only reflects entries being
+            // added/removed directly inside it, not a file several levels
+            // deep (a typical FPP media tree) getting updated in place.
+            'lastBackupCompletedAt' => isset($settings['lastBackupCompletedAt']) ? $settings['lastBackupCompletedAt'] : null
         ]);
         break;
     }
