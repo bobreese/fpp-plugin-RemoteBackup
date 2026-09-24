@@ -356,6 +356,36 @@ record_scheduled_run_errors() {
     rb_set_setting_json '.lastScheduledRunErrors' "$record"
 }
 
+# record_last_backup_completed: persists the true completion time of the
+# most recent REAL backup, read directly by the Status page's "Last Backup"
+# summary line instead of inferring it from a backup folder's own mtime.
+# That inference turned out to be unreliable: a directory's mtime only
+# advances when its own immediate entries are added/removed/renamed, not
+# when a file several levels deep inside it (a typical FPP media tree) gets
+# updated in place - so a real backup that only touched existing nested
+# files left the top-level folder's mtime stuck at whenever it was last
+# structurally changed, which could be well before the run that actually
+# just synced its content. Reported in the wild as a backup that ran at
+# 6:23am still showing "Last Backup: ...6:17 AM". Explicit bookkeeping
+# sidesteps the whole mtime-semantics question entirely.
+#
+# Skipped for a dry run (nothing was actually backed up) and when no remote
+# in THIS run finished done/done-with-warnings (nothing to record - an
+# all-error or all-skipped run must never advance this). Called once after
+# every remote has already finished and been wait()ed on, same as
+# record_scheduled_run_errors above - a single sequential write, so unlike
+# each remote's own per-remote status write (which happens in parallel
+# subprocesses), there's no read-modify-write race on settings.json here.
+record_last_backup_completed() {
+    [ "$DRYRUN" = "1" ] && return 0
+    local latest
+    latest=$(jq -s --arg run "$RUN_ID" \
+        '[.[] | select(.runId == $run and (.state == "done" or .state == "done-with-warnings")) | .finishedAt] | sort | last // empty' \
+        "${STATUS_DIR}"/*.json 2>/dev/null)
+    [ -z "$latest" ] || [ "$latest" = "null" ] && return 0
+    rb_set_setting_json '.lastBackupCompletedAt' "$latest"
+}
+
 # --- Remote-playing check before starting a real run ---------------------
 # Pulling media off a device's SD card while its own fppd is actively
 # reading those same files for playback risks stutters/dropped frames
@@ -1333,6 +1363,7 @@ wait
 rm -f "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 
 record_scheduled_run_errors
+record_last_backup_completed
 rb_send_run_summary_email
 
 echo '{"active": false}' > "${DATA_DIR}/run_active.json"

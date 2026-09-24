@@ -574,6 +574,21 @@ $rbPlugin = basename(__DIR__);
         return d.toLocaleString();
     }
 
+    // res.lastBackupCompletedAt is set server-side by run_backup.sh's
+    // record_last_backup_completed() once a real (non-dry) run finishes
+    // with at least one remote actually done - explicit bookkeeping,
+    // not inferred from a backup folder's own mtime (which only reflects
+    // entries added/removed directly inside it, not a file several levels
+    // deep - a typical FPP media tree - getting updated in place, so a
+    // real backup that only touched existing nested files could leave a
+    // folder's own mtime stuck well before when it actually last ran).
+    function renderLastBackupSummary(res) {
+        var el = document.getElementById('rb-lastBackup');
+        if (!el) return;
+        el.textContent = res.lastBackupCompletedAt ?
+            ('Last Backup: ' + formatLocalTime(res.lastBackupCompletedAt)) : 'Last Backup: never';
+    }
+
     var STATE_LABEL = {
         queued: 'Queued', running: 'Running', done: 'Done',
         'dry-run-complete': 'Dry Run Complete', error: 'Error', skipped: 'Skipped (playing)',
@@ -815,6 +830,7 @@ $rbPlugin = basename(__DIR__);
     function poll() {
         api('status').then(function (res) {
             if (res.ok) renderStatus(res);
+            if (res.ok) renderLastBackupSummary(res);
             if (res.ok) rbHandleDestinationStatus(res);
             if (res.ok) rbHandleLowSpaceStatus(res);
             if (res.ok) rbHandlePlayOutcomeStatus(res);
@@ -1274,35 +1290,14 @@ $rbPlugin = basename(__DIR__);
         return yyyymmdd.slice(0, 4) + '-' + yyyymmdd.slice(4, 6) + '-' + yyyymmdd.slice(6, 8);
     }
 
-    // Latest mtime across every real dated backup folder on disk (same
-    // listBackups data this function already fetches for the "Backed Up"
-    // dropdown - reusing it here instead of a second round-trip). Reflects
-    // the most recent completed backup for ANY remote, regardless of which
-    // one, and survives independently of the Backup Status table below
-    // (which only ever shows the most recent RUN's remotes, cleared at the
-    // start of the next one) - so this stays accurate even right after a
-    // fresh run starts and wipes that table.
-    function renderLastBackupSummary(backups) {
-        var el = document.getElementById('rb-lastBackup');
-        if (!el) return;
-        var latest = null;
-        (backups || []).forEach(function (b) {
-            if (!b.mtime) return;
-            var t = new Date(b.mtime).getTime();
-            if (!isNaN(t) && (!latest || t > latest)) latest = t;
-        });
-        el.textContent = latest ? ('Last Backup: ' + new Date(latest).toLocaleString()) : 'Last Backup: never';
-    }
-
     function loadBackedUpList(keepSelection) {
         var sel = document.getElementById('rb-backedup-select');
         var prev = keepSelection ? sel.value : '';
         fetch(AJAX + 'listBackups').then(function (r) { return r.text(); }).then(function (txt) {
             var data;
-            try { data = JSON.parse(txt); } catch (e) { sel.innerHTML = '<option value="">(error loading list)</option>'; document.getElementById('rb-lastBackup').textContent = 'Last Backup: (error loading)'; return; }
-            if (!data.ok) { sel.innerHTML = '<option value="">(' + (data.error || 'error') + ')</option>'; document.getElementById('rb-lastBackup').textContent = 'Last Backup: (error loading)'; return; }
+            try { data = JSON.parse(txt); } catch (e) { sel.innerHTML = '<option value="">(error loading list)</option>'; return; }
+            if (!data.ok) { sel.innerHTML = '<option value="">(' + (data.error || 'error') + ')</option>'; return; }
             var backups = data.backups || [];
-            renderLastBackupSummary(backups);
             if (!backups.length) {
                 sel.innerHTML = '<option value="">(no backups yet)</option>';
                 document.getElementById('rb-backedup-info').style.display = 'none';
@@ -1324,7 +1319,6 @@ $rbPlugin = basename(__DIR__);
             }
         }).catch(function () {
             sel.innerHTML = '<option value="">(request failed)</option>';
-            document.getElementById('rb-lastBackup').textContent = 'Last Backup: (request failed)';
         });
     }
 

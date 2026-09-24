@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Status page's "Last Backup" line (see below) could show a stale,
+  earlier time even right after a real backup just finished - reported in the wild: a
+  backup ran at 6:23am but it still showed 6:17 AM. Root cause: it was computed from a
+  backup folder's own directory mtime, which only advances when entries are
+  added/removed/renamed directly inside it - not when a file several levels deep (a
+  typical FPP media tree) gets updated in place, which is exactly what most daily runs
+  actually do. `run_backup.sh` now explicitly records the true completion time
+  (`lastBackupCompletedAt` in `settings.json`, written once a real run finishes with at
+  least one remote actually done) instead of inferring it from the filesystem.
 - **Added:** a "Last Backup: <date> - <time>" line on the Status page, right below the
   Dry Run/Start Backup/Backup Now button row - the most recent completed backup for
   ANY remote, computed from the real dated backup folders on disk (same `listBackups`
