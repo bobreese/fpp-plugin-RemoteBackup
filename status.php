@@ -73,6 +73,7 @@ $rbPlugin = basename(__DIR__);
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-backedup-refresh" title="Rescan storage">&#8635;</button>
             </div>
         </div>
+        <div class="p-2 text-muted" id="rb-lastBackup" style="font-size:0.9em;">Last Backup: (loading...)</div>
         <div class="p-2 text-muted" id="rb-dest-storage" style="font-size:0.9em;">Host storage: (loading...)</div>
         <div class="p-2 border-top" id="rb-backedup-info" style="display:none; margin-top:4px;"></div>
     </fieldset>
@@ -1273,14 +1274,35 @@ $rbPlugin = basename(__DIR__);
         return yyyymmdd.slice(0, 4) + '-' + yyyymmdd.slice(4, 6) + '-' + yyyymmdd.slice(6, 8);
     }
 
+    // Latest mtime across every real dated backup folder on disk (same
+    // listBackups data this function already fetches for the "Backed Up"
+    // dropdown - reusing it here instead of a second round-trip). Reflects
+    // the most recent completed backup for ANY remote, regardless of which
+    // one, and survives independently of the Backup Status table below
+    // (which only ever shows the most recent RUN's remotes, cleared at the
+    // start of the next one) - so this stays accurate even right after a
+    // fresh run starts and wipes that table.
+    function renderLastBackupSummary(backups) {
+        var el = document.getElementById('rb-lastBackup');
+        if (!el) return;
+        var latest = null;
+        (backups || []).forEach(function (b) {
+            if (!b.mtime) return;
+            var t = new Date(b.mtime).getTime();
+            if (!isNaN(t) && (!latest || t > latest)) latest = t;
+        });
+        el.textContent = latest ? ('Last Backup: ' + new Date(latest).toLocaleString()) : 'Last Backup: never';
+    }
+
     function loadBackedUpList(keepSelection) {
         var sel = document.getElementById('rb-backedup-select');
         var prev = keepSelection ? sel.value : '';
         fetch(AJAX + 'listBackups').then(function (r) { return r.text(); }).then(function (txt) {
             var data;
-            try { data = JSON.parse(txt); } catch (e) { sel.innerHTML = '<option value="">(error loading list)</option>'; return; }
-            if (!data.ok) { sel.innerHTML = '<option value="">(' + (data.error || 'error') + ')</option>'; return; }
+            try { data = JSON.parse(txt); } catch (e) { sel.innerHTML = '<option value="">(error loading list)</option>'; document.getElementById('rb-lastBackup').textContent = 'Last Backup: (error loading)'; return; }
+            if (!data.ok) { sel.innerHTML = '<option value="">(' + (data.error || 'error') + ')</option>'; document.getElementById('rb-lastBackup').textContent = 'Last Backup: (error loading)'; return; }
             var backups = data.backups || [];
+            renderLastBackupSummary(backups);
             if (!backups.length) {
                 sel.innerHTML = '<option value="">(no backups yet)</option>';
                 document.getElementById('rb-backedup-info').style.display = 'none';
@@ -1302,6 +1324,7 @@ $rbPlugin = basename(__DIR__);
             }
         }).catch(function () {
             sel.innerHTML = '<option value="">(request failed)</option>';
+            document.getElementById('rb-lastBackup').textContent = 'Last Backup: (request failed)';
         });
     }
 
