@@ -5,6 +5,15 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** the Backup Status table could keep showing a remote as "Error" days
+  after it was unchecked and saved on Config - reported in the wild and confirmed
+  against logs: a remote's last run (before being deselected) had failed, and every
+  run since had been Scheduler-triggered, so its stale status file was never cleared.
+  `ajax.php`'s `start` action already clears stale `data/status/*.json` files before
+  a manually-triggered run (Dry Run/Start Backup/Backup Now), but a
+  Scheduler-triggered run calls `run_backup.sh` directly, bypassing that entirely.
+  `run_backup.sh` now clears them itself at the start of every run, covering both
+  trigger paths instead of just the UI one.
 - **Fixed:** the Status page's "Last Backup" line (see below) could show a stale,
   earlier time even right after a real backup just finished - reported in the wild: a
   backup ran at 6:23am but it still showed 6:17 AM. Root cause: it was computed from a
