@@ -626,6 +626,18 @@ fi
 
 rb_log "=== run start (dryRun=$DRYRUN runId=$RUN_ID remotes=$COUNT maxConcurrent=$MAX_CONCURRENT) ==="
 
+# Clear stale per-remote status files from any previous run so the Status
+# page's table doesn't keep showing a leftover for a remote that isn't
+# even selected anymore. ajax.php's 'start' action already does this for a
+# manually-triggered run (Dry Run/Start Backup/Backup Now), but a
+# Scheduler-triggered run calls this script directly, bypassing that
+# entirely - reported in the wild: a remote unchecked and saved on Config
+# still showed "Error" on the Status page days later, because every run
+# since had been Scheduler-triggered and none of them ever cleared its
+# last (stale, pre-uncheck) status file. Doing it here instead covers
+# every trigger path uniformly, not just the UI one.
+rm -f "${STATUS_DIR}"/*.json 2>/dev/null
+
 # Pre-write "queued" status for every remote so the UI shows the full
 # list immediately, even for ones waiting on the concurrency limit.
 echo "$REMOTES_JSON" | jq -c '.[]' | while read -r r; do
