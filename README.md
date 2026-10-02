@@ -5,6 +5,8 @@ pulling backups from one or more of your other FPP systems onto local storage.
 
 - Preview how much space a backup needs before it runs.
 - Schedule backups to happen on their own, or run one manually anytime.
+- Backups started from the Status page run as a background process on the Host —
+  navigating away or closing the browser tab doesn't stop them.
 - Optionally keep a second copy on another drive for extra safety.
 - Optional dated snapshot history per remote, with a configurable retention window,
   instead of just one rolling backup.
