@@ -29,6 +29,13 @@ than tagging releases, so this is a running list rather than versioned entries):
   data the "Backed Up" dropdown already fetches, so no extra request). Stays accurate
   independent of the Backup Status table below it, which only ever reflects the most
   recent RUN's remotes and gets cleared at the start of the next one.
+- **Added:** F1 help on the Config and Status pages, using FPP's own built-in
+  convention (`www/config.php` in FPP core looks for a page-specific
+  `help/<pagename>.php` per plugin page) rather than anything this plugin draws
+  itself - `help/config.php` and `help/status.php` both just reuse the existing,
+  comprehensive `help/help.php` content (one real source, not two to keep in sync),
+  so pressing F1 on either page now opens the real help page in FPP's own help
+  dialog, the same as any of FPP's own built-in pages.
 - **Changed:** the Backup Status table's State column now highlights "Error" with the
   same yellow badge box Config's "Not seen in N days" uses, instead of plain text -
   easier to spot at a glance in a table full of "Done"/"Running"/etc. labels.
