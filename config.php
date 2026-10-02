@@ -93,7 +93,8 @@ $rbPlugin = basename(__DIR__);
         <div class="p-2">
             <div class="callout callout-warning">
                 <strong>Important:</strong> Only <u>one</u> FPP system on your show network should have
-                Host Mode enabled. This system becomes the destination that pulls backups from the
+                Host Mode enabled.<br>
+                This system becomes the destination that pulls backups from the
                 others. Enabling Host Mode on more than one system will cause duplicate/competing
                 backups and is not supported.
             </div>
@@ -141,7 +142,8 @@ $rbPlugin = basename(__DIR__);
         <div class="p-2">
             <small class="text-muted">Optional - format/mount a second USB drive here, then use "Start Clone" on
                 the Status page to mirror everything on the primary destination above onto it (e.g. for an
-                occasional off-site or rotating spare copy). This is manual only - there's no Scheduler command
+                occasional off-site or rotating spare copy).<br>
+                This is manual only - there's no Scheduler command
                 for it, so it never runs unless you start it.</small><br><br>
             <button type="button" class="btn btn-secondary btn-sm" id="rb-refreshStorage2">Rescan Storage Devices</button>
             <div id="rb-storageList2" class="mt-2 fpp-backup-action-loading">Scanning...</div>
@@ -295,7 +297,8 @@ $rbPlugin = basename(__DIR__);
                     Every included run, regardless of outcome.</label><br>
                 <br>
                 <small>Dry Runs never send email, and a run refused only because another run was already in
-                    progress never does either - that's routine overlap, not a problem. A run's email lists every
+                    progress never does either - that's routine overlap, not a problem.<br>
+                    A run's email lists every
                     remote's own result. A run refused before any remote started (halted, no destination, low
                     space, etc.) counts as "failed" here and sends a short reason instead of a per-remote
                     list.</small>
