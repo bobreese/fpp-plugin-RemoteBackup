@@ -73,9 +73,9 @@ $rbPlugin = basename(__DIR__);
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-backedup-refresh" title="Rescan storage">&#8635;</button>
             </div>
         </div>
-        <div class="p-2 text-muted" id="rb-lastBackup" style="font-size:0.9em;">Last Backup: (loading...)</div>
-        <div class="p-2 text-muted" id="rb-dest-storage" style="font-size:0.9em;">Host storage: (loading...)</div>
-        <div class="p-2 border-top" id="rb-backedup-info" style="display:none; margin-top:4px;"></div>
+        <div class="p-1 text-muted" id="rb-lastBackup" style="font-size:0.9em;">Last Backup: (loading...)</div>
+        <div class="p-1 text-muted" id="rb-dest-storage" style="font-size:0.9em;">Host storage: (loading...)</div>
+        <div class="p-1 border-top" id="rb-backedup-info" style="display:none; margin-top:4px;"></div>
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2" id="rb-dryrun-panel" style="display:none;">
@@ -144,10 +144,13 @@ $rbPlugin = basename(__DIR__);
             <span id="rb-clone-msg" class="ms-2"></span>
             <div class="p-1 text-muted" id="rb-clone-secondary-storage" style="font-size:0.9em;">Secondary drive: (loading...)</div>
             <div id="rb-clone-progress" style="display:none;">
+                <div class="text-muted small" id="rb-clone-paths"></div>
                 <div style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="rb-clone-current"></div>
                 <div class="progress" style="height:1.2em;max-width:320px;">
                     <div class="progress-bar" role="progressbar" id="rb-clone-bar" style="width:0%;">0%</div>
                 </div>
+                <div class="text-muted small mt-1">Recently copied:</div>
+                <pre id="rb-clone-files" class="border rounded p-1 bg-body-tertiary" style="max-height:150px; max-width:480px; overflow-y:auto; font-size:0.8em; margin-bottom:0;"></pre>
             </div>
             <div id="rb-clone-result" class="mt-1"></div>
             <small class="text-muted">Mirrors everything on the primary destination onto the secondary drive
@@ -875,6 +878,58 @@ $rbPlugin = basename(__DIR__);
     // so a short-lived run still gets caught.
     var cloneJustStartedUntil = 0;
 
+    // Recently-copied file list, shown inline in the Clone Backups section
+    // while a clone is running - reuses the same clone.log data the
+    // Diagnostic Log's "clone.log (backup clone to second drive)" option
+    // already tails, rather than a second script-side mechanism. Only
+    // polls while a clone is actually active, independent of whatever the
+    // Diagnostic Log section below is set to show.
+    var cloneFilesTimer = null;
+    var CLONE_FILES_POLL_MS = 3000;
+
+    // Same filter clone_backups.sh's own currentFile extraction already
+    // uses server-side (grep -vE '%|to-chk=|sending incremental|^$') -
+    // progress2 updates and the file-list-building banner aren't real
+    // filenames, everything else rsync -v prints on its own line is.
+    function extractRecentCloneFiles (logContent) {
+        var lines = (logContent || '').split('\n');
+        var files = [];
+        for (var i = 0; i < lines.length; i++) {
+            var l = lines[i];
+            if (!l) continue;
+            if (l.indexOf('%') !== -1) continue;
+            if (l.indexOf('to-chk=') !== -1) continue;
+            if (l.indexOf('sending incremental') !== -1) continue;
+            files.push(l);
+        }
+        return files.slice(-20);
+    }
+
+    function pollCloneFiles () {
+        fetch(AJAX + 'getLog&which=clone').then(function (r) { return r.text(); }).then(function (txt) {
+            var data;
+            try { data = JSON.parse(txt); } catch (e) { return; }
+            if (!data.ok) return;
+            var el = document.getElementById('rb-clone-files');
+            if (!el) return;
+            var files = extractRecentCloneFiles(data.content);
+            el.textContent = files.length ? files.join('\n') : '(waiting for rsync to report file activity...)';
+            el.scrollTop = el.scrollHeight;
+        }).catch(function () { /* best-effort - next poll will retry */ });
+    }
+
+    function scheduleCloneFilesTail () {
+        if (cloneFilesTimer) { clearTimeout(cloneFilesTimer); cloneFilesTimer = null; }
+        cloneFilesTimer = setTimeout(function () {
+            pollCloneFiles();
+            scheduleCloneFilesTail();
+        }, CLONE_FILES_POLL_MS);
+    }
+
+    function stopCloneFilesTail () {
+        if (cloneFilesTimer) { clearTimeout(cloneFilesTimer); cloneFilesTimer = null; }
+    }
+
     function renderCloneStatus(res) {
         var secEl = document.getElementById('rb-clone-secondary-storage');
         var mounted = !!res.secondaryStorage;
@@ -901,6 +956,7 @@ $rbPlugin = basename(__DIR__);
         var resultEl = document.getElementById('rb-clone-result');
         if (res.active && c && c.state === 'running') {
             progress.style.display = '';
+            document.getElementById('rb-clone-paths').textContent = (c.source || '') + ' → ' + (c.dest || '');
             document.getElementById('rb-clone-current').textContent = c.currentFile || '';
             var bar = document.getElementById('rb-clone-bar');
             var pct2 = c.percent || 0;
@@ -908,7 +964,9 @@ $rbPlugin = basename(__DIR__);
             bar.textContent = pct2 + '%';
             bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
             resultEl.textContent = '';
+            if (!cloneFilesTimer) { pollCloneFiles(); scheduleCloneFilesTail(); }
         } else {
+            stopCloneFilesTail();
             progress.style.display = 'none';
             // "Clone started."/"Stopped." (set by the button click handlers
             // below) is only ever meant as immediate feedback for the

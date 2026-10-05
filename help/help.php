@@ -158,7 +158,9 @@ $rbPlugin = basename(dirname(__DIR__));
                 <li>Click <b>"Start Clone"</b> on the Status page, under the same-named section. Runs
                     <code>rsync --delete</code> from the whole primary destination to the secondary
                     drive in one pass - an exact mirror, so a backup you deleted from the primary is
-                    removed from the clone too. Progress shows live the same way a backup run does.</li>
+                    removed from the clone too. Progress shows live the same way a backup run does,
+                    along with the source/destination paths and a small scrolling list of the most
+                    recently copied files/folders.</li>
                 <li><b>Stop</b> cancels an in-progress clone like Stop cancels a backup run - whatever
                     already copied stays; just start it again later to finish catching up.</li>
             </ol>

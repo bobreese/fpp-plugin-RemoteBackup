@@ -223,7 +223,11 @@
   format/mount a second USB drive on the Config page, then click "Start Clone" on the
   Status page to mirror everything on the primary destination onto it in one pass
   (`rsync --delete`, so it always exactly matches the primary - a backup you deleted there
-  is removed from the clone too), for an occasional off-site or rotating spare copy. See
+  is removed from the clone too), for an occasional off-site or rotating spare copy. While
+  running, the Clone Backups section shows the source and destination directory paths plus
+  a small scrolling list of the most recently copied files/folders, built from the same
+  `clone.log` data the Diagnostic Log's own "clone.log" option already tails - no need to
+  switch the log dropdown just to see what's actively being copied. See
   [Setting up a USB backup drive / Cloning backups to a second
   drive](usb-drive-setup.md) for the step-by-step, and
   [Safe Guards](#clone-safety-checks) below for what stops it from running at the wrong
