@@ -73,9 +73,9 @@ $rbPlugin = basename(__DIR__);
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-backedup-refresh" title="Rescan storage">&#8635;</button>
             </div>
         </div>
-        <div class="p-2 text-muted" id="rb-lastBackup" style="font-size:0.9em;">Last Backup: (loading...)</div>
-        <div class="p-2 text-muted" id="rb-dest-storage" style="font-size:0.9em;">Host storage: (loading...)</div>
-        <div class="p-2 border-top" id="rb-backedup-info" style="display:none; margin-top:4px;"></div>
+        <div class="p-1 text-muted" id="rb-lastBackup" style="font-size:0.9em;">Last Backup: (loading...)</div>
+        <div class="p-1 text-muted" id="rb-dest-storage" style="font-size:0.9em;">Host storage: (loading...)</div>
+        <div class="p-1 border-top" id="rb-backedup-info" style="display:none; margin-top:4px;"></div>
     </fieldset>
 
     <fieldset class="border rounded p-2 mt-2" id="rb-dryrun-panel" style="display:none;">
