@@ -9,7 +9,7 @@ $rbPlugin = basename(__DIR__);
 <div class="mt-2" id="rb-status">
     <fieldset class="border rounded p-2">
         <legend>Remote Backup</legend>
-        <div class="p-2" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+        <div class="p-2" style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
             <div>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-dryrun">Dry Run (selected remotes)</button>
                 <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-dryrun" data-help-title="Dry Run" style="font-size:0.8em; cursor:help;"></i>
@@ -23,6 +23,11 @@ $rbPlugin = basename(__DIR__);
                 </select>
                 <button type="button" class="btn btn-outline-secondary btn-sm ms-1" id="rb-onedevice-start">Backup Now</button>
                 <i class="fas fa-question-circle fpp-help-popover ms-1" data-help-content="rb-help-onedevice" data-help-title="Backup Now (single device)" style="font-size:0.8em; cursor:help;"></i>
+                <label for="rb-backedup-select" class="ms-2 me-1"><b>Backed Up</b></label>
+                <select id="rb-backedup-select" style="min-width:220px;" class="d-inline-block">
+                    <option value="">(loading...)</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-backedup-refresh" title="Rescan storage">&#8635;</button>
                 <span id="rb-runMsg" class="ms-2"></span>
 
                 <div id="rb-help-dryrun" class="d-none">
@@ -64,13 +69,6 @@ $rbPlugin = basename(__DIR__);
                             Backup" runs and Scheduler-triggered backups.</p>
                     </div>
                 </div>
-            </div>
-            <div style="text-align:right;">
-                <label for="rb-backedup-select"><b>Backed Up</b></label><br>
-                <select id="rb-backedup-select" style="min-width:220px;">
-                    <option value="">(loading...)</option>
-                </select>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="rb-backedup-refresh" title="Rescan storage">&#8635;</button>
             </div>
         </div>
         <div class="p-1 text-muted" id="rb-lastBackup" style="font-size:0.9em;">Last Backup: (loading...)</div>

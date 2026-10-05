@@ -29,6 +29,9 @@ than tagging releases, so this is a running list rather than versioned entries):
   data the "Backed Up" dropdown already fetches, so no extra request). Stays accurate
   independent of the Backup Status table below it, which only ever reflects the most
   recent RUN's remotes and gets cleared at the start of the next one.
+- **Changed:** the "Backed Up" dropdown on the Status page now sits inline with the
+  Dry Run/Start Backup/Backup Now button row instead of floating in its own
+  right-aligned column - one row of controls instead of two separate blocks.
 - **Added:** the Clone Backups section on the Status page now shows the source and
   destination directory paths while a clone is running, plus a small scrolling list
   of the most recently copied files/folders - built from the same `clone.log` data
