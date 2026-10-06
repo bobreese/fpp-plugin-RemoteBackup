@@ -1099,6 +1099,7 @@ backup_one() {
     fi
 
     local total_size xfer_size num_files num_files_total total_files_line state
+    local item_errors=0
     # rsync's -h (human-readable, always passed - see the rsync invocation
     # above) makes --stats print sizes past ~1000 bytes as a decimal +
     # K/M/G/T suffix (e.g. "5.24M bytes") instead of plain digits, so the
@@ -1139,6 +1140,32 @@ backup_one() {
         # than lumped in with connection failures/permission problems.
         state="done-with-warnings"
         [ "$DRYRUN" = "1" ] && state="dry-run-complete"
+    elif [ "$rc" -eq 23 ]; then
+        # rsync's own documented meaning for exit code 23 is "Partial
+        # transfer due to error" - a broad bucket that covers everything
+        # from a single unreadable file up to a connection dying mid-
+        # transfer with most of the run never completing, so unlike 24
+        # above it can't be treated as uniformly harmless. Seen in the
+        # wild three times now, each a different third-party plugin
+        # leaving one file on the remote with permissions the SSH user
+        # can't read (fpp-plugin-EncoreRadio's .descriptions_json_sha256,
+        # fpp-after-hours' mpdOriginal.conf, fpp-FPPMon's
+        # credentials.json) - everything else in the run transferred
+        # normally each time, the same "mostly fine, one thing to know
+        # about" situation rc=24 already gets. Counting the individual
+        # per-item "rsync: ..." error lines (rather than trusting the
+        # exit code alone) distinguishes that case from a real failure: a
+        # handful of isolated unreadable files is a warning, but a large
+        # number (most of the transfer never actually happening) is still
+        # a real error, not something to quietly wave through.
+        item_errors=$(grep -cE '^rsync: ' "$logfile" 2>/dev/null)
+        [ -z "$item_errors" ] && item_errors=0
+        if [ "$item_errors" -gt 0 ] && [ "$item_errors" -le 10 ]; then
+            state="done-with-warnings"
+            [ "$DRYRUN" = "1" ] && state="dry-run-complete"
+        else
+            state="error"
+        fi
     else
         state="error"
     fi
@@ -1172,10 +1199,14 @@ backup_one() {
         log_lines=$(echo "$log_lines" | sed -E "s|${progress_re}||g")
         error_detail=$(echo "$log_lines" | grep -iE 'rsync error|rsync:|@ERROR|ssh:|Connection refused|No route to host|Could not resolve|Permission denied|Host key verification failed' | tail -3 | sed -E 's/^[[:space:]]+//' | tr '\n' ' | ')
         [ -z "$error_detail" ] && error_detail=$(echo "$log_lines" | tail -3 | sed -E 's/^[[:space:]]+//' | tr '\n' ' | ')
-    elif [ "$state" = "done-with-warnings" ]; then
+    elif [ "$state" = "done-with-warnings" ] && [ "$rc" -eq 24 ]; then
         local vanished
         vanished=$(grep '^file has vanished:' "$logfile" 2>/dev/null | sed 's/^file has vanished: //' | tr '\n' ' | ')
         error_detail="Some source files vanished mid-transfer (rc=24) - everything else copied normally. ${vanished}"
+    elif [ "$state" = "done-with-warnings" ] && [ "$rc" -eq 23 ]; then
+        local skipped
+        skipped=$(grep -E '^rsync: ' "$logfile" 2>/dev/null | sed -E 's/^rsync: //' | tail -10 | tr '\n' ' | ')
+        error_detail="${item_errors} file(s) on the remote could not be read (rc=23, likely a permissions issue with another plugin's file there) - everything else copied normally. ${skipped}"
     fi
 
     # --- Reconcile the backup folder itself against a failed run -----------

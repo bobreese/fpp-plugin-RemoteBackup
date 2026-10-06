@@ -29,6 +29,18 @@ than tagging releases, so this is a running list rather than versioned entries):
   data the "Backed Up" dropdown already fetches, so no extra request). Stays accurate
   independent of the Backup Status table below it, which only ever reflects the most
   recent RUN's remotes and gets cleared at the start of the next one.
+- **Changed:** a backup that fails with rsync exit code 23 ("partial transfer due to
+  error") no longer always gets marked a hard error/incomplete backup - seen in the
+  wild three separate times now, each a different third-party plugin leaving one file
+  on a remote with permissions the SSH user can't read (`fpp-plugin-EncoreRadio`'s
+  `.descriptions_json_sha256`, `fpp-after-hours`' `mpdOriginal.conf`, `fpp-FPPMon`'s
+  `credentials.json`), with everything else in the run transferring normally each
+  time. `run_backup.sh` now counts the individual per-item rsync error lines: 10 or
+  fewer (a small, isolated problem) is treated as `done-with-warnings` - same
+  "mostly fine, here's what to know" handling rsync's exit code 24 already gets -
+  while a larger number (most of the transfer genuinely failing) still gets a real
+  `error`, incomplete-backup marker included. Either way the specific unreadable
+  file(s) are named in the error detail, not just silently swallowed.
 - **Changed:** the "Backed Up" dropdown on the Status page now sits inline with the
   Dry Run/Start Backup/Backup Now button row instead of floating in its own
   right-aligned column - one row of controls instead of two separate blocks.
