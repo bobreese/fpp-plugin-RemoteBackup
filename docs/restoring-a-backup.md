@@ -52,8 +52,23 @@ A few things that apply either way:
   system config" is enabled) are deliberately packaged as `.tar.gz` files rather than
   plain folders, specifically so File Copy Restore's device browser doesn't mistake them
   for restorable show-content backups of their own - they aren't part of its file-level
-  restore either way. Extract those yourself (`tar xzf`) over SSH/SCP if you need the
-  original `/etc/fpp`, network config, or relocated log directory back.
+  restore either way (confirmed against FPP's own source: no `/etc/` path appears
+  anywhere in its backup/restore category list, so it has no restore handler for this
+  plugin-specific archive at all). Putting the content back is a manual step:
+  1. SSH into the system you're restoring (same one the archive is going onto).
+  2. `tar xzf system-config.tar.gz` from inside the backup folder - this extracts a
+     `system-config/` directory, with one entry per source path's own basename: `fpp/`
+     (was `/etc/fpp`), `hostname`, `hosts`, `timezone`, `network/`, `wpa_supplicant/`,
+     `dhcpcd.conf`, `netplan/`.
+  3. Copy whichever of those you actually need back to their real location under `/etc/`
+     - as root/sudo, since these are all root-owned system paths (e.g.
+     `sudo cp -a system-config/wpa_supplicant/* /etc/wpa_supplicant/` for WiFi, or
+     `sudo cp system-config/hostname /etc/hostname` for the hostname alone). Only copy
+     what you actually need restored - e.g. skip `hostname`/`hosts` entirely if you want
+     this rebuild to keep a different hostname than the original.
+  4. Reboot (or at minimum restart networking - `sudo systemctl restart networking`, or
+     `sudo systemctl restart dhcpcd`/`NetworkManager` depending on the image) for network
+     config changes to actually take effect.
 - Rolling mode (the default) only ever keeps each remote's most recent backup -
   restoring an older point in time requires Snapshot mode to have been enabled before
   that backup was made.
