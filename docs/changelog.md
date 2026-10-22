@@ -5,6 +5,12 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Docs:** [Restoring a Backup](restoring-a-backup.md) now spells out the manual
+  restore steps for `system-config.tar.gz` (SSH in, `tar xzf`, copy the extracted
+  files back to their real `/etc/` locations, then restart networking/reboot) -
+  confirmed against FPP's own backup/restore source that File Copy Restore has no
+  handler for this plugin-specific archive at all, so there was never going to be a
+  built-in restore path for it.
 - **Fixed:** the Backup Status table could keep showing a remote as "Error" days
   after it was unchecked and saved on Config - reported in the wild and confirmed
   against logs: a remote's last run (before being deselected) had failed, and every

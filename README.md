@@ -13,7 +13,12 @@ pulling backups from one or more of your other FPP systems onto local storage.
 - Optional post-run integrity check compares source and destination once more and
   flags anything that doesn't match.
 - Optionally back up system/network config alongside each remote's content, for a
-  full rebuild after a reflash.
+  full rebuild after a reflash — this reaches real OS-level files (`/etc/wpa_supplicant`,
+  `/etc/hostname`, `/etc/dhcpcd.conf`, `/etc/netplan`, etc.) that FPP's own native backup
+  has no equivalent for at all; everything FPP's own backup *does* cover (Channel
+  Inputs/Outputs, LED Panels, Virtual Display Map, Playlists/Schedule/Scripts, System
+  Settings, Network Settings, Virtual EEPROM, etc.) already lives under `/home/fpp/media/`
+  and is included in every Remote Backup run by default, system-config option or not.
 - Won't back up a system while it's playing a show, so playback is never put at risk.
 - Can back up a remote even if its fppd has crashed or stopped — connects over
   plain SSH, independent of FPP's own multisync discovery and rsync daemon, which
