@@ -128,7 +128,37 @@ mkdir -p "${PLUGINDIR}/data/status"
 mkdir -p "${PLUGINDIR}/data/logs"
 
 if [ ! -f "${PLUGINDIR}/data/settings.json" ]; then
-    cat > "${PLUGINDIR}/data/settings.json" << 'SETTINGSEOF'
+    # A real, confirmed incident (see rb_settings_checkpoint above): FPP's
+    # Plugin Manager does a full uninstall + reinstall for both "Reinstall"
+    # and an ordinary update, and uninstall deletes this plugin's entire
+    # directory - data/ included - so this branch runs on EVERY one of
+    # those, not just a first-ever install. Unconditionally writing the
+    # hardcoded defaults below here (as this used to do) silently threw
+    # away the user's real settings - remotes, SSH config, excludes, etc.
+    # - on every single update, even though a perfectly good copy already
+    # exists right where ajax.php's rb_settings_external_backup_path() /
+    # lib_common.sh's SETTINGS_EXTERNAL_BACKUP put it specifically to
+    # survive this. Those two only self-heal a live file that EXISTS but is
+    # empty/corrupt - by design, neither one invents/restores a file that's
+    # simply missing (see lib_common.sh's own comment on that) - which left
+    # the missing-entirely case, the one an uninstall+reinstall actually
+    # produces, as the one path nothing ever restored from backup on. Check
+    # both known backups (in-dir first, though it never survives a real
+    # uninstall since it lived inside the same now-deleted data/ - external
+    # second, which does) before ever falling back to hardcoded defaults.
+    RB_RESTORED_FROM=""
+    for RB_BAK in "${PLUGINDIR}/data/settings.json.bak" "/home/fpp/media/plugindata/fpp-plugin-RemoteBackup/settings.json.bak"; do
+        if [ -f "$RB_BAK" ] && jq -e . "$RB_BAK" >/dev/null 2>&1; then
+            cp "$RB_BAK" "${PLUGINDIR}/data/settings.json"
+            RB_RESTORED_FROM="$RB_BAK"
+            break
+        fi
+    done
+
+    if [ -n "$RB_RESTORED_FROM" ]; then
+        echo "data/settings.json was missing (uninstall/reinstall) - restored from $RB_RESTORED_FROM"
+    else
+        cat > "${PLUGINDIR}/data/settings.json" << 'SETTINGSEOF'
 {
     "hostModeEnabled": false,
     "destinationMount": "",
@@ -145,6 +175,7 @@ if [ ! -f "${PLUGINDIR}/data/settings.json" ]; then
     "onboardingTourEnabled": true
 }
 SETTINGSEOF
+    fi
 fi
 
 rb_settings_checkpoint "pre-chmod"

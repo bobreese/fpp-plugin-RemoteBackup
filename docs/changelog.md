@@ -5,6 +5,17 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** settings (remotes, SSH config, excludes, etc.) could be silently wiped
+  back to defaults every time the plugin was reinstalled or updated through FPP's
+  Plugin Manager - confirmed in the wild via `fpp_plugin_manager.log`: FPP does a full
+  uninstall + reinstall for both actions, which deletes this plugin's entire directory
+  (`data/settings.json` included), and `fpp_install.sh`'s own settings-seeding step
+  then unconditionally wrote fresh hardcoded defaults instead of ever checking the
+  external backup (`/home/fpp/media/plugindata/fpp-plugin-RemoteBackup/settings.json.bak`)
+  that `ajax.php`/`lib_common.sh` already keep in sync specifically to survive this -
+  neither of those self-heals the missing-entirely case by design, so nothing was
+  actually restoring from it. `fpp_install.sh` now checks both known backups and
+  restores from whichever is valid JSON before ever falling back to defaults.
 - **Docs:** [Restoring a Backup](restoring-a-backup.md) now spells out the manual
   restore steps for `system-config.tar.gz` (SSH in, `tar xzf`, copy the extracted
   files back to their real `/etc/` locations, then restart networking/reboot) -
