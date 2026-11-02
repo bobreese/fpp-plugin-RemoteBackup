@@ -5,6 +5,18 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** a rebuilt/reimaged remote's new SSH host key could keep failing every
+  backup/Push SSH Key attempt indefinitely ("REMOTE HOST IDENTIFICATION HAS CHANGED")
+  even though this plugin already auto-clears stale `known_hosts` entries before
+  connecting - root-caused in the wild: a single torn/truncated line elsewhere in
+  `known_hosts` (a scar from the exact pre-flock concurrent-write race already
+  described in this code's own comments, apparently predating that fix) made
+  `ssh-keygen -R` refuse to touch the file AT ALL, for ANY host, silently, since the
+  failure's own error output was being discarded. 10 straight identical failures were
+  confirmed on a real system before the actual cause - one bad line blocking every
+  future clear attempt - was found by hand. `rb_clear_stale_host_key()` now looks at
+  `ssh-keygen`'s own output, and when it reports a specific invalid line, removes just
+  that line and retries automatically instead of giving up silently.
 - **Fixed:** settings (remotes, SSH config, excludes, etc.) could be silently wiped
   back to defaults every time the plugin was reinstalled or updated through FPP's
   Plugin Manager - confirmed in the wild via `fpp_plugin_manager.log`: FPP does a full

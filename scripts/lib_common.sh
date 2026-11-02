@@ -547,12 +547,68 @@ rb_clear_stale_host_key() {
     local addr="$1" port="${2:-22}"
     (
         flock 7
-        ssh-keygen -R "$addr" >/dev/null 2>&1
+        rb_clear_stale_host_key_one "$addr"
         if [ -n "$port" ] && [ "$port" != "22" ]; then
-            ssh-keygen -R "[${addr}]:${port}" >/dev/null 2>&1
+            rb_clear_stale_host_key_one "[${addr}]:${port}"
         fi
     ) 7>"${DATA_DIR}/known_hosts.lock"
     return 0
+}
+
+# rb_clear_stale_host_key_one <pattern>: runs ssh-keygen -R for one host
+# pattern, now actually looking at its output rather than discarding it
+# (>/dev/null 2>&1, the original behavior) - a real incident showed why
+# that was dangerous: a torn/truncated line elsewhere in known_hosts (two
+# ssh-ed25519 entries jammed onto one line with no newline between them -
+# a scar from the exact pre-flock concurrent-write race this file's own
+# comments above describe, apparently predating that fix) made ssh-keygen
+# refuse to touch the file AT ALL, for ANY host, "Not replacing existing
+# known_hosts file because of errors" - not just a silent no-match, a hard
+# refusal. Discarding stderr meant this plugin's own "self-heal a rebuilt
+# remote" promise silently did nothing, over and over (confirmed: 10
+# straight identical failures across manual Push SSH Key retries and
+# scheduled runs) until someone dug through raw ssh-keygen output by hand.
+#
+# ssh-keygen's own error names the exact broken line ("<file>:<N>: invalid
+# line"), so once that specific failure is detected, this removes exactly
+# those line(s) and retries - mirroring the manual recovery (sed -i
+# '<N>d') that fixed it live - rather than leaving the whole known_hosts
+# file stuck for every future clear attempt. Bounded to a few passes in
+# case more than one line is bad; any other ssh-keygen failure (or still
+# being stuck after retrying) gets logged instead of silently swallowed,
+# so the next occurrence is a one-line log read, not another long dig.
+rb_clear_stale_host_key_one() {
+    local pattern="$1"
+    local err attempt bad_entries file line
+    for attempt in 1 2 3; do
+        err=$(ssh-keygen -R "$pattern" 2>&1)
+        [ $? -eq 0 ] && return 0
+
+        if ! echo "$err" | grep -qi "not a valid known_hosts file"; then
+            # Nothing matching $pattern is NOT an error (ssh-keygen -R
+            # exits 0 for that) - reaching here with a non-zero exit and a
+            # message that isn't the corrupt-file case is some other real
+            # failure (e.g. a permissions problem), worth logging once.
+            rb_log "rb_clear_stale_host_key: ssh-keygen -R '$pattern' failed: $(echo "$err" | tr '\n' ' ')"
+            return 1
+        fi
+
+        bad_entries=$(echo "$err" | grep -oE '.+:[0-9]+: invalid line')
+        if [ -z "$bad_entries" ]; then
+            rb_log "rb_clear_stale_host_key: known_hosts invalid but could not identify the bad line(s): $(echo "$err" | tr '\n' ' ')"
+            return 1
+        fi
+
+        file=$(echo "$bad_entries" | head -1 | sed -E 's/:[0-9]+: invalid line$//')
+        rb_log "rb_clear_stale_host_key: $file has corrupt line(s) blocking ALL known_hosts edits (even for unrelated hosts) - removing and retrying (attempt $attempt)"
+        # Highest line number first within this pass, so deleting one
+        # doesn't shift the still-pending line numbers of the others.
+        echo "$bad_entries" | grep -oE ':[0-9]+: invalid line' | grep -oE '[0-9]+' | sort -rn | while read -r line; do
+            sed -i "${line}d" "$file" 2>/dev/null
+        done
+    done
+    rb_log "rb_clear_stale_host_key: still could not repair known_hosts after $attempt attempts for '$pattern'"
+    return 1
 }
 
 # Bytes -> human readable, used only for logging (UI does its own formatting)
