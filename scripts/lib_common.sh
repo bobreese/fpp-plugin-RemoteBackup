@@ -157,7 +157,15 @@ rb_write_status() {
     local id="$1"
     local json="$2"
     local safe
-    safe=$(echo "$id" | tr -c 'A-Za-z0-9._-' '_')
+    # printf, not echo - echo appends a trailing newline, which is itself
+    # outside [A-Za-z0-9._-] and so got converted to a trailing "_" by
+    # tr, silently naming every status file "<id>_.json" instead of
+    # "<id>.json". Harmless today only because every reader globs
+    # STATUS_DIR/*.json and matches by the .id field INSIDE each file's
+    # JSON content, never by reconstructing this filename from a known
+    # id - found while building a script that (correctly) does the
+    # latter and got a mismatch.
+    safe=$(printf '%s' "$id" | tr -c 'A-Za-z0-9._-' '_')
     echo "$json" > "${STATUS_DIR}/${safe}.json.tmp" && mv "${STATUS_DIR}/${safe}.json.tmp" "${STATUS_DIR}/${safe}.json"
 }
 

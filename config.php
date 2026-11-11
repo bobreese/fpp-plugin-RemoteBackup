@@ -163,6 +163,13 @@ $rbPlugin = basename(__DIR__);
             <input id="rb-manualHost" placeholder="Hostname, e.g. Pi5" style="width:180px">
             <input id="rb-manualAddr" placeholder="IP Address" style="width:150px">
             <button type="button" class="btn btn-sm btn-secondary" id="rb-addManual">Add</button>
+            <hr>
+            <b>Purge all backups for a host</b> (cleans up every dated backup folder for one
+            name at once - useful after reimaging/renaming a remote, since this plugin tracks
+            each remote by its hostname text, so a rename leaves every one of the old name's
+            dated backups behind as orphans nothing else manages going forward):<br>
+            <select id="rb-purgeHostSelect" style="width:260px"><option value="">(loading backups...)</option></select>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="rb-purgeHostBtn" disabled>Purge All Backups...</button>
         </div>
     </fieldset>
 
@@ -1620,6 +1627,37 @@ $rbPlugin = basename(__DIR__);
         });
     }
 
+    // Populates the "Purge all backups for a host" dropdown from the same
+    // list_backups.sh scan above, grouped by id with a dated-folder count -
+    // deliberately every id found ON DISK, not just currently-configured/
+    // selected remotes, since the whole point is cleaning up a name that
+    // may no longer match any remote at all (e.g. after a reimage+rename,
+    // the old hostname's dated folders are real orphans this plugin's own
+    // remote list has no record of anymore).
+    function loadPurgeHostOptions() {
+        var sel = document.getElementById('rb-purgeHostSelect');
+        var btn = document.getElementById('rb-purgeHostBtn');
+        return api('listBackups').then(function (res) {
+            var counts = {};
+            if (res.ok && res.backups) {
+                res.backups.forEach(function (b) {
+                    counts[b.id] = (counts[b.id] || 0) + 1;
+                });
+            }
+            var ids = Object.keys(counts).sort();
+            sel.innerHTML = '';
+            if (!ids.length) {
+                sel.innerHTML = '<option value="">(no backups found)</option>';
+                btn.disabled = true;
+                return;
+            }
+            sel.innerHTML = '<option value="">(choose a host)</option>' + ids.map(function (id) {
+                return '<option value="' + id.replace(/"/g, '&quot;') + '">' + id + ' (' + counts[id] + ' backup' + (counts[id] === 1 ? '' : 's') + ')</option>';
+            }).join('');
+            btn.disabled = true;
+        });
+    }
+
     // Reflects the row checkboxes' actual state onto the "Select All"
     // header checkbox - fully checked only when every row is, fully
     // unchecked only when none are, indeterminate (the usual dashed-box
@@ -2084,6 +2122,7 @@ $rbPlugin = basename(__DIR__);
             state.remotes = state.settings.remotes || [];
             renderRemotes();
             loadLastBackupDates();
+            loadPurgeHostOptions();
             renderStorage();
             renderScheduleMasterSelect();
             // Auto-show the walkthrough exactly once, only for an install
@@ -2207,6 +2246,65 @@ $rbPlugin = basename(__DIR__);
                 }
             } else {
                 setScanError('rb-remoteList', res.error);
+            }
+        });
+    });
+
+    document.getElementById('rb-purgeHostSelect').addEventListener('change', function () {
+        document.getElementById('rb-purgeHostBtn').disabled = !this.value;
+    });
+
+    document.getElementById('rb-purgeHostBtn').addEventListener('click', function () {
+        var sel = document.getElementById('rb-purgeHostSelect');
+        var id = sel.value;
+        if (!id) return;
+        var label = sel.options[sel.selectedIndex].text;
+        var modalId = 'rb-purge-host-modal';
+        var bodyHtml =
+            '<div class="callout callout-danger mb-2">Delete EVERY dated backup folder for <code>' +
+            id.replace(/</g, '&lt;') + '</code> (' + label.replace(/</g, '&lt;') + ')? This cannot be undone.</div>' +
+            '<div class="small text-muted mb-2">If a secondary clone drive is configured, its copy of these ' +
+            'isn\'t touched right away - the next time you run Start Clone, its own mirroring (rsync --delete) ' +
+            'removes them there too automatically.</div>' +
+            '<div class="form-check">' +
+            '<input type="checkbox" id="rb-purge-host-confirm" class="form-check-input">' +
+            '<label class="form-check-label" for="rb-purge-host-confirm">Confirm the host name above, every backup for it is about to be deleted</label>' +
+            '</div>';
+        DoModalDialog({
+            id: modalId,
+            title: 'Purge All Backups',
+            class: 'modal-m',
+            backdrop: true,
+            body: bodyHtml,
+            buttons: {
+                Cancel: function () { CloseModalDialog(modalId); },
+                'Purge All': {
+                    class: 'btn-danger',
+                    click: function () {
+                        if (!document.getElementById('rb-purge-host-confirm').checked) {
+                            $.jGrowl('Confirm the host name first - aborted, nothing was deleted.', { life: 6000, themeState: 'danger' });
+                            return;
+                        }
+                        CloseModalDialog(modalId);
+                        var btn = document.getElementById('rb-purgeHostBtn');
+                        btn.disabled = true;
+                        btn.textContent = 'Purging...';
+                        api('purgeBackupsForId', {
+                            body: { id: id, confirm: 'I_UNDERSTAND_THIS_DELETES_ALL_BACKUPS_FOR_THIS_NAME' },
+                            timeoutMs: 120000
+                        }).then(function (res) {
+                            btn.textContent = 'Purge All Backups...';
+                            if (res.ok) {
+                                $.jGrowl('Purged ' + (res.deleted || []).length + ' backup folder(s) for ' + id + '.', { life: 6000, themeState: 'success' });
+                                loadPurgeHostOptions();
+                                loadLastBackupDates();
+                            } else {
+                                $.jGrowl('Purge failed: ' + (res.error || 'unknown error'), { life: 8000, themeState: 'danger' });
+                                btn.disabled = false;
+                            }
+                        });
+                    }
+                }
             }
         });
     });
