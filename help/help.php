@@ -36,6 +36,7 @@ $rbPlugin = basename(dirname(__DIR__));
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-restoring">Restoring a Backup</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-rescue">Rescuing a Failed Device</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-delete-handling">Delete Handling</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-removing-backups">Removing Old Backups</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-scheduling">Scheduling</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-email-updates">Email Status Updates</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-log-files">Log Files</a>
@@ -274,6 +275,31 @@ $rbPlugin = basename(dirname(__DIR__));
             "Delete files in the host backup that were removed on the remote" controls whether
             the backup is an exact mirror (<code>rsync --delete</code>) or simply accumulates files
             and never removes anything the remote no longer has, even after deletion there.
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-removing-backups">
+        <legend>Removing Old Backups</legend>
+        <div class="p-2">
+            Two separate ways to remove a backup once it's no longer needed, at two different
+            granularities - neither has an undo, and nothing is kept in a trash:
+            <ul class="mt-2">
+                <li><b>One dated folder at a time</b> - the Status page's "Backed Up" dropdown has a
+                    <b>Delete This Backup</b> button that removes exactly the one folder selected,
+                    after a confirmation naming it and its size.</li>
+                <li><b>Every dated folder for one hostname at once</b> - the Config page's "Remote
+                    Systems to Back Up" section has a <b>Purge all backups for a host</b> dropdown,
+                    listing every hostname that actually has backups on the destination storage (not
+                    just currently-configured remotes, so a name that's no longer backed up at all
+                    still shows up). This exists specifically because this plugin identifies a remote
+                    by its hostname text, not a stable ID - reimaging and renaming a remote starts a
+                    brand-new backup series under the new name and leaves every one of the old name's
+                    dated folders behind as orphans nothing else manages, so cleaning those up used to
+                    mean deleting them one at a time instead.</li>
+            </ul>
+            Either way, a configured secondary clone drive isn't touched right away - its own copy
+            catches up automatically (<code>rsync --delete</code>) the next time <b>Start Clone</b>
+            runs, same as it does for any other change on the primary.
         </div>
     </fieldset>
 

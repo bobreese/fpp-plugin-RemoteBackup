@@ -219,6 +219,19 @@
   the space actually went without walking the whole tree by hand. See
   [Safe Guards](#deleting-a-backup-requires-an-explicit-confirmation) below for what stops
   a delete from that same panel from being an accidental click.
+- **Purge all backups for a host.** The Config page's "Remote Systems to Back Up" section
+  has a dropdown listing every hostname that actually has backups on the destination
+  storage - not just currently-configured/selected remotes, so a name no longer backed up
+  at all still shows up - with a count of how many dated folders each one has. Purging one
+  deletes every one of that hostname's dated backup folders in a single action, instead of
+  one "Backed Up" selection at a time. Useful specifically because this plugin identifies
+  a remote by its hostname text, not a stable ID: reimaging and renaming a remote starts a
+  brand-new backup series under the new name and leaves every one of the old name's dated
+  folders behind as orphans nothing else manages going forward. See
+  [Safe Guards](#purging-all-backups-for-a-host-requires-an-explicit-confirmation) below
+  for what stops this from being an accidental click, and note it only ever touches the
+  primary destination - a configured secondary clone drive catches up automatically
+  (`rsync --delete`) the next time Start Clone runs.
 - **Clone backups to a second drive.** Optional and manual only (no Scheduler command) -
   format/mount a second USB drive on the Config page, then click "Start Clone" on the
   Status page to mirror everything on the primary destination onto it in one pass
@@ -460,6 +473,20 @@ there in the dialog, so retyping it doesn't add a real extra safety check the sa
 deliberate read-and-tick already provides. There's no undo and nothing kept in a trash -
 once confirmed, the folder is gone, so this confirmation step is the only thing standing
 between a click and losing that backup.
+
+[↑ Back to Safe Guards list](#safe-guards)
+
+### Purging all backups for a host requires an explicit confirmation
+
+The same checkbox-confirm pattern as the single-folder delete above, scaled to match the
+bigger blast radius: clicking **Purge All Backups...** on the Config page opens a dialog
+naming the exact hostname about to be purged, with a checkbox - **Confirm the host name
+above, every backup for it is about to be deleted** - that has to be ticked before the
+Purge All button does anything. Also refuses outright (with a clear error, not a silent
+no-op) if a backup run is currently in progress, since a bulk purge covers every dated
+folder for that name at once, including - if that remote happens to be mid-run right
+now - the one a backup is actively writing into. As with a single delete, there's no undo
+and nothing kept in a trash.
 
 [↑ Back to Safe Guards list](#safe-guards)
 
