@@ -5,6 +5,22 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a "Purge all backups for a host" dropdown on the Config page, under
+  Remote Systems to Back Up - deletes every dated backup folder for one hostname in
+  one action, instead of one "Backed Up" dropdown selection at a time. Built this
+  because this plugin identifies each remote by its hostname text, not a stable ID -
+  reimaging and renaming a remote (confirmed in the wild) leaves every one of its old
+  name's dated backups behind as orphans nothing else manages, since the next backup
+  starts a brand-new series under the new name. Lists every hostname actually found on
+  disk (not just currently-configured remotes) so a truly orphaned name still shows up.
+  Primary-destination-only by design - a configured secondary clone drive already
+  mirrors this automatically (`rsync --delete`) the next time Start Clone runs, same as
+  any single-folder delete already does today. Also fixes a latent, harmless-until-now
+  bug found while building this: `rb_write_status()`'s status-file naming appended a
+  stray trailing underscore to every id (e.g. `Pi3Test_.json` instead of
+  `Pi3Test.json`) because of how `echo | tr` handles the trailing newline - invisible
+  until something needed to reconstruct that filename directly instead of just globbing
+  and reading each file's own `.id` field.
 - **Fixed:** a rebuilt/reimaged remote's new SSH host key could keep failing every
   backup/Push SSH Key attempt indefinitely ("REMOTE HOST IDENTIFICATION HAS CHANGED")
   even though this plugin already auto-clears stale `known_hosts` entries before

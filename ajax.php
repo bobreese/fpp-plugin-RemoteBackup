@@ -951,6 +951,32 @@ switch ($action) {
         break;
     }
 
+    case 'purgeBackupsForId': {
+        if ($method !== 'POST') rb_fail('POST required');
+        $body = rb_json_body();
+        $id = isset($body['id']) ? $body['id'] : '';
+        $confirm = isset($body['confirm']) ? $body['confirm'] : '';
+        if (!$id) rb_fail('id required');
+        if ($confirm !== 'I_UNDERSTAND_THIS_DELETES_ALL_BACKUPS_FOR_THIS_NAME') rb_fail('Missing confirmation');
+
+        // A bulk purge can delete many dated folders in one pass,
+        // including - if this id's remote happens to be mid-run right
+        // now - the very folder a backup is actively writing into.
+        // deleteBackup (a single, already-known-static older folder) has
+        // never needed this guard, but a bulk purge is a bigger blast
+        // radius, so refuse outright rather than race an active run.
+        if (rb_is_active("$DATA_DIR/run_active.json")) {
+            rb_fail('A backup run is currently in progress. Wait for it to finish before purging backups.', 409);
+        }
+
+        rb_log_line("PURGE BACKUPS requested id=$id");
+        $out = rb_run("$SCRIPTS_DIR/purge_backups_for_id.sh", [$id, $confirm], 120);
+        $data = json_decode((string)$out, true);
+        if (!$data) $data = ['ok' => false, 'error' => 'No response from purge_backups_for_id.sh - see data/logs/ajax.log'];
+        echo json_encode($data);
+        break;
+    }
+
     case 'loadSettings': {
         // settingsFileExisted: whether settings.json was already on disk
         // BEFORE this load - the most reliable "has this install ever
