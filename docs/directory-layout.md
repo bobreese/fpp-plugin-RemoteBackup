@@ -30,6 +30,8 @@ fpp-plugin-RemoteBackup/
     list_backups.sh           enumerates existing backups for the Status page's "Backed Up" dropdown
     get_backup_info.sh        size/file-count/contents for one backup selected from that dropdown
     delete_backup.sh          deletes one specific backup folder, with its own independent safety checks
+    purge_backups_for_id.sh   deletes EVERY dated backup folder for one hostname at once, from the
+                               Config page's "Purge all backups for a host" dropdown
     prune_snapshots.sh        prunes every remote's dated snapshots to just the newest, when Snapshot
                                Mode is turned off and the Config popup's "Prune to Latest Only" is chosen
     prune_snapshot_history.sh applies the configured snapshotRetentionDays age-based
