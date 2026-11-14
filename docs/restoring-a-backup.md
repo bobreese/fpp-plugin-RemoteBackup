@@ -69,6 +69,15 @@ A few things that apply either way:
   4. Reboot (or at minimum restart networking - `sudo systemctl restart networking`, or
      `sudo systemctl restart dhcpcd`/`NetworkManager` depending on the image) for network
      config changes to actually take effect.
+- On FPP 10.4 and later, checking **Configuration** on a restore offers a
+  "Configuration:" dropdown of individual settings areas - including "Show Setup
+  (Playlists, Schedule, Scripts)" - instead of being all-or-nothing. That means you can
+  now restore just the Schedule (or just Playlists, or just Network, etc.) from one of
+  this plugin's backups without also overwriting the destination's hostname/network/other
+  settings the way a full Configuration restore would. No extra step on this plugin's
+  side - its backups are already plain copies of the usual `settings`/`config/`/
+  `playlists/`/`scripts/` layout, which is all the per-area picker reads. On FPP versions
+  before 10.4, Configuration is still all-or-nothing.
 - Rolling mode (the default) only ever keeps each remote's most recent backup -
   restoring an older point in time requires Snapshot mode to have been enabled before
   that backup was made.

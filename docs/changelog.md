@@ -5,6 +5,17 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Docs:** [Restoring a Backup](restoring-a-backup.md) and the in-app F1 help now note
+  that FPP 10.4 added a per-area restore picker to File Copy Restore - checking
+  Configuration on a restore now offers a dropdown (including "Show Setup (Playlists,
+  Schedule, Scripts)") instead of being all-or-nothing, so the Schedule alone can be
+  restored without also overwriting the destination's hostname/network/other settings.
+  Confirmed directly against FPP core's `v10.4` branch (`www/backup.php`,
+  `www/copystorage.php`, `scripts/copy_settings_to_storage.sh`) - works against this
+  plugin's backups with no changes needed on its side, since the per-area picker just
+  reads the same plain `settings`/`config/`/`playlists`/`scripts` layout this plugin's
+  backups already are.
+
 - **Added:** a "Purge all backups for a host" dropdown on the Config page, under
   Remote Systems to Back Up - deletes every dated backup folder for one hostname in
   one action, instead of one "Backed Up" dropdown selection at a time. Built this

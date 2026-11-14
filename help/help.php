@@ -224,6 +224,12 @@ $rbPlugin = basename(dirname(__DIR__));
                     pick that remote's own folder.</li>
                 <li>Rolling mode only keeps each remote's most recent backup; restoring an older date
                     needs Snapshot mode to have been on at the time.</li>
+                <li>On FPP 10.4+, checking Configuration on a restore offers a per-area dropdown
+                    (including "Show Setup (Playlists, Schedule, Scripts)") instead of being
+                    all-or-nothing - you can restore just the Schedule without overwriting the
+                    destination's hostname/network/other settings too. Works against this plugin's
+                    backups with no extra steps, since they're already a plain copy of the same
+                    settings/config/playlists/scripts layout the per-area picker reads.</li>
                 <li>The <code>system-config.tar.gz</code>/<code>system-logs.tar.gz</code> archives
                     (if "Include system config" was enabled) aren't part of File Copy Restore -
                     extract those yourself with <code>tar xzf</code> over SSH if you need them.</li>
