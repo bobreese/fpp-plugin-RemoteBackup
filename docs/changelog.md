@@ -5,6 +5,20 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Docs:** re-evaluated [Replacing FPP's Native Backup: A Readiness Assessment
+  ](backup-replacement-assessment.md) against roughly two and a half months and 50+
+  merged changes since its last revision. Removed the "Explicitly Beta" finding (#3) -
+  real field use across 20-30 remotes, actual hardware failures, an FPP OS upgrade
+  (10.3 → 10.4), and a device reimage/rename, with every reported issue diagnosed and
+  fixed, is a real track record, not a version-number milestone. Explicitly does NOT
+  claim "bug-free": finding #9 now names two genuinely significant, field-reported bugs
+  closed in that window (the settings-wipe-on-reinstall bug and the known_hosts
+  corruption that silently broke the stale-host-key self-heal) rather than folding them
+  quietly into "more of the same." Finding #1 narrowed on the restore side only, given
+  FPP 10.4's new per-area restore picker (see below). Findings #2, #4, #5, #6 unchanged -
+  confirmed, not assumed, each still open. The narrower "replacing just File Copy Backup"
+  verdict is now a stronger, non-provisional recommendation once finding #4 (protect the
+  Host itself) gets a real answer, which still hasn't moved at all.
 - **Docs:** [Restoring a Backup](restoring-a-backup.md) and the in-app F1 help now note
   that FPP 10.4 added a per-area restore picker to File Copy Restore - checking
   Configuration on a restore now offers a dropdown (including "Show Setup (Playlists,
