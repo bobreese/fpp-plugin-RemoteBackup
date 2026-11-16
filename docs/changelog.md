@@ -5,6 +5,26 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a Dry Run or backup that fails because a remote rejects this Host's current
+  SSH key (`Permission denied (publickey` - never pushed, or removed/overwritten on the
+  remote since) now auto-pushes the key, using whatever default password is configured,
+  and retries once on its own - for every path through `run_backup.sh` (scheduled, Dry
+  Run/Start Backup, Backup Now), not just one of them. Distinct from the existing
+  `rb_clear_stale_host_key()` handling, which is about a stale entry on *this Host's*
+  side (`known_hosts`); this is about the *remote* not trusting our key at all. If the
+  retry also fails (most often because the remote's real password differs from the
+  configured default), the normal error is reported and "Push SSH Key" on Config remains
+  the manual fallback, same as before. Meaningfully narrows [Recovering a Lost
+  Host](host-recovery.md)'s own procedure: a replacement Host's brand-new keypair now
+  gets pushed to most remotes automatically on the first Dry Run, rather than one manual
+  click per remote. Verified with a standalone harness (mocked `ssh_setup.sh`/`rsync`)
+  against three cases: key-rejected-then-repush-succeeds (retries and succeeds),
+  key-rejected-then-repush-also-fails (reports the original failure, doesn't swallow
+  it), and an unrelated failure like a connection timeout (never triggers a repush at
+  all). Updated [Replacing FPP's Native Backup: A Readiness
+  Assessment](backup-replacement-assessment.md)'s finding #4 and verdict sections, and
+  [Features & Safe Guards](features.md), to reflect this.
+
 - **Added:** every real backup run now writes `host-identity-backup.tar.gz` to the root
   of the destination storage - a redacted copy of this Host's own `settings.json` (every
   remote's hostname/address/selection, every other plugin option), with `sshPassword`

@@ -132,6 +132,19 @@
   plugin (i.e. shown somewhere on Config's remote list); a device never scanned or
   added at all still needs adding there first. Shows up in the same Backup Status
   table below, exactly like any other run.
+- **Automatic re-push and retry when a remote rejects the current key.** A Dry Run or
+  backup that fails specifically because the remote doesn't trust this Host's current
+  SSH key (never pushed, or removed/overwritten there since) is detected directly from
+  rsync's own `Permission denied (publickey` text - distinct from a stale *known_hosts*
+  entry on this Host's side, which `rb_clear_stale_host_key()` already clears before
+  every connection regardless. When detected, the key is pushed again automatically
+  (using whatever default password is configured, same as the very first push when a
+  remote's checkbox is first checked) and the attempt is retried once. If that retry
+  also fails - most often because the remote's real password differs from the
+  configured default - the normal error is reported and "Push SSH Key" on Config remains
+  the manual fallback, exactly as before this existed. Applies to every path through
+  `run_backup.sh` the same way - a scheduled run, a manual Dry Run/Start Backup, and
+  Backup Now all benefit, not just one of them.
 - **Live status window** showing per-remote state, current file, percent, bytes
   transferred, and destination folder, polled every 2 seconds while a run is active.
   Each remote's own run log (`data/logs/<id>-<timestamp>.log`, viewable from the Status
@@ -257,10 +270,12 @@
   every other plugin option), specifically so a replacement Host can restore it and skip
   reconfiguring the whole fleet from scratch if this Host is ever destroyed outright.
   Deliberately excludes this Host's SSH keypair and any configured default SSH
-  password - a replacement Host still generates its own fresh key and still needs one
-  "Push SSH Key" click per remote to re-authenticate, a smaller, bounded cost next to
-  what copying a private key onto a removable drive would risk if that drive were ever
-  lost. See [Recovering a Lost Host](host-recovery.md) for the full procedure.
+  password - a smaller, bounded cost next to what copying a private key onto a
+  removable drive would risk if that drive were ever lost. A replacement Host still
+  generates its own fresh key none of the remotes trust yet; the automatic re-push and
+  retry described above (not specific to host recovery, but especially relevant here)
+  handles most of re-establishing that trust without a per-remote click. See
+  [Recovering a Lost Host](host-recovery.md) for the full procedure.
 - **A floating Save Settings bar.** On by default - the Save button (with Status and the
   save result message alongside it) stays pinned to the bottom of the screen as you scroll
   through Config's fieldsets, instead of only being reachable at the very bottom of the

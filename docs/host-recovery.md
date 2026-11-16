@@ -64,28 +64,31 @@ any new install, and needs to re-authenticate to every remote as part of this pr
    configured on the old Host. If a default SSH password was configured, re-enter it in
    Config's SSH settings now - it was deliberately not included in the archive (see
    above).
-5. **Re-authenticate to every remote.** The new Host generated a brand-new SSH keypair
-   on install, which none of the remotes trust yet - the old Host's key is gone with it,
-   on purpose. Click **Push SSH Key** next to each remote (prompted for its password,
-   prefilled with whatever default you just re-entered, or FPP's factory default) to
-   push the new key. This is still one click per remote, same as it is for any single
-   remote today - this procedure speeds up getting the *list and configuration* of every
-   remote back, not this specific step.
-6. **Re-select the destination storage** under Config's Backup Destination Storage
+5. **Re-select the destination storage** under Config's Backup Destination Storage
    section (the same physical drive you just attached) and click **Save Settings**.
-7. **Confirm before trusting the schedule again.** Run a **Dry Run** on the Status page
-   first - it should reach every remote cleanly. Once that looks right, a manual **Start
-   Backup** and a check of the Status page's Backup Status table confirms real backups
-   are flowing before you rely on the Scheduler to pick it back up automatically.
+6. **Confirm before trusting the schedule again.** Run a **Dry Run** on the Status page.
+   The new Host generated a brand-new SSH keypair on install, which none of the remotes
+   trust yet - the old Host's key is gone with it, on purpose - but a failed connection
+   for exactly that reason now auto-pushes the new key (using the default password from
+   step 4) and retries once on its own, for every remote, with no per-remote click
+   needed in the common case. Once the Dry Run looks right, a manual **Start Backup**
+   and a check of the Status page's Backup Status table confirms real backups are
+   flowing before you rely on the Scheduler to pick it back up automatically.
+7. **Only if a remote still shows "key push failed" after that** - its actual password
+   differs from whatever default you entered in step 4 - click **Push SSH Key** next to
+   it on the Config page by hand, with that remote's real password.
 
 ## Limitations worth knowing
 
 - **Only as fresh as the last real run.** If settings changed and no real (non-dry-run)
   backup has completed since, the archive on the drive still reflects the *previous*
   configuration, not the change. A Dry Run alone does not refresh it.
-- **Doesn't restore the Host's identity, by design** - see above. Every remote needs a
-  fresh "Push SSH Key" click regardless of how current the archive is.
-- **Still manual, still one click per remote** - this procedure removes "remember and
-  re-enter every remote and every option from scratch," not "re-authenticate to each
-  one." For a large fleet, step 5 is still the part that scales with how many remotes
-  there are.
+- **Doesn't restore the Host's identity, by design** - see above. Every remote needs its
+  key re-pushed regardless of how current the archive is - usually automatic now (step
+  6), per remote by hand only as the fallback (step 7).
+- **The automatic re-push only works if the password you entered in step 4 is actually
+  correct for a given remote.** A remote using a genuinely different password than the
+  configured default still needs the manual fallback in step 7 - this procedure removes
+  "remember and re-enter every remote and every option from scratch," and removes most
+  of "re-authenticate to each one" too, but not the case where the default simply
+  doesn't apply to a particular remote.

@@ -134,11 +134,18 @@ Three FPP-side things are in scope for comparison:
      onto a removable destination drive would turn a lost/stolen drive into a working
      credential against every remote, not just exposed backup content (already true
      today) - a real escalation not worth accepting for this. A replacement Host still
-     generates a fresh keypair and still needs one "Push SSH Key" click per remote to
-     re-authenticate - this closes "remembering and re-entering every remote and every
-     option," not "re-establishing trust with each one," and the whole fleet's scheduled
-     backups are still down for however long that procedure takes to run through by
-     hand. That's a real, bounded improvement in recovery time, not operational
+     generates a fresh keypair none of the remotes trust yet - but a Dry Run or backup
+     that fails for exactly that reason (`Permission denied (publickey`, not the
+     separate stale-host-key case `rb_clear_stale_host_key` already covers) now
+     auto-pushes the key, using whatever default password is configured, and retries
+     once on its own, for every remote, with no per-remote click needed in the common
+     case. A manual "Push SSH Key" remains the fallback only for a remote whose real
+     password genuinely differs from that default. Together, this closes "remembering
+     and re-entering every remote and every option" and most of "re-establishing trust
+     with each one" - but the whole fleet's scheduled backups are still down for however
+     long it takes someone to actually run through the recovery procedure by hand, and
+     the auto-push still depends on the configured default password being right for a
+     given remote. That's a real, bounded improvement in recovery time, not operational
      continuity itself - the Host dying still stops everything until someone does this.
    - *To close it fully:* would require something this plugin doesn't have and may never
      want - a standby Host that can actually take over running scheduled backups, not
@@ -293,14 +300,18 @@ swap, and a stronger one than the previous revision of this document could hones
 claim** - the Beta caveat that previously qualified this verdict is gone, for the real
 reasons laid out in finding #3, and finding #4 (protect the Host itself) is narrower too
 now that a replacement Host can restore every remote and every setting from the
-destination drive itself instead of from memory - see [Recovering a Lost
-Host](host-recovery.md). **What hasn't changed: the Host dying still stops every
-remote's scheduled backup until someone actually carries that procedure out, by hand,
-one remote's SSH re-authentication at a time.** This is still a trade of one failure
-mode (forgot to click) for a different one (didn't notice the Host itself died, and it
-takes real manual work to recover from once noticed) - narrower than before, since that
-manual work is now a documented procedure instead of starting from nothing, but not
-eliminated, and not "obviously safer" in the way a true standby Host would be. Finding
+destination drive itself instead of from memory, and re-authenticate to most of them
+automatically on the first Dry Run rather than one manual click at a time - see
+[Recovering a Lost Host](host-recovery.md). **What hasn't changed: the Host dying still
+stops every remote's scheduled backup until someone actually carries that procedure out
+by hand** - narrower, now closer to "mount a drive, restore a file, run a Dry Run" than
+"reconstruct the whole fleet from memory and re-authenticate each one by hand," but a
+remote whose real password doesn't match the configured default still needs that manual
+click, and the outage still lasts until someone does any of this. This is still a trade
+of one failure mode (forgot to click) for a different one (didn't notice the Host
+itself died, and it takes real work to recover from once noticed) - smaller work than
+before, but not eliminated, and not "obviously safer" in the way a true standby Host
+would be. Finding
 #6 (alert on silent failure) continues toward an actual push notification rather than
 something you still have to go looking for, but hasn't gained a third mechanism since
 the last revision either.
@@ -308,9 +319,9 @@ the last revision either.
 Finding #4's narrowing is real but bounded - this narrower swap - Remote Backup in
 place of File Copy Backup specifically, config backup/restore left exactly as-is - is a
 reasonable recommendation today. Whether it's one you'd call fully settled still depends
-on how much an outage lasting "however long it takes to manually re-authenticate every
-remote on a replacement Host" matters for your specific show network, which is a
-judgment call this document can narrow but not make for you.
+on how much an outage lasting "however long it takes to attach a drive, restore
+settings.json, and run a Dry Run on a replacement Host" matters for your specific show
+network, which is a judgment call this document can narrow but not make for you.
 
 ## Revisiting this assessment
 

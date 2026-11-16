@@ -274,16 +274,20 @@ $rbPlugin = basename(dirname(__DIR__));
                     one.</li>
                 <li>Re-enter the default SSH password in Config if one was configured - it
                     wasn't included in the archive.</li>
-                <li>Click <b>Push SSH Key</b> next to each remote - the new Host generated its
-                    own fresh keypair, which none of them trust yet.</li>
                 <li>Re-select the destination storage and click <b>Save Settings</b>.</li>
-                <li>Dry Run first, then a manual Start Backup, before trusting the Scheduler
-                    with it again.</li>
+                <li>Dry Run first. The new Host generated its own fresh keypair, which none
+                    of the remotes trust yet - but a connection that fails for exactly that
+                    reason now auto-pushes the key and retries once on its own, for every
+                    remote, using the password from the step above. No per-remote click
+                    needed in the common case.</li>
+                <li>If a remote still shows "key push failed" after that - its real password
+                    differs from the default - click <b>Push SSH Key</b> next to it by hand,
+                    with that remote's actual password.</li>
+                <li>A manual Start Backup, then trusting the Scheduler with it again.</li>
             </ol>
             <div class="callout callout-info mb-0">
                 The archive is only as fresh as the last completed real (non-dry-run) run
-                before the Host went down, and re-authenticating is still one click per
-                remote. See
+                before the Host went down. See
                 <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/host-recovery.md" target="_blank" rel="noopener">Recovering a Lost Host</a>
                 for the full procedure.
             </div>
