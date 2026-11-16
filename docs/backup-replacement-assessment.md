@@ -117,21 +117,32 @@ Three FPP-side things are in scope for comparison:
      scheduled backup stops at once until the Host is repaired/replaced and
      reconfigured. The Host's own SSH keys and configuration aren't themselves backed up
      anywhere either.
-   - *Still fully open - not to be confused with a different fix that shipped nearby:*
-     this plugin's own settings now self-heal from an external backup copy if the
-     plugin itself is uninstalled/reinstalled on the *same, still-alive* Host (confirmed
-     working as intended via a real reinstall log). That's a genuinely different scenario
-     from the one this finding describes - it protects against losing settings to FPP's
-     own Plugin Manager doing an uninstall+reinstall, not against the Host itself being
-     destroyed - so it doesn't move this finding at all. A new Host still starts from
-     nothing: no settings, no SSH keypair, no selected remotes, unless those were backed
-     up somewhere else by hand.
-   - *To close it:* the operational-continuity half is the real open gap - a documented,
-     tested Host-recovery procedure at minimum; ideally the Host's own SSH keypair and
-     `data/settings.json` get folded into its own backup set automatically. The
-     data-loss half already has a real answer today, provided the second drive is
-     actually rotated off-site rather than left plugged in next to the primary the whole
-     time (which would just mean the same disaster takes out both).
+   - *Not to be confused with a different fix that shipped nearby:* this plugin's own
+     settings self-heal from an external backup copy if the plugin itself is
+     uninstalled/reinstalled on the *same, still-alive* Host (confirmed working as
+     intended via a real reinstall log). That's a genuinely different scenario from the
+     one this finding describes - it protects against losing settings to FPP's own
+     Plugin Manager doing an uninstall+reinstall, not against the Host itself being
+     destroyed - so on its own it didn't move this finding at all.
+   - *Narrowed (the operational-continuity half), deliberately not closed:* every real
+     backup run now writes a small, redacted copy of `settings.json` - every remote's
+     hostname/address/selection, every other plugin option - to the destination root as
+     `host-identity-backup.tar.gz`, specifically so a replacement Host can restore it and
+     skip reconfiguring the fleet from scratch. A documented, concrete recovery procedure
+     exists now too - see [Recovering a Lost Host](host-recovery.md). What this does
+     *not* do, on purpose: include the Host's own SSH keypair. Copying that private key
+     onto a removable destination drive would turn a lost/stolen drive into a working
+     credential against every remote, not just exposed backup content (already true
+     today) - a real escalation not worth accepting for this. A replacement Host still
+     generates a fresh keypair and still needs one "Push SSH Key" click per remote to
+     re-authenticate - this closes "remembering and re-entering every remote and every
+     option," not "re-establishing trust with each one," and the whole fleet's scheduled
+     backups are still down for however long that procedure takes to run through by
+     hand. That's a real, bounded improvement in recovery time, not operational
+     continuity itself - the Host dying still stops everything until someone does this.
+   - *To close it fully:* would require something this plugin doesn't have and may never
+     want - a standby Host that can actually take over running scheduled backups, not
+     just a faster way to reconfigure a replacement one by hand.
 5. **Every remote must be SSH-reachable from the Host.** A remote behind a firewall
    change, moved to a different VLAN, or with SSH locked down simply can't be backed up
    - there's no fallback path. FPP's native File Copy Backup runs locally on each
@@ -235,7 +246,8 @@ Remote Backup solves a real problem FPP's native tools don't touch: unattended,
 scheduled, centralized content backup across a whole MultiSync show. That's genuinely
 valuable and worth running today, alongside FPP's native tools, not instead of them.
 Removing the Beta label (finding #3) doesn't change that - findings #1, #2, #4, and #5
-were never about Beta status, and all four are still open.
+were never about Beta status, and all four are still open, even where #1 and #4 have
+each narrowed since.
 
 - **Keep FPP's native config backup and restore in the loop** - Remote Backup has no
   equivalent to FPP's own packaged settings-export artifact today, though FPP 10.4's
@@ -243,8 +255,10 @@ were never about Beta status, and all four are still open.
   straight out of a Remote Backup folder, which narrows the practical gap more than it
   might first appear.
 - **Don't treat it as the only copy** until the single-Host operational-continuity gap
-  (finding #4) has a real answer - the "it's Beta" reason to hold off is gone, but this
-  one isn't.
+  (finding #4) has a real answer - a documented recovery procedure now exists and
+  meaningfully shortens that recovery, but the Host dying still stops every remote's
+  scheduled backup until someone carries it out by hand. The "it's Beta" reason to hold
+  off is gone; this one is narrower than it was, not closed.
 - **The restore-path decision (#2) is the one that actually matters most** - everything
   else on this list is buildable; deciding whether Remote Backup should ever own restore
   is the real fork in the road.
@@ -277,18 +291,26 @@ upgrade, not a lateral move:
 **Verdict, updated: a net strengthening of FPP's overall backup story for this narrower
 swap, and a stronger one than the previous revision of this document could honestly
 claim** - the Beta caveat that previously qualified this verdict is gone, for the real
-reasons laid out in finding #3. What hasn't changed: **finding #4 (protect the Host
-itself) is still the one condition that actually matters here, and it hasn't moved at
-all.** Without it, this is still a trade of one failure mode (forgot to click) for a
-different one (didn't notice the Host itself died), which isn't obviously safer on its
-own - no amount of field-proven reliability on the Host that's running changes what
-happens when that Host is the one that fails. Finding #6 (alert on silent failure)
-continues toward an actual push notification rather than something you still have to go
-looking for, but hasn't gained a third mechanism since the last revision either.
+reasons laid out in finding #3, and finding #4 (protect the Host itself) is narrower too
+now that a replacement Host can restore every remote and every setting from the
+destination drive itself instead of from memory - see [Recovering a Lost
+Host](host-recovery.md). **What hasn't changed: the Host dying still stops every
+remote's scheduled backup until someone actually carries that procedure out, by hand,
+one remote's SSH re-authentication at a time.** This is still a trade of one failure
+mode (forgot to click) for a different one (didn't notice the Host itself died, and it
+takes real manual work to recover from once noticed) - narrower than before, since that
+manual work is now a documented procedure instead of starting from nothing, but not
+eliminated, and not "obviously safer" in the way a true standby Host would be. Finding
+#6 (alert on silent failure) continues toward an actual push notification rather than
+something you still have to go looking for, but hasn't gained a third mechanism since
+the last revision either.
 
-If finding #4 gets a real answer, this narrower swap - Remote Backup in place of File
-Copy Backup specifically, config backup/restore left exactly as-is - is a reasonable
-recommendation today, not a provisional one.
+Finding #4's narrowing is real but bounded - this narrower swap - Remote Backup in
+place of File Copy Backup specifically, config backup/restore left exactly as-is - is a
+reasonable recommendation today. Whether it's one you'd call fully settled still depends
+on how much an outage lasting "however long it takes to manually re-authenticate every
+remote on a replacement Host" matters for your specific show network, which is a
+judgment call this document can narrow but not make for you.
 
 ## Revisiting this assessment
 

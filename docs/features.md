@@ -251,6 +251,16 @@
   [Restoring a Backup](restoring-a-backup.md) for the full walkthrough, including why
   File Copy Restore's device browser shows a `/` and a `System Volume Information`
   folder, and why neither of those should ever be selected as the thing you're restoring.
+- **Recovering from a lost Host.** Every real backup run writes
+  `host-identity-backup.tar.gz` to the root of the destination storage - a small,
+  redacted copy of this Host's own settings (every remote's hostname/address/selection,
+  every other plugin option), specifically so a replacement Host can restore it and skip
+  reconfiguring the whole fleet from scratch if this Host is ever destroyed outright.
+  Deliberately excludes this Host's SSH keypair and any configured default SSH
+  password - a replacement Host still generates its own fresh key and still needs one
+  "Push SSH Key" click per remote to re-authenticate, a smaller, bounded cost next to
+  what copying a private key onto a removable drive would risk if that drive were ever
+  lost. See [Recovering a Lost Host](host-recovery.md) for the full procedure.
 - **A floating Save Settings bar.** On by default - the Save button (with Status and the
   save result message alongside it) stays pinned to the bottom of the screen as you scroll
   through Config's fieldsets, instead of only being reachable at the very bottom of the

@@ -5,6 +5,25 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** every real backup run now writes `host-identity-backup.tar.gz` to the root
+  of the destination storage - a redacted copy of this Host's own `settings.json` (every
+  remote's hostname/address/selection, every other plugin option), with `sshPassword`
+  stripped. Addresses readiness-assessment finding #4 ("one Host is a single point of
+  failure for everyone"): if this Host is destroyed outright, a replacement can restore
+  it and skip reconfiguring the whole fleet from scratch, instead of starting from
+  nothing. Deliberately does NOT include this Host's own SSH keypair - copying the
+  private key onto a removable destination drive would turn a lost/stolen drive into a
+  working credential against every remote's `authorized_keys`, not just exposed backup
+  content the way losing it already can today, a real escalation not worth the
+  convenience. A replacement Host still generates its own fresh keypair and still needs
+  one "Push SSH Key" click per remote. New [Recovering a Lost
+  Host](host-recovery.md) doc walks through the full procedure, also linked from the
+  in-app F1 help and [Features & Safe Guards](features.md). Updated the [readiness
+  assessment](backup-replacement-assessment.md)'s finding #4 and both verdict sections to
+  reflect this as a real, bounded narrowing - the Host dying still stops every remote's
+  scheduled backup until someone carries the procedure out by hand, one remote's
+  re-authentication at a time.
+
 - **Docs:** re-evaluated [Replacing FPP's Native Backup: A Readiness Assessment
   ](backup-replacement-assessment.md) against roughly two and a half months and 50+
   merged changes since its last revision. Removed the "Explicitly Beta" finding (#3) -

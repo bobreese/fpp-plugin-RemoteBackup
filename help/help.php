@@ -34,6 +34,7 @@ $rbPlugin = basename(dirname(__DIR__));
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-usb-drive">USB Backup Drive</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-cloning">Cloning Backups to a Second Drive</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-restoring">Restoring a Backup</a>
+                <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-host-recovery">Recovering a Lost Host</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-rescue">Rescuing a Failed Device</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-delete-handling">Delete Handling</a>
                 <a class="nav-link btn btn-sm btn-outline-secondary" href="#rb-help-removing-backups">Removing Old Backups</a>
@@ -240,6 +241,51 @@ $rbPlugin = basename(dirname(__DIR__));
                 check the Plugin Manager separately, before restoring your backup. See
                 <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/restoring-a-backup.md#after-a-fresh-sd-card-a-from-scratch-rebuild" target="_blank" rel="noopener">Restoring a Backup</a>
                 for the full version.
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-2 mt-2" id="rb-help-host-recovery">
+        <legend>Recovering a Lost Host</legend>
+        <div class="p-2">
+            This is about losing the <b>Backup Host itself</b> - not a remote - the system that
+            runs this plugin and does the pulling. If it's destroyed or stops booting, every
+            remote's scheduled backup stops at once until a replacement Host exists and is
+            reconfigured. Clone Backups can't help here either, since it also runs from that
+            same Host.
+            <p class="mt-2 mb-1">What makes recovery faster than starting from nothing: every
+                real backup run writes <code>host-identity-backup.tar.gz</code> to the root of
+                the destination storage - a redacted copy of this Host's own settings (every
+                remote's hostname/address/selection, every other option). It rides along
+                automatically; there's nothing to remember to do ahead of time.</p>
+            <p class="mb-1"><b>Deliberately NOT included:</b> this Host's own SSH keypair, or
+                any configured default SSH password. Copying the private key onto a removable
+                drive would mean a lost/stolen drive could actively authenticate against every
+                remote, not just expose old backup content the way losing it already can
+                today - not worth that for the convenience saved.</p>
+            <p class="mb-1"><b>On the replacement Host:</b></p>
+            <ol>
+                <li>Install FPP and this plugin fresh, same as any first-ever install.</li>
+                <li>Attach/mount the same destination drive (or the Clone Backups secondary
+                    drive) - it's recognized the same way on any FPP system.</li>
+                <li>Extract <code>host-identity-backup.tar.gz</code> from its root
+                    (<code>tar xzf</code>) and copy the resulting <code>settings.json</code>
+                    into this plugin's <code>data/</code> folder, replacing the fresh default
+                    one.</li>
+                <li>Re-enter the default SSH password in Config if one was configured - it
+                    wasn't included in the archive.</li>
+                <li>Click <b>Push SSH Key</b> next to each remote - the new Host generated its
+                    own fresh keypair, which none of them trust yet.</li>
+                <li>Re-select the destination storage and click <b>Save Settings</b>.</li>
+                <li>Dry Run first, then a manual Start Backup, before trusting the Scheduler
+                    with it again.</li>
+            </ol>
+            <div class="callout callout-info mb-0">
+                The archive is only as fresh as the last completed real (non-dry-run) run
+                before the Host went down, and re-authenticating is still one click per
+                remote. See
+                <a href="https://github.com/bobreese/fpp-plugin-RemoteBackup/blob/master/docs/host-recovery.md" target="_blank" rel="noopener">Recovering a Lost Host</a>
+                for the full procedure.
             </div>
         </div>
     </fieldset>
