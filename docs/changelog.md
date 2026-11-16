@@ -5,6 +5,22 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Docs:** [Troubleshooting](troubleshooting.md#the-push-reports-success-but-backups-still-fail-with-permission-denied-publickey)'s
+  existing "Permission denied (publickey)" entry predated the automatic key re-push and
+  retry feature and was now misleading (described a manual-only fix for exactly the case
+  that mechanism now tries first) - updated to explain it's now caught automatically
+  before ever reaching you, and that still seeing it means that automatic retry already
+  ran and also failed. Added a new entry, [What the automatic key re-push can and can't
+  fix, and the exit codes
+  involved](troubleshooting.md#what-the-automatic-key-re-push-can-and-cant-fix-and-the-exit-codes-involved),
+  listing every failure mode that never triggers it (a stale `known_hosts` entry,
+  unreachable remote, destination problems, a file-level permission error) versus one
+  that does but can still fail on its own (wrong/changed password, password auth
+  disabled on the remote, missing key files, a read-only remote filesystem), plus why
+  `255` is shared by all of the connection-level cases (OpenSSH's own `ssh` client exits
+  `255` for any pre-command error) and can't distinguish between them the way the log
+  text can.
+
 - **Added:** a Dry Run or backup that fails because a remote rejects this Host's current
   SSH key (`Permission denied (publickey` - never pushed, or removed/overwritten on the
   remote since) now auto-pushes the key, using whatever default password is configured,
