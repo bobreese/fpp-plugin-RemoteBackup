@@ -3,6 +3,7 @@
 [← Back to README](../README.md)
 
 - [SSH key failures](#ssh-key-failures)
+  - [What the automatic key re-push can and can't fix, and the exit codes involved](#what-the-automatic-key-re-push-can-and-cant-fix-and-the-exit-codes-involved)
   - ["key push failed - click 'Push SSH Key' to retry with a password"](#key-push-failed---click-push-ssh-key-to-retry-with-a-password)
   - ["sshpass is not installed on the Host."](#sshpass-is-not-installed-on-the-host)
   - ["No local SSH key found; re-run the plugin install script."](#no-local-ssh-key-found-re-run-the-plugin-install-script)
@@ -11,7 +12,6 @@
   - [Clock skew between the Host and a remote](#clock-skew-between-the-host-and-a-remote)
   - [A reimaged/rebuilt remote ("new SD/boot device")](#a-reimagedrebuilt-remote-new-sdboot-device)
   - [The push reports success, but backups still fail with "Permission denied (publickey)"](#the-push-reports-success-but-backups-still-fail-with-permission-denied-publickey)
-  - [What the automatic key re-push can and can't fix, and the exit codes involved](#what-the-automatic-key-re-push-can-and-cant-fix-and-the-exit-codes-involved)
 - [Backup Destination Missing](#backup-destination-missing)
   - [Plugging the drive back in doesn't automatically resolve this](#plugging-the-drive-back-in-doesnt-automatically-resolve-this)
 - [Backup Space Insufficient](#backup-space-insufficient)
@@ -28,6 +28,81 @@ key to it automatically in the background - see [How Remote Backup
 Works](how-it-works.md). This section covers what it looks like when that fails, and how
 to fix each case. All of this is handled by `scripts/ssh_setup.sh`, whether it's fired
 automatically on selection or manually via the "Push SSH Key" button.
+
+### What the automatic key re-push can and can't fix, and the exit codes involved
+
+A Dry Run or backup that fails because a remote rejects this Host's current SSH key
+(detected from the log text `Permission denied (publickey`) is handled automatically:
+`run_backup.sh` re-pushes the key itself (the same push "Push SSH Key" does, using
+whatever default password is configured) and retries the transfer once, before this
+ever reaches you as a failure - across every path through the script (a scheduled run,
+a manual Dry Run/Start Backup, or Backup Now). See ["The push reports success, but
+backups still fail with Permission denied
+(publickey)"](#the-push-reports-success-but-backups-still-fail-with-permission-denied-publickey)
+below for what it looks like when you still see that error afterward - this section is
+about exactly when that can happen, and when it can't.
+
+Only one retry is ever attempted, and only on that one specific signature in the log.
+Two different kinds of limits worth knowing apart: cases that never trigger it at all (a
+different problem, correctly left alone), and cases where it's attempted but fails on
+its own (reported honestly, not masked).
+
+**Never triggers an automatic retry - a different error entirely:**
+
+- **A stale `known_hosts` entry on the Host's side** (`REMOTE HOST IDENTIFICATION HAS
+  CHANGED`) - see [A reimaged/rebuilt remote](#a-reimagedrebuilt-remote-new-sdboot-device)
+  below. Already handled by a *different*, already-existing mechanism
+  (`rb_clear_stale_host_key()`, run before every connection), which this one doesn't
+  duplicate or replace.
+- **The remote is simply unreachable** - connection timed out, no route to host,
+  connection refused, a DNS failure. No key involved; re-pushing one wouldn't help.
+- **Destination-side problems** - the backup drive unmounted/disconnected, disk full on
+  the Host. Never reaches the SSH layer at all.
+- **The Host backing up itself** (shown as `local=1` in `engine.log`) - no SSH, no key,
+  not applicable.
+- **A file-level "Permission denied" during the transfer itself** - e.g. a root-owned
+  file on the remote rsync can't read. Different message (no `(publickey` suffix); a
+  repush wouldn't fix a file permission problem on the remote's filesystem anyway.
+
+**Does trigger an automatic retry, which then fails on its own** (the normal error is
+reported either way, exactly as it would have been without this feature):
+
+- **The remote's real password no longer matches the configured default** (or `falcon`)
+  - by far the most common case; see the password-mismatch guidance
+  [below](#key-push-failed---click-push-ssh-key-to-retry-with-a-password).
+- **Password authentication disabled on the remote's `sshd`.** Different from a wrong
+  password - even the *correct* one won't work if the server refuses that auth method
+  entirely (a common hardening step). No automatic or manual password-based push can fix
+  this; the key needs to get onto that remote by some other means (console access, an
+  already-trusted different key, etc.).
+- **The Host's own key files are missing** - see ["No local SSH key
+  found"](#no-local-ssh-key-found-re-run-the-plugin-install-script) below; there's
+  nothing to push.
+- **`sshpass` missing from the Host** - see
+  [below](#sshpass-is-not-installed-on-the-host).
+- **The remote's filesystem can't be written to** - read-only remount, disk full -
+  `authorized_keys` can't be appended even with the correct password.
+- **A firewall/fail2ban-style block** that kicked in from repeated failed attempts.
+  Reported as a connection-level failure on the retry, not an auth one.
+
+Either way, `engine.log` shows exactly what happened and why - look for a line like
+`<id>: auto key push failed - not retrying: <raw ssh_setup.sh output>`, which carries
+the same raw text/code described in [Key push failed
+(rc=N)](#key-push-failed-rcn-raw-ssh-output) below.
+
+**On exit codes specifically:** OpenSSH's own `ssh` client exits `255` for *any* error
+before the remote command runs - a rejected key, a stale host key, a timeout, a refused
+connection, all of it. Since the main backup/dry-run transfer uses `ssh` as rsync's
+transport, rsync inherits that same `255` whenever the ssh connection itself never came
+up, regardless of *which* of those caused it. That's precisely why `run_backup.sh`
+greps the log's actual text rather than branching on the exit code alone for this -
+`255` alone can't tell these cases apart; only the message can. Contrast that with `23`
+("Partial transfer due to error") and `24` ("Partial transfer due to vanished source
+files"), rsync's own documented meanings for a connection that *did* succeed but had
+individual files fail or disappear mid-transfer - see the comments in
+`scripts/run_backup.sh` for the full reasoning behind how each of those is classified.
+
+[↑ Back to top](#troubleshooting)
 
 ### "key push failed - click 'Push SSH Key' to retry with a password"
 
@@ -116,16 +191,11 @@ itself. The backup/dry-run connection (`scripts/run_backup.sh`) authenticates wi
 key only, no password fallback, so this means the key was never actually accepted by
 that remote despite what the Config page's status showed.
 
-**`run_backup.sh` now catches this itself first**, before it ever reaches you as a
-failure: on exactly this error text, it automatically re-pushes the key (the same push
-"Push SSH Key" does, using whatever default password is configured) and retries the
-transfer once, for every path through the script - a scheduled run, a manual Dry
-Run/Start Backup, or Backup Now. Confirmed working end to end on a real device: the
-whole detect-repush-retry sequence completes within a single Dry Run, with nothing
-manual needed. **If you're still seeing this error, that automatic retry already ran and
-also failed** - see the next entry below for exactly why that can happen and how to tell
-from the logs which case you're in. The permissions cause described below (an
-`authorized_keys` file `sshd` silently ignores for being too permissive, from a key
+**If you're seeing this, the automatic key re-push described
+[above](#what-the-automatic-key-re-push-can-and-cant-fix-and-the-exit-codes-involved)
+already ran and already failed** - that section covers exactly why that can happen and
+how to tell which case you're in from the logs. The permissions cause described below
+(an `authorized_keys` file `sshd` silently ignores for being too permissive, from a key
 copied there by `scp` or some other tool outside this plugin) is one specific reason the
 automatic retry itself can fail, not a reason it would be skipped.
 
@@ -138,69 +208,6 @@ the key was ever copied to that remote by some other means. Fix: click **Push SS
 by hand - same as the automatic retry already tried, but worth confirming directly, and
 this is where you'd notice if the permissions themselves are the actual blocker rather
 than the key or password.
-
-[↑ Back to top](#troubleshooting)
-
-### What the automatic key re-push can and can't fix, and the exit codes involved
-
-The automatic retry above only triggers on one very specific signature in the log -
-`Permission denied (publickey` - and only one retry is ever attempted. Two different
-kinds of limits worth knowing apart: cases that never trigger it at all (a different
-problem, correctly left alone), and cases where it's attempted but fails on its own
-(reported honestly, not masked, same as before this existed).
-
-**Never triggers an automatic retry - a different error entirely:**
-
-- **A stale `known_hosts` entry on the Host's side** (`REMOTE HOST IDENTIFICATION HAS
-  CHANGED`) - see [A reimaged/rebuilt remote](#a-reimagedrebuilt-remote-new-sdboot-device)
-  above. Already handled by a *different*, already-existing mechanism
-  (`rb_clear_stale_host_key()`, run before every connection), which this one doesn't
-  duplicate or replace.
-- **The remote is simply unreachable** - connection timed out, no route to host,
-  connection refused, a DNS failure. No key involved; re-pushing one wouldn't help.
-- **Destination-side problems** - the backup drive unmounted/disconnected, disk full on
-  the Host. Never reaches the SSH layer at all.
-- **The Host backing up itself** (shown as `local=1` in `engine.log`) - no SSH, no key,
-  not applicable.
-- **A file-level "Permission denied" during the transfer itself** - e.g. a root-owned
-  file on the remote rsync can't read. Different message (no `(publickey` suffix); a
-  repush wouldn't fix a file permission problem on the remote's filesystem anyway.
-
-**Does trigger an automatic retry, which then fails on its own** (the normal error is
-reported either way, exactly as it would have been without this feature):
-
-- **The remote's real password no longer matches the configured default** (or `falcon`)
-  - by far the most common case; see the password-mismatch guidance above.
-- **Password authentication disabled on the remote's `sshd`.** Different from a wrong
-  password - even the *correct* one won't work if the server refuses that auth method
-  entirely (a common hardening step). No automatic or manual password-based push can fix
-  this; the key needs to get onto that remote by some other means (console access, an
-  already-trusted different key, etc.).
-- **The Host's own key files are missing** - see ["No local SSH key
-  found"](#no-local-ssh-key-found-re-run-the-plugin-install-script) above; there's
-  nothing to push.
-- **`sshpass` missing from the Host** - see [above](#sshpass-is-not-installed-on-the-host).
-- **The remote's filesystem can't be written to** - read-only remount, disk full -
-  `authorized_keys` can't be appended even with the correct password.
-- **A firewall/fail2ban-style block** that kicked in from repeated failed attempts.
-  Reported as a connection-level failure on the retry, not an auth one.
-
-Either way, `engine.log` shows exactly what happened and why - look for a line like
-`<id>: auto key push failed - not retrying: <raw ssh_setup.sh output>`, which carries
-the same raw text/code described in [Key push failed
-(rc=N)](#key-push-failed-rcn-raw-ssh-output) above.
-
-**On exit codes specifically:** OpenSSH's own `ssh` client exits `255` for *any* error
-before the remote command runs - a rejected key, a stale host key, a timeout, a refused
-connection, all of it. Since the main backup/dry-run transfer uses `ssh` as rsync's
-transport, rsync inherits that same `255` whenever the ssh connection itself never came
-up, regardless of *which* of those caused it. That's precisely why `run_backup.sh`
-greps the log's actual text rather than branching on the exit code alone for this -
-`255` alone can't tell these cases apart; only the message can. Contrast that with `23`
-("Partial transfer due to error") and `24` ("Partial transfer due to vanished source
-files"), rsync's own documented meanings for a connection that *did* succeed but had
-individual files fail or disappear mid-transfer - see the comments in
-`scripts/run_backup.sh` for the full reasoning behind how each of those is classified.
 
 [↑ Back to top](#troubleshooting)
 
