@@ -386,6 +386,62 @@ record_last_backup_completed() {
     rb_set_setting_json '.lastBackupCompletedAt' "$latest"
 }
 
+# record_host_identity_backup: writes a small, redacted copy of this Host's
+# own settings.json (every remote's hostname/address/selection, plus every
+# other plugin option) to the destination root as host-identity-backup.tar.gz
+# - readiness-assessment finding #4 ("one Host is a single point of failure
+# for everyone"): if this Host dies outright, a replacement starts from
+# nothing today - every remote and every option has to be remembered and
+# re-entered by hand, one at a time. This rides along on every real run (the
+# destination survives Host death; Clone Backups already mirrors it onto the
+# second drive too) so a replacement Host can restore it straight into place
+# and skip re-configuring the fleet from scratch. See
+# docs/host-recovery.md for the actual recovery procedure.
+#
+# Deliberately does NOT include this Host's SSH keypair
+# (id_rsa_remotebackup/.pub) - that stays on the Host only. Copying the
+# private key onto a removable destination drive would turn a lost/stolen
+# drive into a working credential against every remote's authorized_keys,
+# not just exposed backup content (already true today, already disclosed in
+# this plugin's own privacy notes) - a real escalation, not just more data
+# at rest, for a convenience a fresh keypair + the existing one-click "Push
+# SSH Key" per remote (password already prefilled) already covers at an
+# acceptable cost. sshPassword is stripped from the copy for the same
+# reason - a configured default SSH password is weaker, but still a
+# credential, and this archive's whole point is surviving on a drive that
+# leaves the Host's own physical custody.
+#
+# A plain .tar.gz file at the destination ROOT, not a folder - like
+# system-config.tar.gz inside each remote's own folder, this keeps File Copy
+# Restore's device browser and this plugin's own list_backups.sh (which only
+# ever lists directories, named <id>-<date>) from mistaking it for a
+# restorable remote backup. Overwritten on every real run, so it's always
+# current; skipped for a dry run, same as every other destination write.
+record_host_identity_backup() {
+    [ "$DRYRUN" = "1" ] && return 0
+    rb_dest_mounted || return 0
+    [ -f "$SETTINGS_FILE" ] || return 0
+    [ -d "$DEST_ROOT" ] || return 0
+
+    local tmp_dir tmp_tar
+    tmp_dir=$(mktemp -d "${DATA_DIR}/tmp_host_identity_XXXXXX") || return 0
+    if ! jq 'del(.sshPassword)' "$SETTINGS_FILE" > "${tmp_dir}/settings.json" 2>/dev/null; then
+        rb_log "record_host_identity_backup: could not read/redact $SETTINGS_FILE - skipped"
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+
+    tmp_tar="${DEST_ROOT}/.tmp_host_identity_$$.tar.gz"
+    if tar -czf "$tmp_tar" -C "$tmp_dir" settings.json 2>/dev/null; then
+        mv -f "$tmp_tar" "${DEST_ROOT}/host-identity-backup.tar.gz"
+        chmod 0666 "${DEST_ROOT}/host-identity-backup.tar.gz" 2>/dev/null || true
+    else
+        rb_log "record_host_identity_backup: tar failed writing to $DEST_ROOT - skipped"
+        rm -f "$tmp_tar"
+    fi
+    rm -rf "$tmp_dir"
+}
+
 # --- Remote-playing check before starting a real run ---------------------
 # Pulling media off a device's SD card while its own fppd is actively
 # reading those same files for playback risks stutters/dropped frames
@@ -970,6 +1026,44 @@ backup_one() {
     local rc=$?
     rm -f "${PIDS_DIR}/${id}.pid"
 
+    # Our own key not being trusted yet (never pushed, or removed/
+    # overwritten on the remote since) is a DIFFERENT failure than
+    # rb_clear_stale_host_key above already handles - that's about the
+    # REMOTE's identity being stale in our known_hosts; this is about the
+    # remote rejecting OUR key. BatchMode=yes on $ssh_cmd means ssh never
+    # sits there prompting for a password on a public-key rejection - it
+    # fails immediately with this exact, specific text, so grepping for it
+    # can't mistake a merely-unreachable remote (wrong port, offline, no
+    # route) for this case. One auto-retry, using the same default/
+    # configured password "Push SSH Key" already falls back to - the exact
+    # same push this plugin already does with zero confirmation the first
+    # time a remote's checkbox is ticked on Config, just re-triggered here
+    # instead of requiring someone to notice the failure and click the
+    # button by hand (the scenario this closes most plainly: a replacement
+    # Host restored per docs/host-recovery.md has a brand-new key NONE of
+    # the remotes trust yet - every one of them would otherwise need that
+    # manual click before its first backup could succeed). Never retried
+    # more than this once: if the push itself fails (wrong/changed remote
+    # password, remote genuinely unreachable), $rc is left exactly as rsync
+    # first reported it and the normal error/email/popup path below reports
+    # the real failure - this never silently swallows one.
+    if [ "$rc" -ne 0 ] && [ "$is_host" != "1" ] && grep -q 'Permission denied (publickey' "$logfile" 2>/dev/null; then
+        local repush_pw repush_out
+        repush_pw=$(rb_setting '.sshPassword' '')
+        rb_log "$id: rsync failed (rc=$rc) - remote rejected our key (Permission denied (publickey)). Auto-pushing and retrying once."
+        repush_out=$(timeout --kill-after=5 20 bash "$(dirname "$0")/ssh_setup.sh" "$address" "$SSH_USER" "$SSH_PORT" "$repush_pw" 2>&1)
+        if echo "$repush_out" | jq -e '.ok == true' >/dev/null 2>&1; then
+            rb_log "$id: auto key push succeeded - retrying the transfer"
+            rsync -a -h -v --no-owner --no-group --stats --info=progress2 --outbuf=line --copy-links \
+                "${EXCLUDE_ARGS[@]}" "${host_exclude[@]}" "${extra[@]}" \
+                "${rsync_xport[@]}" "$src" "${target}/" > "$logfile" 2>&1
+            rc=$?
+            rb_log "$id: retry finished (rc=$rc)"
+        else
+            rb_log "$id: auto key push failed - not retrying: $(echo "$repush_out" | tr '\n' ' ')"
+        fi
+    fi
+
     # Extras only run after a successful main pull - if we couldn't even
     # get the show content, there's no point spending more time probing
     # this remote for logs/config too. Appended to the same logfile;
@@ -1407,6 +1501,7 @@ rm -f "${DATA_DIR}/.remotes_${RUN_ID}.jsonl"
 
 record_scheduled_run_errors
 record_last_backup_completed
+record_host_identity_backup
 rb_send_run_summary_email
 
 echo '{"active": false}' > "${DATA_DIR}/run_active.json"

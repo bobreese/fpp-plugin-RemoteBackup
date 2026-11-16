@@ -10,6 +10,14 @@ that role, revisited as the plugin matures. Each finding is rated by how much it
 actually block a "replace FPP's native tools" decision, not by how hard it would be to
 fix.
 
+**This revision removes the Beta label** (see finding #3) and reassesses every other
+finding against roughly two and a half months and 50+ merged changes of real field use
+since the previous revision - including actual GitHub issue reports from someone running
+this across 20-30 remotes, real hardware failures, an FPP OS version upgrade (10.3 →
+10.4), and a device reimage/rename, not just lab testing. That track record is why the
+Beta label comes off; it does not mean every other finding below moved, and a couple
+didn't move at all.
+
 Three FPP-side things are in scope for comparison:
 
 - **FPP's native `Backup/Restore Configuration`** - exports just FPP's own settings
@@ -42,28 +50,55 @@ Three FPP-side things are in scope for comparison:
    restore gap, one layer further down: getting it back onto a system means manually
    untarring the archive and copying files into place by hand - there's no guided restore
    for it from FPP or this plugin, only the raw material to do it yourself.
-   - *Severity worth reconsidering:* this is a real gap in convenience and portability,
-     not in whether the underlying settings data survives a disaster - meaningfully
-     narrower than "no equivalent... to config-only backup" originally implied. Whether
-     it still belongs in the Critical bucket is worth revisiting rather than assumed.
-   - *To close it:* a mode that calls FPP's own config-export mechanism on each remote
-     (if exposed over its API) and stores the result as a clearly separate, restorable
-     artifact matching FPP's own native format - not just relying on the raw files
-     already being swept up in the general pull.
+   - *Narrowed on the restore side, not the backup side:* FPP 10.4 added a per-area
+     restore picker to File Copy Restore itself - checking Configuration on a restore now
+     offers the same area list as the JSON settings restore (Channel Outputs, Show Setup/
+     Schedule, Network, etc.) instead of being all-or-nothing, and reads it straight out
+     of whichever folder is being restored, no special artifact required. Verified this
+     works against Remote Backup's own backups with zero changes needed on this plugin's
+     side, since they're already the plain `settings`/`config/`/`playlists`/`scripts`
+     layout that picker reads (see [Restoring a Backup](restoring-a-backup.md)). That
+     closes most of the practical gap this finding was really about - restoring just the
+     settings you need, without pulling in an unrelated system's hostname/network along
+     with it - through FPP's own tool rather than anything Remote Backup built. What's
+     still missing is the backup-side half: a portable, exportable single-file settings
+     artifact of its own, and any guided restore for the system-config `.tar.gz`
+     specifically (still a manual `tar xzf` either way).
+   - *To close the remaining half:* a mode that calls FPP's own config-export mechanism on
+     each remote (if exposed over its API) and stores the result as a clearly separate,
+     restorable artifact matching FPP's own native format - not just relying on the raw
+     files already being swept up in the general pull.
 2. **No restore path of its own.** By design, Remote Backup only pulls. Content restore
    is handed off entirely to FPP's native `File Copy Restore`; anything in a
    `system-config.tar.gz` has to be manually untarred and placed back by hand, with no
    guided flow at all.
+   - *Still fully open, architecturally unchanged:* FPP 10.4's per-area restore picker
+     (above) makes what you can restore *through FPP's own tool* better, but Remote
+     Backup itself still has no restore button, no "restore this remote" action anywhere
+     in its own UI. Whether that's actually a gap worth closing, or a deliberate and
+     correct division of labor, is still the real question - see the bottom line below.
    - *To close it:* the biggest architectural decision on this whole list - either
      accept that FPP's native restore stays in the loop permanently (in which case
      "replace" isn't really the right goal), or build and prove out a real restore path
      independent of it.
-3. **Explicitly Beta, with no fallback if it's the only copy.** Reasonable for a
-   complement running alongside native backup; a different risk entirely as someone's
-   sole backup mechanism, with zero redundancy if a bug in an actively-changing codebase
-   silently breaks a run.
-   - *To close it:* a real track record - enough time in the field, and enough of the
-     findings below closed, to drop the Beta label in good conscience.
+3. **~~Explicitly Beta, with no fallback if it's the only copy.~~ RESOLVED - Beta label
+   removed.** Reasonable for a complement running alongside native backup when this was
+   written; a different risk entirely as someone's sole backup mechanism, with zero
+   redundancy if a bug in an actively-changing codebase silently breaks a run - which was
+   the real concern behind the label, not the word itself.
+   - *What actually closed it:* roughly two and a half months and 50+ merged changes since
+     this assessment was last written, including genuine field use across 20-30 remotes,
+     real hardware failures (a failing primary drive, a clone drive that dropped off the
+     USB bus entirely), an FPP OS upgrade (10.3 → 10.4), and a device reimage/rename -
+     not just internal testing. Every issue reported from that use was diagnosed and
+     fixed, several within the same day reported. That's a real track record, not a
+     time-based or version-number milestone, which is why this is the one finding that
+     actually gets removed rather than narrowed.
+   - *What this does NOT mean - see finding #9:* "no longer Beta" is not "bug-free" or
+     "done finding bugs." Two of the issues closed in that window were genuinely
+     significant, field-reported, silently-destructive bugs (not cosmetic ones caught by
+     testing) - see finding #9 for why that's recorded honestly rather than folded quietly
+     into this finding's resolution.
 
 ### Significant - weaken the case for full replacement, matter more once it's the only backup
 
@@ -82,12 +117,39 @@ Three FPP-side things are in scope for comparison:
      scheduled backup stops at once until the Host is repaired/replaced and
      reconfigured. The Host's own SSH keys and configuration aren't themselves backed up
      anywhere either.
-   - *To close it:* the operational-continuity half is the real open gap - a documented,
-     tested Host-recovery procedure at minimum; ideally the Host's own SSH keypair and
-     `data/settings.json` get folded into its own backup set automatically. The
-     data-loss half already has a real answer today, provided the second drive is
-     actually rotated off-site rather than left plugged in next to the primary the whole
-     time (which would just mean the same disaster takes out both).
+   - *Not to be confused with a different fix that shipped nearby:* this plugin's own
+     settings self-heal from an external backup copy if the plugin itself is
+     uninstalled/reinstalled on the *same, still-alive* Host (confirmed working as
+     intended via a real reinstall log). That's a genuinely different scenario from the
+     one this finding describes - it protects against losing settings to FPP's own
+     Plugin Manager doing an uninstall+reinstall, not against the Host itself being
+     destroyed - so on its own it didn't move this finding at all.
+   - *Narrowed (the operational-continuity half), deliberately not closed:* every real
+     backup run now writes a small, redacted copy of `settings.json` - every remote's
+     hostname/address/selection, every other plugin option - to the destination root as
+     `host-identity-backup.tar.gz`, specifically so a replacement Host can restore it and
+     skip reconfiguring the fleet from scratch. A documented, concrete recovery procedure
+     exists now too - see [Recovering a Lost Host](host-recovery.md). What this does
+     *not* do, on purpose: include the Host's own SSH keypair. Copying that private key
+     onto a removable destination drive would turn a lost/stolen drive into a working
+     credential against every remote, not just exposed backup content (already true
+     today) - a real escalation not worth accepting for this. A replacement Host still
+     generates a fresh keypair none of the remotes trust yet - but a Dry Run or backup
+     that fails for exactly that reason (`Permission denied (publickey`, not the
+     separate stale-host-key case `rb_clear_stale_host_key` already covers) now
+     auto-pushes the key, using whatever default password is configured, and retries
+     once on its own, for every remote, with no per-remote click needed in the common
+     case. A manual "Push SSH Key" remains the fallback only for a remote whose real
+     password genuinely differs from that default. Together, this closes "remembering
+     and re-entering every remote and every option" and most of "re-establishing trust
+     with each one" - but the whole fleet's scheduled backups are still down for however
+     long it takes someone to actually run through the recovery procedure by hand, and
+     the auto-push still depends on the configured default password being right for a
+     given remote. That's a real, bounded improvement in recovery time, not operational
+     continuity itself - the Host dying still stops everything until someone does this.
+   - *To close it fully:* would require something this plugin doesn't have and may never
+     want - a standby Host that can actually take over running scheduled backups, not
+     just a faster way to reconfigure a replacement one by hand.
 5. **Every remote must be SSH-reachable from the Host.** A remote behind a firewall
    change, moved to a different VLAN, or with SSH locked down simply can't be backed up
    - there's no fallback path. FPP's native File Copy Backup runs locally on each
@@ -119,6 +181,9 @@ Three FPP-side things are in scope for comparison:
      narrows this finding along a different axis than the email summary does. Still
      pull-based, though - you have to open the page to see it - not a push notification
      reaching you anywhere else, so the finding isn't fully closed.
+   - *Unchanged since:* no actual push mechanism (webhook, mobile notification, etc.) has
+     shipped in the time since - still two independent pull-based mitigations, not a
+     push one.
 
 ### Minor - worth knowing, not blocking
 
@@ -148,34 +213,59 @@ Three FPP-side things are in scope for comparison:
      mount, another plugin's own entry). The narrower gap remains: nothing cleans these
      up between mount/unmount/reformat actions while the plugin stays installed, so up to
      three of the four can still accumulate day to day.
-9. **Still shaking out real bugs.** A 32-bit integer overflow in the free-space display
-   was found and fixed in this plugin's development - harmless (display-only, never
-   blocked an actual backup), but a sign the codebase is still maturing rather than
-   long-settled the way FPP's native tools are.
-   - *More of the same, since:* a single focused testing pass found and fixed roughly
-     seven more, most of them functional rather than cosmetic - a background convenience
-     script silently no-op'ing since it shipped (missing executable bit), an off-by-one in
-     snapshot retention, a bind-mount mountpoint shadow with two separate symptoms (the
-     Unmount/Re-format controls could vanish entirely, or a legitimate reformat could be
-     wrongly refused), a race condition that could incorrectly **Halt Backups** moments
-     after a successful reformat, a safety popup silently skipped depending on which
-     button triggered a destination change, and two uninstall-script gaps (wasted time on
-     remotes that never had a key pushed; backups on an unused fallback location invisible
-     to cleanup). None of these reached a real, unattended production failure - all were
-     caught by deliberate testing, not a report from the field - but the volume in a
-     single pass is worth recording as its own data point, not folded silently into the
-     one bug already listed here.
+   - *Still open (the sshKeyPath half):* confirmed still accurate as of this revision -
+     `fpp_uninstall.sh` still removes the keypair from a hardcoded path rather than
+     reading the `sshKeyPath` setting it accepts on save.
+9. **Still shaking out real bugs - and the ones found since are worth naming honestly,
+   not folded quietly into "more of the same."** The original entry here was a single
+   display-only integer overflow found during this plugin's own development, plus a
+   testing pass that caught roughly seven more, none of which reached a real, unattended
+   production failure. That framing doesn't fully hold for what's surfaced since:
+   - **Two field-reported bugs since were genuinely significant, not cosmetic.** A
+     reinstall/update (FPP's Plugin Manager does a full uninstall+reinstall for both)
+     could silently reset every setting - remotes, SSH config, excludes, all of it - back
+     to bare defaults on every single occurrence, discovered only because a real user
+     noticed their settings kept disappearing and reported it. Separately, a rebuilt
+     remote's new SSH host key could fail *every* backup/key-push attempt indefinitely
+     (confirmed: 10 straight identical failures on a real system) because a single
+     corrupted line elsewhere in `known_hosts` - itself a leftover scar from a
+     concurrency bug predating this plugin's own fix for it - made the self-heal silently
+     do nothing, discoverable only by a user willing to SSH in and read raw command
+     output by hand. Both are now fixed, and the second fix also makes the self-heal
+     actually log a real failure instead of swallowing it next time.
+   - **What's genuinely different now, and worth counting as the real maturity signal:**
+     not "no bugs found" - clearly untrue - but that the plugin has now been exercised
+     against failure modes a lab environment doesn't produce on its own: real hardware
+     dying mid-backup, an actual OS version upgrade, a device reimage/rename, and FPP's
+     own Plugin Manager's real uninstall+reinstall behavior - and every one of those,
+     plus every bug they exposed, got diagnosed from real logs and fixed. That's a
+     meaningfully different (and arguably better) kind of evidence than a clean lab
+     testing pass, but it is evidence of an actively-maintained, responsive codebase, not
+     one that's stopped surfacing issues.
+   - *To close it fully:* there's no real "done" state for this finding short of the
+     bug rate genuinely trailing off over a much longer window - which is itself just
+     more of the track record this revision is already crediting elsewhere. Treat this as
+     an ongoing data point to keep appending to, not a thing to mark resolved.
 
 ## Bottom line: not ready to replace - a strong complement today
 
 Remote Backup solves a real problem FPP's native tools don't touch: unattended,
 scheduled, centralized content backup across a whole MultiSync show. That's genuinely
 valuable and worth running today, alongside FPP's native tools, not instead of them.
+Removing the Beta label (finding #3) doesn't change that - findings #1, #2, #4, and #5
+were never about Beta status, and all four are still open, even where #1 and #4 have
+each narrowed since.
 
 - **Keep FPP's native config backup and restore in the loop** - Remote Backup has no
-  equivalent to either one today.
-- **Don't treat it as the only copy** until it's out of Beta and the single-Host failure
-  mode has a real answer.
+  equivalent to FPP's own packaged settings-export artifact today, though FPP 10.4's
+  per-area restore picker (finding #1) now lets you restore just one settings area
+  straight out of a Remote Backup folder, which narrows the practical gap more than it
+  might first appear.
+- **Don't treat it as the only copy** until the single-Host operational-continuity gap
+  (finding #4) has a real answer - a documented recovery procedure now exists and
+  meaningfully shortens that recovery, but the Host dying still stops every remote's
+  scheduled backup until someone carries it out by hand. The "it's Beta" reason to hold
+  off is gone; this one is narrower than it was, not closed.
 - **The restore-path decision (#2) is the one that actually matters most** - everything
   else on this list is buildable; deciding whether Remote Backup should ever own restore
   is the real fork in the road.
@@ -186,12 +276,13 @@ A different, smaller question worth separating out: not "replace everything," bu
 specifically swapping FPP's native `File Copy Backup` for Remote Backup, while leaving
 config backup and restore native either way.
 
-That reframing removes two of the three Critical findings above - they're about config
-backup and restore, and neither is in scope for this narrower swap. Restore is
-unaffected: Remote Backup already formats destinations the same way File Copy Backup
+That reframing removes two of the three original Critical findings above - they're
+about config backup and restore, and neither is in scope for this narrower swap. Restore
+is unaffected: Remote Backup already formats destinations the same way File Copy Backup
 would, producing the same `<Hostname>-<date>` folder layout File Copy Restore expects,
 so restoring content Remote Backup pulled is no different from restoring content File
-Copy Backup produced.
+Copy Backup produced - and, per finding #1, restoring just one settings area from it now
+works too, on FPP 10.4+.
 
 On the one job both tools actually share - backing up content - Remote Backup is a real
 upgrade, not a lateral move:
@@ -204,16 +295,33 @@ upgrade, not a lateral move:
 - Delete-mirroring keeps the backup from silently accumulating stale content
   indefinitely, if wanted.
 
-The honest cost: swapping a simple, dependency-free, long-proven manual process for a
-more capable but Beta, automated one that concentrates risk into a single Host and its
-SSH access to everything. **Verdict: a net strengthening of FPP's overall backup story
-for this narrower swap - provided finding #4 (protect the Host itself) gets a real
-answer, and finding #6 (alert on silent failure), now narrowed twice by two independent
-shipped mechanisms, continues toward an actual push notification rather than something
-you still have to go looking for.** #4 hasn't moved at all - it remains the one that
-actually matters here. Without it, this is still a trade of one failure mode (forgot to
-click) for a different one (didn't notice the Host itself died), which isn't obviously
-safer on its own.
+**Verdict, updated: a net strengthening of FPP's overall backup story for this narrower
+swap, and a stronger one than the previous revision of this document could honestly
+claim** - the Beta caveat that previously qualified this verdict is gone, for the real
+reasons laid out in finding #3, and finding #4 (protect the Host itself) is narrower too
+now that a replacement Host can restore every remote and every setting from the
+destination drive itself instead of from memory, and re-authenticate to most of them
+automatically on the first Dry Run rather than one manual click at a time - see
+[Recovering a Lost Host](host-recovery.md). **What hasn't changed: the Host dying still
+stops every remote's scheduled backup until someone actually carries that procedure out
+by hand** - narrower, now closer to "mount a drive, restore a file, run a Dry Run" than
+"reconstruct the whole fleet from memory and re-authenticate each one by hand," but a
+remote whose real password doesn't match the configured default still needs that manual
+click, and the outage still lasts until someone does any of this. This is still a trade
+of one failure mode (forgot to click) for a different one (didn't notice the Host
+itself died, and it takes real work to recover from once noticed) - smaller work than
+before, but not eliminated, and not "obviously safer" in the way a true standby Host
+would be. Finding
+#6 (alert on silent failure) continues toward an actual push notification rather than
+something you still have to go looking for, but hasn't gained a third mechanism since
+the last revision either.
+
+Finding #4's narrowing is real but bounded - this narrower swap - Remote Backup in
+place of File Copy Backup specifically, config backup/restore left exactly as-is - is a
+reasonable recommendation today. Whether it's one you'd call fully settled still depends
+on how much an outage lasting "however long it takes to attach a drive, restore
+settings.json, and run a Dry Run on a replacement Host" matters for your specific show
+network, which is a judgment call this document can narrow but not make for you.
 
 ## Revisiting this assessment
 

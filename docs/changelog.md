@@ -5,6 +5,59 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Added:** a Dry Run or backup that fails because a remote rejects this Host's current
+  SSH key (`Permission denied (publickey` - never pushed, or removed/overwritten on the
+  remote since) now auto-pushes the key, using whatever default password is configured,
+  and retries once on its own - for every path through `run_backup.sh` (scheduled, Dry
+  Run/Start Backup, Backup Now), not just one of them. Distinct from the existing
+  `rb_clear_stale_host_key()` handling, which is about a stale entry on *this Host's*
+  side (`known_hosts`); this is about the *remote* not trusting our key at all. If the
+  retry also fails (most often because the remote's real password differs from the
+  configured default), the normal error is reported and "Push SSH Key" on Config remains
+  the manual fallback, same as before. Meaningfully narrows [Recovering a Lost
+  Host](host-recovery.md)'s own procedure: a replacement Host's brand-new keypair now
+  gets pushed to most remotes automatically on the first Dry Run, rather than one manual
+  click per remote. Verified with a standalone harness (mocked `ssh_setup.sh`/`rsync`)
+  against three cases: key-rejected-then-repush-succeeds (retries and succeeds),
+  key-rejected-then-repush-also-fails (reports the original failure, doesn't swallow
+  it), and an unrelated failure like a connection timeout (never triggers a repush at
+  all). Updated [Replacing FPP's Native Backup: A Readiness
+  Assessment](backup-replacement-assessment.md)'s finding #4 and verdict sections, and
+  [Features & Safe Guards](features.md), to reflect this.
+
+- **Added:** every real backup run now writes `host-identity-backup.tar.gz` to the root
+  of the destination storage - a redacted copy of this Host's own `settings.json` (every
+  remote's hostname/address/selection, every other plugin option), with `sshPassword`
+  stripped. Addresses readiness-assessment finding #4 ("one Host is a single point of
+  failure for everyone"): if this Host is destroyed outright, a replacement can restore
+  it and skip reconfiguring the whole fleet from scratch, instead of starting from
+  nothing. Deliberately does NOT include this Host's own SSH keypair - copying the
+  private key onto a removable destination drive would turn a lost/stolen drive into a
+  working credential against every remote's `authorized_keys`, not just exposed backup
+  content the way losing it already can today, a real escalation not worth the
+  convenience. A replacement Host still generates its own fresh keypair and still needs
+  one "Push SSH Key" click per remote. New [Recovering a Lost
+  Host](host-recovery.md) doc walks through the full procedure, also linked from the
+  in-app F1 help and [Features & Safe Guards](features.md). Updated the [readiness
+  assessment](backup-replacement-assessment.md)'s finding #4 and both verdict sections to
+  reflect this as a real, bounded narrowing - the Host dying still stops every remote's
+  scheduled backup until someone carries the procedure out by hand, one remote's
+  re-authentication at a time.
+
+- **Docs:** re-evaluated [Replacing FPP's Native Backup: A Readiness Assessment
+  ](backup-replacement-assessment.md) against roughly two and a half months and 50+
+  merged changes since its last revision. Removed the "Explicitly Beta" finding (#3) -
+  real field use across 20-30 remotes, actual hardware failures, an FPP OS upgrade
+  (10.3 → 10.4), and a device reimage/rename, with every reported issue diagnosed and
+  fixed, is a real track record, not a version-number milestone. Explicitly does NOT
+  claim "bug-free": finding #9 now names two genuinely significant, field-reported bugs
+  closed in that window (the settings-wipe-on-reinstall bug and the known_hosts
+  corruption that silently broke the stale-host-key self-heal) rather than folding them
+  quietly into "more of the same." Finding #1 narrowed on the restore side only, given
+  FPP 10.4's new per-area restore picker (see below). Findings #2, #4, #5, #6 unchanged -
+  confirmed, not assumed, each still open. The narrower "replacing just File Copy Backup"
+  verdict is now a stronger, non-provisional recommendation once finding #4 (protect the
+  Host itself) gets a real answer, which still hasn't moved at all.
 - **Docs:** [Restoring a Backup](restoring-a-backup.md) and the in-app F1 help now note
   that FPP 10.4 added a per-area restore picker to File Copy Restore - checking
   Configuration on a restore now offers a dropdown (including "Show Setup (Playlists,

@@ -57,6 +57,7 @@ This mirrors the formal privacy declaration in [`pluginInfo.json`](pluginInfo.js
 - [Show Schedule Conflict Check](docs/schedule-conflict-check.md)
 - [Estimated Backup Times](docs/estimated-backup-times.md)
 - [Restoring a Backup](docs/restoring-a-backup.md)
+- [Recovering a Lost Host](docs/host-recovery.md)
 - [Log Files](docs/log-files.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Directory layout](docs/directory-layout.md)
