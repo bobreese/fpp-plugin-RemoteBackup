@@ -5,6 +5,23 @@
 Notable fixes and changes, newest first (this plugin tracks `master` directly rather
 than tagging releases, so this is a running list rather than versioned entries):
 
+- **Fixed:** a Scheduler-triggered backup could start while a clone to the secondary
+  drive was already running, racing against `clone_backups.sh`'s own read of the same
+  destination tree. `ajax.php`'s `start` action already refused this for a manual Dry
+  Run/Start Backup/Backup Now, but a scheduled run calls `run_backup.sh` directly and
+  never reaches that check at all - the same class of gap `docs/features.md`'s own
+  "Clone safety checks" entry already claimed was covered in both directions, which
+  wasn't actually true for this one path. Not data corruption if it raced (the clone
+  only ever reads), but a real risk of an inconsistent clone snapshot - a rolling-mode
+  folder caught mid-rename, or content missed because it was added after the clone's
+  file list was already built. `run_backup.sh` now checks `clone_active.json`
+  authoritatively itself, before Host Mode/destination checks, covering every trigger
+  path (Scheduler, manual, Backup Now) the same way. Added a bash-side `rb_is_active()`
+  to `lib_common.sh`, mirroring `ajax.php`'s own PHP version exactly (same
+  missing/invalid-file-is-not-active semantics), rather than duplicating the jq check
+  inline. Verified with a standalone harness against all three states
+  (active/inactive/missing file).
+
 - **Docs:** [Troubleshooting](troubleshooting.md#the-push-reports-success-but-backups-still-fail-with-permission-denied-publickey)'s
   existing "Permission denied (publickey)" entry predated the automatic key re-push and
   retry feature and was now misleading (described a manual-only fix for exactly the case

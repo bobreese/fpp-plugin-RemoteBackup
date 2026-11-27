@@ -165,6 +165,32 @@ if [ -n "$HALTED_REASON" ]; then
     exit 1
 fi
 
+# --- Refuse to start while a clone to the secondary drive is running ------
+# ajax.php's 'start' action already checks this synchronously and refuses
+# with a clear toast - but that's only reachable from the UI (Dry Run/Start
+# Backup/Backup Now). A Scheduler-triggered run calls this script directly
+# and never goes through that endpoint at all, so until now nothing stopped
+# a scheduled backup from starting while clone_backups.sh was mid-read of
+# this same destination tree - confirmed as a real gap, not a documented
+# design choice: the two scripts hold entirely separate locks (run.lock
+# here, clone.lock there) and clone_backups.sh already refuses to start
+# while a backup is running (checking run_active.json), but nothing
+# enforced the reverse direction. Not data corruption if it raced - rsync's
+# clone pass only ever reads real files - but a real risk of an
+# inconsistent snapshot: catching a rolling-mode folder mid-rename, missing
+# content added after the clone's file list was already built, or a noisy
+# "vanished source files" warning if a prune/retention step removed a
+# folder the clone was still reading. Applies to a Dry Run too, matching
+# ajax.php's own check exactly (not gated behind DRYRUN the way Host Mode's
+# check below is) - a dry run's own pre-flight space check and --link-dest
+# discovery still read the same destination tree the clone is mid-copy of.
+if rb_is_active "${DATA_DIR}/clone_active.json"; then
+    rb_log "ABORT: refusing to start - a backup clone to the secondary drive is currently in progress (clone_active.json)."
+    rb_email_run_refusal "a backup clone to the secondary drive is currently in progress"
+    echo "A Remote Backup run was refused: a backup clone to the secondary drive is currently in progress (it reads from this destination). Wait for it to finish before starting a backup." >&2
+    exit 1
+fi
+
 # --- Refuse a REAL run unless this system has Host Mode enabled -----------
 # Config's "Enable this system as the Remote Backup Host" checkbox saves
 # hostModeEnabled, but until now nothing ever read it back - a system with
