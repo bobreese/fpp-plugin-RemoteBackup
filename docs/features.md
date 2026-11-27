@@ -425,6 +425,12 @@ above for the selection-side half.
 Cloning to a second drive refuses to run at the same time as a backup run or a primary-drive
 format (it reads from the same destination those write to), and the reverse is also true -
 you can't start a backup, or format/unmount the primary drive, while a clone is running.
+Enforced authoritatively in `run_backup.sh` itself, not just the UI's own synchronous check
+- a real gap until this was added: a Scheduler-triggered run calls the script directly and
+never goes through the UI's check at all, so a scheduled backup could previously start while
+a clone was still mid-read of the same destination (not data corruption, since the clone only
+ever reads, but a real risk of an inconsistent snapshot - a rolling-mode folder caught
+mid-rename, or content added after the clone's file list was already built).
 It also refuses outright if the primary and secondary turn out to be the same physical
 drive, or one is nested inside the other's mountpoint - mirroring a directory into itself
 (or its own parent) with `rsync --delete` could otherwise corrupt or wipe every backup on

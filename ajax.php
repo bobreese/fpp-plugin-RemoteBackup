@@ -1391,6 +1391,12 @@ switch ($action) {
         if (rb_is_active("$DATA_DIR/run_active.json")) {
             rb_fail('A backup run is already in progress', 409);
         }
+        // Same "immediate, honest answer from the UI" reasoning as the Host
+        // Mode check above, and (confirmed after a real gap here) now
+        // actually backed by an authoritative check in run_backup.sh too,
+        // not just this one - a Scheduler-triggered run never reaches this
+        // endpoint at all, so without that it could start while
+        // clone_backups.sh was still mid-read of this same destination.
         if (rb_is_active("$DATA_DIR/clone_active.json")) {
             rb_fail('A backup clone to the secondary drive is currently in progress (it reads from this destination). Wait for it to finish before starting a backup.', 409);
         }

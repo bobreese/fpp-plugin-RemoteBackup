@@ -173,6 +173,17 @@ rb_now_iso() {
     date -u '+%Y-%m-%dT%H:%M:%SZ'
 }
 
+# rb_is_active <file>: reads a run_active.json-shaped {"active":true/false}
+# file and returns whether it's currently active (exit 0) or not (exit 1) -
+# the bash-side mirror of ajax.php's own rb_is_active(), same semantics
+# (missing/unreadable/invalid file is just "not active", no staleness
+# check), kept in sync so a script and the UI never disagree about
+# whether a run/clone/storage-op is in progress.
+rb_is_active() {
+    local file="$1"
+    [ -f "$file" ] && jq -e '.active == true' "$file" >/dev/null 2>&1
+}
+
 # rb_dest_root <destinationMount>: resolves the directory backups actually
 # live under, given the raw destinationMount setting.
 #
